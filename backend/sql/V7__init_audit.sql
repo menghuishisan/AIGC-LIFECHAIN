@@ -2,7 +2,7 @@
 -- V7: Audit, Trace, Support Domain
 -- =============================================================
 
-CREATE TABLE `trace_event` (
+CREATE TABLE IF NOT EXISTS `trace_event` (
     `id`                BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `biz_type`          VARCHAR(30)  NOT NULL               COMMENT '业务类型',
     `biz_id`            BIGINT       NOT NULL               COMMENT '业务ID',
@@ -24,7 +24,7 @@ CREATE TABLE `trace_event` (
     KEY `idx_event_time` (`event_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='追踪事件表';
 
-CREATE TABLE `audit_log` (
+CREATE TABLE IF NOT EXISTS `audit_log` (
     `id`            BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `target_type`   VARCHAR(30)  NOT NULL               COMMENT '目标类型',
     `target_id`     BIGINT       NOT NULL               COMMENT '目标ID',
@@ -48,7 +48,7 @@ CREATE TABLE `audit_log` (
     KEY `idx_log_time` (`log_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审计日志表';
 
-CREATE TABLE `status_history` (
+CREATE TABLE IF NOT EXISTS `status_history` (
     `id`            BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `biz_type`      VARCHAR(30)  NOT NULL               COMMENT '业务类型',
     `biz_id`        BIGINT       NOT NULL               COMMENT '业务ID',
@@ -68,7 +68,7 @@ CREATE TABLE `status_history` (
     KEY `idx_change_time` (`change_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='状态变更历史表';
 
-CREATE TABLE `sys_attachment` (
+CREATE TABLE IF NOT EXISTS `sys_attachment` (
     `id`           BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `biz_type`     VARCHAR(30)  NOT NULL               COMMENT '业务类型',
     `biz_id`       BIGINT       NOT NULL               COMMENT '业务ID',
@@ -91,7 +91,7 @@ CREATE TABLE `sys_attachment` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统附件表';
 
 
-CREATE TABLE `message_notice` (
+CREATE TABLE IF NOT EXISTS `message_notice` (
     `id`           BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `notice_no`    VARCHAR(64)  NOT NULL               COMMENT '通知编号',
     `account_id`   BIGINT       NOT NULL               COMMENT '接收账户ID',
@@ -115,7 +115,7 @@ CREATE TABLE `message_notice` (
     KEY `idx_send_time` (`send_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='消息通知表';
 
-CREATE TABLE `sys_config` (
+CREATE TABLE IF NOT EXISTS `sys_config` (
     `id`           BIGINT       NOT NULL                   COMMENT '主键（雪花ID）',
     `config_key`   VARCHAR(128) NOT NULL                   COMMENT '配置键',
     `config_value` TEXT         NOT NULL                   COMMENT '配置值',
@@ -131,7 +131,7 @@ CREATE TABLE `sys_config` (
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表';
 
-CREATE TABLE `chain_tx_record` (
+CREATE TABLE IF NOT EXISTS `chain_tx_record` (
     `id`                    BIGINT        NOT NULL               COMMENT '主键（雪花ID）',
     `biz_type`              VARCHAR(50)   NOT NULL               COMMENT '业务类型（BizTypeEnum）',
     `biz_id`                BIGINT        NOT NULL               COMMENT '业务ID',

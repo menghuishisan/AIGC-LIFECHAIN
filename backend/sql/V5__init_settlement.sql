@@ -2,7 +2,7 @@
 -- V5: Settlement Domain
 -- =============================================================
 
-CREATE TABLE `settle_template` (
+CREATE TABLE IF NOT EXISTS `settle_template` (
     `id`            BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `template_name` VARCHAR(128) NOT NULL               COMMENT '模板名称',
     `template_code` VARCHAR(64)  NOT NULL               COMMENT '模板编码',
@@ -15,7 +15,7 @@ CREATE TABLE `settle_template` (
     UNIQUE KEY `uk_template_code` (`template_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='结算模板表';
 
-CREATE TABLE `settle_template_item` (
+CREATE TABLE IF NOT EXISTS `settle_template_item` (
     `id`           BIGINT        NOT NULL               COMMENT '主键（雪花ID）',
     `template_id`  BIGINT        NOT NULL               COMMENT '结算模板ID',
     `role_type`    VARCHAR(30)   NOT NULL               COMMENT '角色类型(CREATOR/PLATFORM/OTHER)',
@@ -28,7 +28,7 @@ CREATE TABLE `settle_template_item` (
     KEY `idx_template_id` (`template_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='结算模板明细表';
 
-CREATE TABLE `work_settle_rule` (
+CREATE TABLE IF NOT EXISTS `work_settle_rule` (
     `id`                 BIGINT        NOT NULL               COMMENT '主键（雪花ID）',
     `work_id`            BIGINT        NOT NULL               COMMENT '作品ID',
     `work_no`            VARCHAR(64)   NOT NULL               COMMENT '作品编号',
@@ -48,7 +48,7 @@ CREATE TABLE `work_settle_rule` (
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='作品结算规则表';
 
-CREATE TABLE `settlement_record` (
+CREATE TABLE IF NOT EXISTS `settlement_record` (
     `id`            BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `settle_no`     VARCHAR(64)  NOT NULL               COMMENT '结算编号',
     `order_id`      BIGINT       NOT NULL               COMMENT '订单ID',
@@ -80,7 +80,7 @@ CREATE TABLE `settlement_record` (
     KEY `idx_request_id` (`request_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='结算记录表';
 
-CREATE TABLE `settlement_item` (
+CREATE TABLE IF NOT EXISTS `settlement_item` (
     `id`           BIGINT        NOT NULL               COMMENT '主键（雪花ID）',
     `settle_id`    BIGINT        NOT NULL               COMMENT '结算记录ID',
     `settle_no`    VARCHAR(64)   NOT NULL               COMMENT '结算编号',
@@ -99,7 +99,7 @@ CREATE TABLE `settlement_item` (
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='结算明细表';
 
-CREATE TABLE `reverse_settlement_record` (
+CREATE TABLE IF NOT EXISTS `reverse_settlement_record` (
     `id`             BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `reverse_no`     VARCHAR(64)  NOT NULL               COMMENT '逆分账编号',
     `settle_id`      BIGINT       NOT NULL               COMMENT '原结算ID',

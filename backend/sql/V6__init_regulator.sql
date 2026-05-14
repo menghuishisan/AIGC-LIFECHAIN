@@ -2,7 +2,7 @@
 -- V6: Regulator, Risk, Freeze, Dispute Domain
 -- =============================================================
 
-CREATE TABLE `risk_event` (
+CREATE TABLE IF NOT EXISTS `risk_event` (
     `id`               BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `risk_no`          VARCHAR(64)  NOT NULL               COMMENT '风险编号',
     `target_type`      VARCHAR(30)  NOT NULL               COMMENT '目标类型',
@@ -30,7 +30,7 @@ CREATE TABLE `risk_event` (
     KEY `idx_risk_type` (`risk_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='风险事件表';
 
-CREATE TABLE `freeze_record` (
+CREATE TABLE IF NOT EXISTS `freeze_record` (
     `id`               BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `freeze_no`        VARCHAR(64)  NOT NULL               COMMENT '冻结编号',
     `target_type`      VARCHAR(30)  NOT NULL               COMMENT '目标类型',
@@ -67,7 +67,7 @@ CREATE TABLE `freeze_record` (
     KEY `idx_apply_user_id` (`apply_user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='冻结记录表';
 
-CREATE TABLE `regulator_report` (
+CREATE TABLE IF NOT EXISTS `regulator_report` (
     `id`              BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `report_no`       VARCHAR(64)  NOT NULL               COMMENT '报告编号',
     `report_type`     VARCHAR(30)  NOT NULL               COMMENT '报告类型',
@@ -91,7 +91,7 @@ CREATE TABLE `regulator_report` (
     KEY `idx_generator_id` (`generator_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='监管报告表';
 
-CREATE TABLE `dispute_case` (
+CREATE TABLE IF NOT EXISTS `dispute_case` (
     `id`                     BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `case_no`                VARCHAR(64)  NOT NULL               COMMENT '争议案件编号',
     `order_id`               BIGINT                DEFAULT NULL  COMMENT '订单ID',
@@ -125,7 +125,7 @@ CREATE TABLE `dispute_case` (
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='争议案件表';
 
-CREATE TABLE `dispute_evidence` (
+CREATE TABLE IF NOT EXISTS `dispute_evidence` (
     `id`                   BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `case_id`              BIGINT       NOT NULL               COMMENT '争议案件ID',
     `case_no`              VARCHAR(64)  NOT NULL               COMMENT '争议案件编号',
@@ -144,7 +144,7 @@ CREATE TABLE `dispute_evidence` (
     KEY `idx_submitter_account_id` (`submitter_account_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='争议证据表';
 
-CREATE TABLE `dispute_process_record` (
+CREATE TABLE IF NOT EXISTS `dispute_process_record` (
     `id`            BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `case_id`       BIGINT       NOT NULL               COMMENT '争议案件ID',
     `case_no`       VARCHAR(64)  NOT NULL               COMMENT '争议案件编号',

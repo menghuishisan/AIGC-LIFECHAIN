@@ -2,7 +2,7 @@
 -- V2: Work & Claim Domain
 -- =============================================================
 
-CREATE TABLE `work` (
+CREATE TABLE IF NOT EXISTS `work` (
     `id`                 BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `work_no`            VARCHAR(64)  NOT NULL               COMMENT '作品编号',
     `creator_account_id` BIGINT       NOT NULL               COMMENT '创作者账户ID',
@@ -29,7 +29,7 @@ CREATE TABLE `work` (
     KEY `idx_file_hash` (`file_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='作品表';
 
-CREATE TABLE `work_file` (
+CREATE TABLE IF NOT EXISTS `work_file` (
     `id`           BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `work_id`      BIGINT       NOT NULL               COMMENT '作品ID',
     `file_name`    VARCHAR(256) NOT NULL               COMMENT '文件名',
@@ -48,7 +48,7 @@ CREATE TABLE `work_file` (
     KEY `idx_purpose` (`purpose`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='作品文件表';
 
-CREATE TABLE `work_aigc_meta` (
+CREATE TABLE IF NOT EXISTS `work_aigc_meta` (
     `id`                BIGINT        NOT NULL               COMMENT '主键（雪花ID）',
     `work_id`           BIGINT        NOT NULL               COMMENT '作品ID',
     `aigc_tool`         VARCHAR(128)           DEFAULT NULL  COMMENT 'AIGC工具名称',
@@ -64,7 +64,7 @@ CREATE TABLE `work_aigc_meta` (
     KEY `idx_work_id` (`work_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='作品AIGC元数据表';
 
-CREATE TABLE `work_feature` (
+CREATE TABLE IF NOT EXISTS `work_feature` (
     `id`              BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `work_id`         BIGINT       NOT NULL               COMMENT '作品ID',
     `feature_type`    VARCHAR(30)  NOT NULL               COMMENT '特征类型(PERCEPTUAL_HASH/FINGERPRINT/VECTOR)',
@@ -83,7 +83,7 @@ CREATE TABLE `work_feature` (
     KEY `idx_extract_status` (`extract_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='作品特征表';
 
-CREATE TABLE `work_similarity_check` (
+CREATE TABLE IF NOT EXISTS `work_similarity_check` (
     `id`               BIGINT        NOT NULL               COMMENT '主键（雪花ID）',
     `work_id`          BIGINT        NOT NULL               COMMENT '待检作品ID',
     `compared_work_id` BIGINT        NOT NULL               COMMENT '对比作品ID',
@@ -99,7 +99,7 @@ CREATE TABLE `work_similarity_check` (
     KEY `idx_check_result` (`check_result`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='作品相似度检测表';
 
-CREATE TABLE `claim_application` (
+CREATE TABLE IF NOT EXISTS `claim_application` (
     `id`                   BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `claim_no`             VARCHAR(64)  NOT NULL               COMMENT '确权编号',
     `work_id`              BIGINT       NOT NULL               COMMENT '作品ID',
@@ -134,7 +134,7 @@ CREATE TABLE `claim_application` (
     KEY `idx_chain_status` (`chain_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='确权申请表';
 
-CREATE TABLE `claim_review_record` (
+CREATE TABLE IF NOT EXISTS `claim_review_record` (
     `id`             BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `claim_id`       BIGINT       NOT NULL               COMMENT '确权申请ID',
     `reviewer_id`    BIGINT       NOT NULL               COMMENT '审核人ID',

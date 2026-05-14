@@ -47,6 +47,9 @@ docs/
 # === Environment & Secrets ===
 .env
 .env.*
+!.env.example
+!.env.development
+!.env.production
 *.pem
 *.key
 !contracts/scripts/*.sh

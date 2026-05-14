@@ -1,0 +1,220 @@
+# AIGC-LifeChain 统一开发环境
+#
+# 包含全部基础设施 + Fabric 区块链网络，一个 compose 统一管理
+#
+# 启动: docker compose --env-file ../backend/lifechain-app/.env up -d
+# 停止: docker compose --env-file ../backend/lifechain-app/.env down
+# 清空全部数据重来: docker compose --env-file ../backend/lifechain-app/.env down -v
+#
+# 端口规划（避免与其他项目冲突）:
+#   MySQL    -> 3307
+#   Redis    -> 6380
+#   MinIO    -> 9020 (API) / 9021 (Console)
+#   Orderer  -> 7050
+#   Peer Org1 -> 7051 / 7052
+#   Peer Org2 -> 9051 / 9052
+#   CA Org1  -> 7054
+#   CA Org2  -> 9054
+#
+# 所有环境变量统一从 backend/lifechain-app/.env 读取
+# 启动时必须加 --env-file ../backend/lifechain-app/.env
+
+networks:
+  lifechain-net:
+    driver: bridge
+
+volumes:
+  lifechain-mysql-data:
+  lifechain-redis-data:
+  lifechain-minio-data:
+  lifechain-orderer-data:
+  lifechain-peer0-org1-data:
+  lifechain-peer0-org2-data:
+
+services:
+  # ======================== 基础设施 ========================
+
+  lifechain-mysql:
+    container_name: lifechain-mysql
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-lifechain}
+    ports:
+      - "3307:3306"
+    volumes:
+      - lifechain-mysql-data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - lifechain-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  lifechain-redis:
+    container_name: lifechain-redis
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - lifechain-redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - lifechain-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  lifechain-minio:
+    container_name: lifechain-minio
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports:
+      - "9020:9000"
+      - "9021:9001"
+    volumes:
+      - lifechain-minio-data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - lifechain-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ======================== Fabric 区块链网络 ========================
+
+  orderer.lifechain.com:
+    container_name: orderer.lifechain.com
+    image: hyperledger/fabric-orderer:2.5
+    environment:
+      - FABRIC_LOGGING_SPEC=INFO
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=7050
+      - ORDERER_GENERAL_GENESISFILE=/var/hyperledger/orderer/genesis.block
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+      - ORDERER_GENERAL_TLS_ENABLED=false
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/orderer
+    command: orderer
+    volumes:
+      - ./fabric/channel-artifacts/genesis.block:/var/hyperledger/orderer/genesis.block
+      - ./fabric/crypto-config/ordererOrganizations/lifechain.com/orderers/orderer.lifechain.com/msp:/var/hyperledger/orderer/msp
+      - lifechain-orderer-data:/var/hyperledger/production/orderer
+    ports:
+      - "7050:7050"
+    networks:
+      - lifechain-net
+    restart: unless-stopped
+
+  peer0.org1.lifechain.com:
+    container_name: peer0.org1.lifechain.com
+    image: hyperledger/fabric-peer:2.5
+    environment:
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_ID=peer0.org1.lifechain.com
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=infra_lifechain-net
+      - CORE_PEER_ADDRESS=peer0.org1.lifechain.com:7051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:7051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.org1.lifechain.com:7052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.org1.lifechain.com:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.org1.lifechain.com:7051
+      - CORE_OPERATIONS_LISTENADDRESS=0.0.0.0:17051
+      - CORE_PEER_LOCALMSPID=Org1MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_PEER_TLS_ENABLED=false
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: peer node start
+    volumes:
+      - ./fabric/crypto-config/peerOrganizations/org1.lifechain.com/peers/peer0.org1.lifechain.com/msp:/etc/hyperledger/fabric/msp
+      - /var/run/docker.sock:/var/run/docker.sock
+      - lifechain-peer0-org1-data:/var/hyperledger/production
+    ports:
+      - "7051:7051"
+      - "17051:17051"
+      - "7052:7052"
+    networks:
+      - lifechain-net
+    depends_on:
+      - orderer.lifechain.com
+    restart: unless-stopped
+
+  peer0.org2.lifechain.com:
+    container_name: peer0.org2.lifechain.com
+    image: hyperledger/fabric-peer:2.5
+    environment:
+      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_PEER_ID=peer0.org2.lifechain.com
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=infra_lifechain-net
+      - CORE_PEER_ADDRESS=peer0.org2.lifechain.com:9051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:9051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.org2.lifechain.com:9052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:9052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.org2.lifechain.com:9051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.org2.lifechain.com:9051
+      - CORE_OPERATIONS_LISTENADDRESS=0.0.0.0:19051
+      - CORE_PEER_LOCALMSPID=Org2MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_PEER_TLS_ENABLED=false
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: peer node start
+    volumes:
+      - ./fabric/crypto-config/peerOrganizations/org2.lifechain.com/peers/peer0.org2.lifechain.com/msp:/etc/hyperledger/fabric/msp
+      - /var/run/docker.sock:/var/run/docker.sock
+      - lifechain-peer0-org2-data:/var/hyperledger/production
+    ports:
+      - "9051:9051"
+      - "19051:19051"
+      - "9052:9052"
+    networks:
+      - lifechain-net
+    depends_on:
+      - orderer.lifechain.com
+    restart: unless-stopped
+
+  ca.org1.lifechain.com:
+    container_name: ca.org1.lifechain.com
+    image: hyperledger/fabric-ca:1.5.7
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-org1
+      - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.org1.lifechain.com-cert.pem
+      - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/priv_sk
+      - FABRIC_CA_SERVER_TLS_ENABLED=false
+    ports:
+      - "7054:7054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ./fabric/crypto-config/peerOrganizations/org1.lifechain.com/ca/:/etc/hyperledger/fabric-ca-server-config
+    networks:
+      - lifechain-net
+    restart: unless-stopped
+
+  ca.org2.lifechain.com:
+    container_name: ca.org2.lifechain.com
+    image: hyperledger/fabric-ca:1.5.7
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-org2
+      - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.org2.lifechain.com-cert.pem
+      - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/priv_sk
+      - FABRIC_CA_SERVER_TLS_ENABLED=false
+    ports:
+      - "9054:9054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ./fabric/crypto-config/peerOrganizations/org2.lifechain.com/ca/:/etc/hyperledger/fabric-ca-server-config
+    networks:
+      - lifechain-net
+    restart: unless-stopped

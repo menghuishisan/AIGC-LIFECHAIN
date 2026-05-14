@@ -2,7 +2,7 @@
 -- V3: Certificate & Verify Domain
 -- =============================================================
 
-CREATE TABLE `certificate` (
+CREATE TABLE IF NOT EXISTS `certificate` (
     `id`                BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `cert_no`           VARCHAR(64)  NOT NULL               COMMENT '证书编号',
     `work_id`           BIGINT       NOT NULL               COMMENT '作品ID',
@@ -32,7 +32,7 @@ CREATE TABLE `certificate` (
     KEY `idx_cert_hash` (`cert_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='证书表';
 
-CREATE TABLE `certificate_template` (
+CREATE TABLE IF NOT EXISTS `certificate_template` (
     `id`               BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `template_name`    VARCHAR(128) NOT NULL               COMMENT '模板名称',
     `template_code`    VARCHAR(64)  NOT NULL               COMMENT '模板编码',
@@ -46,7 +46,7 @@ CREATE TABLE `certificate_template` (
     UNIQUE KEY `uk_template_code` (`template_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='证书模板表';
 
-CREATE TABLE `verify_query_log` (
+CREATE TABLE IF NOT EXISTS `verify_query_log` (
     `id`               BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `query_type`       VARCHAR(30)  NOT NULL               COMMENT '查询类型(CERT_NO/WORK_NO/FILE_HASH)',
     `query_value`      VARCHAR(256) NOT NULL               COMMENT '查询值',

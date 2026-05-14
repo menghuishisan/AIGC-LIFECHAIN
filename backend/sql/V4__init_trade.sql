@@ -2,7 +2,7 @@
 -- V4: Trade & License Domain
 -- =============================================================
 
-CREATE TABLE `license_template` (
+CREATE TABLE IF NOT EXISTS `license_template` (
     `id`                BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `template_name`     VARCHAR(128) NOT NULL               COMMENT '模板名称',
     `template_code`     VARCHAR(64)  NOT NULL               COMMENT '模板编码',
@@ -22,7 +22,7 @@ CREATE TABLE `license_template` (
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='授权模板表';
 
-CREATE TABLE `work_listing` (
+CREATE TABLE IF NOT EXISTS `work_listing` (
     `id`                  BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `listing_no`          VARCHAR(64)  NOT NULL               COMMENT '上架编号',
     `work_id`             BIGINT       NOT NULL               COMMENT '作品ID',
@@ -53,7 +53,7 @@ CREATE TABLE `work_listing` (
     KEY `idx_license_type` (`license_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='作品上架表';
 
-CREATE TABLE `trade_order` (
+CREATE TABLE IF NOT EXISTS `trade_order` (
     `id`                  BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `order_no`            VARCHAR(64)  NOT NULL               COMMENT '订单编号',
     `work_id`             BIGINT       NOT NULL               COMMENT '作品ID',
@@ -92,7 +92,7 @@ CREATE TABLE `trade_order` (
     KEY `idx_request_id` (`request_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='交易订单表';
 
-CREATE TABLE `trade_order_snapshot` (
+CREATE TABLE IF NOT EXISTS `trade_order_snapshot` (
     `id`            BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `order_id`      BIGINT       NOT NULL               COMMENT '订单ID',
     `order_no`      VARCHAR(64)  NOT NULL               COMMENT '订单编号',
@@ -109,7 +109,7 @@ CREATE TABLE `trade_order_snapshot` (
     KEY `idx_snapshot_type` (`snapshot_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='交易订单快照表';
 
-CREATE TABLE `payment_record` (
+CREATE TABLE IF NOT EXISTS `payment_record` (
     `id`               BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `payment_no`       VARCHAR(64)  NOT NULL               COMMENT '支付编号',
     `order_id`         BIGINT       NOT NULL               COMMENT '订单ID',
@@ -139,7 +139,7 @@ CREATE TABLE `payment_record` (
     KEY `idx_request_id` (`request_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='支付记录表';
 
-CREATE TABLE `license_record` (
+CREATE TABLE IF NOT EXISTS `license_record` (
     `id`                   BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `license_no`           VARCHAR(64)  NOT NULL               COMMENT '授权编号',
     `order_id`             BIGINT       NOT NULL               COMMENT '订单ID',
@@ -174,7 +174,7 @@ CREATE TABLE `license_record` (
     KEY `idx_request_id` (`request_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='授权记录表';
 
-CREATE TABLE `refund_record` (
+CREATE TABLE IF NOT EXISTS `refund_record` (
     `id`              BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `refund_no`       VARCHAR(64)  NOT NULL               COMMENT '退款编号',
     `order_id`        BIGINT       NOT NULL               COMMENT '订单ID',

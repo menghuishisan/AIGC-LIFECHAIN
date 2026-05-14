@@ -2,7 +2,7 @@
 -- V1: Account & Identity Domain
 -- =============================================================
 
-CREATE TABLE `account` (
+CREATE TABLE IF NOT EXISTS `account` (
     `id`              BIGINT       NOT NULL                COMMENT '主键（雪花ID）',
     `account_no`      VARCHAR(64)  NOT NULL                COMMENT '账户编号',
     `mobile`          VARCHAR(20)  NOT NULL                COMMENT '手机号',
@@ -27,7 +27,7 @@ CREATE TABLE `account` (
     KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账户表';
 
-CREATE TABLE `subject_profile` (
+CREATE TABLE IF NOT EXISTS `subject_profile` (
     `id`                BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `subject_no`        VARCHAR(64)  NOT NULL               COMMENT '主体编号',
     `account_id`        BIGINT       NOT NULL               COMMENT '关联账户ID',
@@ -50,7 +50,7 @@ CREATE TABLE `subject_profile` (
     KEY `idx_enterprise_code` (`enterprise_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='主体信息表';
 
-CREATE TABLE `subject_auth_record` (
+CREATE TABLE IF NOT EXISTS `subject_auth_record` (
     `id`             BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `subject_id`     BIGINT       NOT NULL               COMMENT '关联主体ID',
     `auth_action`    VARCHAR(30)  NOT NULL               COMMENT '认证动作',
@@ -69,7 +69,7 @@ CREATE TABLE `subject_auth_record` (
     KEY `idx_reviewer_id` (`reviewer_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='主体认证记录表';
 
-CREATE TABLE `account_role` (
+CREATE TABLE IF NOT EXISTS `account_role` (
     `id`           BIGINT      NOT NULL               COMMENT '主键（雪花ID）',
     `account_id`   BIGINT      NOT NULL               COMMENT '账户ID',
     `role_code`    VARCHAR(30) NOT NULL               COMMENT '角色编码(CREATOR/BUYER/PLATFORM_ADMIN/REGULATOR)',
@@ -85,7 +85,7 @@ CREATE TABLE `account_role` (
     KEY `idx_account_role` (`account_id`, `role_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='账户角色表';
 
-CREATE TABLE `did_record` (
+CREATE TABLE IF NOT EXISTS `did_record` (
     `id`             BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `did_no`         VARCHAR(64)  NOT NULL               COMMENT 'DID编号',
     `did_value`      VARCHAR(256) NOT NULL               COMMENT 'DID标识值',

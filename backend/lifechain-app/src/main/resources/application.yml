@@ -17,12 +17,11 @@ spring:
         size: 5
 
   datasource:
-    # 业务数据库连接地址：协议 + 主机 + 端口 + 库名 + 连接参数
-    # 注意根据你的 MySQL 实际地址、端口、库名修改
-    url: jdbc:mysql://localhost:3306/lifechain?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    # 业务数据库连接地址，支持通过环境变量 DB_HOST / DB_PORT / DB_NAME 覆盖
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:lifechain}?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     # 数据库用户名
-    username: root
-    # 数据库密码，必须通过环境变量 DB_PASSWORD 注入，不提供默认值
+    username: ${DB_USER:root}
+    # 数据库密码，必须通过环境变量 DB_PASSWORD 注入
     password: ${DB_PASSWORD:}
     # MySQL 8 对应的 JDBC 驱动类
     driver-class-name: com.mysql.cj.jdbc.Driver
