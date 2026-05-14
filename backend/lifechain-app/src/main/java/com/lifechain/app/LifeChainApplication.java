@@ -15,7 +15,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * @author LifeChain
  */
 @SpringBootApplication(scanBasePackages = "com.lifechain")
-@MapperScan("com.lifechain")
+@MapperScan(basePackages = "com.lifechain", annotationClass = org.apache.ibatis.annotations.Mapper.class)
 @EnableScheduling
 public class LifeChainApplication {
 

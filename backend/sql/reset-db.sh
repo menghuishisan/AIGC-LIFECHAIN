@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SQL_DIR="$SCRIPT_DIR"
 
 # 加载 .env
-ENV_FILE="$SCRIPT_DIR/../lifechain-app/.env"
+ENV_FILE="$SCRIPT_DIR/../.env"
 if [[ -f "$ENV_FILE" ]]; then
   set -a
   source <(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$')

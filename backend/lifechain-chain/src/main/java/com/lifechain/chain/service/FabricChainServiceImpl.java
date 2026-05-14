@@ -11,12 +11,12 @@ import com.lifechain.common.enums.ChainStatusEnum;
 import com.lifechain.common.enums.ErrorCodeEnum;
 import com.lifechain.common.exception.BizException;
 import com.lifechain.common.util.DateTimeUtil;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hyperledger.fabric.gateway.Contract;
 import org.hyperledger.fabric.gateway.ContractException;
 import org.hyperledger.fabric.gateway.Network;
 import org.hyperledger.fabric.gateway.Transaction;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -35,13 +35,22 @@ import java.util.concurrent.TimeoutException;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class FabricChainServiceImpl implements FabricChainService {
 
     private final Network network;
     private final ChainTxRecordService chainTxRecordService;
     private final ChainTxRecordMapper chainTxRecordMapper;
     private final ChainReceiptProcessor chainReceiptProcessor;
+
+    public FabricChainServiceImpl(Network network,
+                                  ChainTxRecordService chainTxRecordService,
+                                  ChainTxRecordMapper chainTxRecordMapper,
+                                  @Lazy ChainReceiptProcessor chainReceiptProcessor) {
+        this.network = network;
+        this.chainTxRecordService = chainTxRecordService;
+        this.chainTxRecordMapper = chainTxRecordMapper;
+        this.chainReceiptProcessor = chainReceiptProcessor;
+    }
 
     /**
      * {@inheritDoc}

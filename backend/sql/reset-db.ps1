@@ -14,7 +14,7 @@ param(
 
 # 加载 .env
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$EnvFile = Join-Path $ScriptDir "..\lifechain-app\.env"
+$EnvFile = Join-Path $ScriptDir "..\.env"
 if (Test-Path $EnvFile) {
     Get-Content $EnvFile | ForEach-Object {
         if ($_ -match '^\s*([^#][^=]+)=(.*)$') {

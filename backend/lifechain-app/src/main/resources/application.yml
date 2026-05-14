@@ -152,18 +152,6 @@ lifechain:
     # 仅开发联调时开启，开启后验证码会写入日志，生产环境必须保持关闭
     dev-mode: ${SMS_DEV_MODE:false}
 
-app:
-  file:
-    # 上传策略缓存有效期，过期后客户端必须重新申请上传地址
-    upload-policy-expire-minutes: 30
-  security:
-    # 仅在可信反向代理会清洗转发头的情况下开启
-    trust-forward-headers: ${TRUST_FORWARD_HEADERS:false}
-  cors:
-    # 允许的跨域来源，多个值逗号分隔，生产环境通过环境变量 CORS_ALLOWED_ORIGINS 注入
-    allowed-origins:
-      - ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
-
   # Hyperledger Fabric 区块链配置
   fabric:
     # Fabric 网络连接配置文件路径（开发环境默认指向 backend/runtime-config/fabric/org1）
@@ -192,6 +180,18 @@ app:
     workerId: ${SNOWFLAKE_WORKER_ID:1}
     # 雪花算法数据中心 ID，用于区分不同机房/区域
     datacenterId: ${SNOWFLAKE_DATACENTER_ID:1}
+
+app:
+  file:
+    # 上传策略缓存有效期，过期后客户端必须重新申请上传地址
+    upload-policy-expire-minutes: 30
+  security:
+    # 仅在可信反向代理会清洗转发头的情况下开启
+    trust-forward-headers: ${TRUST_FORWARD_HEADERS:false}
+  cors:
+    # 允许的跨域来源，多个值逗号分隔，生产环境通过环境变量 CORS_ALLOWED_ORIGINS 注入
+    allowed-origins:
+      - ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
 
 # 日志配置
 logging:

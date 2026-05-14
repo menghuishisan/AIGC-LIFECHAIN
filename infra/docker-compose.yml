@@ -2,9 +2,9 @@
 #
 # 包含全部基础设施 + Fabric 区块链网络，一个 compose 统一管理
 #
-# 启动: docker compose --env-file ../backend/lifechain-app/.env up -d
-# 停止: docker compose --env-file ../backend/lifechain-app/.env down
-# 清空全部数据重来: docker compose --env-file ../backend/lifechain-app/.env down -v
+# 启动: docker compose --env-file ../backend/.env up -d
+# 停止: docker compose --env-file ../backend/.env down
+# 清空全部数据重来: docker compose --env-file ../backend/.env down -v
 #
 # 端口规划（避免与其他项目冲突）:
 #   MySQL    -> 3307
@@ -16,8 +16,8 @@
 #   CA Org1  -> 7054
 #   CA Org2  -> 9054
 #
-# 所有环境变量统一从 backend/lifechain-app/.env 读取
-# 启动时必须加 --env-file ../backend/lifechain-app/.env
+# 所有环境变量统一从 backend/.env 读取
+# 启动时必须加 --env-file ../backend/.env
 
 networks:
   lifechain-net:
