@@ -1,0 +1,237 @@
+server:
+  # 应用对外提供服务的 HTTP 端口，前端、Postman 都通过这个端口访问后端接口
+  port: 8080
+  servlet:
+    # 应用的根上下文路径，/ 表示接口路径从根开始，例如 /api/xxx
+    context-path: /
+
+spring:
+  application:
+    # Spring 应用名，用于日志、注册监控、链路追踪中标识当前服务
+    name: lifechain
+
+  task:
+    scheduling:
+      pool:
+        # 定时任务线程池大小，防止多个 @Scheduled 任务互相阻塞（项目有3个定时任务）
+        size: 5
+
+  datasource:
+    # 业务数据库连接地址：协议 + 主机 + 端口 + 库名 + 连接参数
+    # 注意根据你的 MySQL 实际地址、端口、库名修改
+    url: jdbc:mysql://localhost:3306/lifechain?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    # 数据库用户名
+    username: root
+    # 数据库密码，必须通过环境变量 DB_PASSWORD 注入，不提供默认值
+    password: ${DB_PASSWORD:}
+    # MySQL 8 对应的 JDBC 驱动类
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # Hikari 连接池中保持的最小空闲连接数
+      minimum-idle: 5
+      # 连接池中允许的最大连接数
+      maximum-pool-size: 20
+      # 空闲连接在被回收前允许存活的时间（毫秒）
+      idle-timeout: 30000
+      # 单个连接的最长存活时间（毫秒）
+      max-lifetime: 1800000
+      # 客户端获取连接的最大等待时间（毫秒），超时会抛出异常
+      connection-timeout: 30000
+
+  data:
+    redis:
+      # Redis 主机地址，支持通过环境变量 REDIS_HOST 覆盖
+      host: ${REDIS_HOST:localhost}
+      # Redis 端口，支持通过环境变量 REDIS_PORT 覆盖
+      port: ${REDIS_PORT:6379}
+      # 使用的 Redis 数据库索引，默认 0 号库
+      database: 0
+      # Redis 操作超时时间
+      timeout: 5000ms
+      lettuce:
+        pool:
+          # 连接池最大活动连接数
+          max-active: 16
+          # 连接池最大空闲连接数
+          max-idle: 8
+          # 连接池最小空闲连接数
+          min-idle: 2
+
+  jackson:
+    # 全局日期时间序列化格式
+    date-format: yyyy-MM-dd HH:mm:ss
+    # 统一使用的时区（这里是 UTC）
+    time-zone: UTC
+    # JSON 序列化时只输出非空字段
+    default-property-inclusion: non_null
+    serialization:
+      # 日期不使用时间戳，而是使用可读字符串格式
+      write-dates-as-timestamps: false
+
+  servlet:
+    multipart:
+      # 单个上传文件允许的最大大小
+      max-file-size: 500MB
+      # 单次请求（所有文件之和）允许的最大大小
+      max-request-size: 500MB
+
+mybatis-plus:
+  # Mapper XML 文件扫描路径
+  mapper-locations: classpath*:mapper/**/*.xml
+  global-config:
+    db-config:
+      # 主键生成策略，这里使用 MyBatis-Plus 的雪花 ID（assign_id）
+      id-type: assign_id
+      # 逻辑删除标记字段名
+      logic-delete-field: deletedFlag
+      # 被视为“已删除”的字段值
+      logic-delete-value: 1
+      # 被视为“未删除”的字段值
+      logic-not-delete-value: 0
+  configuration:
+    # 下划线字段名自动映射为驼峰属性名（如 user_name -> userName）
+    map-underscore-to-camel-case: true
+    # MyBatis 日志实现，这里输出到 SLF4J（控制台日志）
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+# MinIO 对象存储配置：用于保存作品文件、证书等大文件
+minio:
+  # MinIO 服务访问地址，支持通过环境变量 MINIO_ENDPOINT 覆盖
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  # MinIO 访问密钥 AccessKey，必须通过环境变量 MINIO_ACCESS_KEY 注入
+  accessKey: ${MINIO_ACCESS_KEY}
+  # MinIO 访问密钥 SecretKey，必须通过环境变量 MINIO_SECRET_KEY 注入
+  secretKey: ${MINIO_SECRET_KEY}
+  # 默认使用的桶名称，用于区分不同项目数据
+  bucketName: ${MINIO_BUCKET:lifechain}
+
+# 平台业务配置：JWT、支付、区块链、雪花 ID 等
+lifechain:
+  jwt:
+    # JWT 签名密钥，必须通过环境变量 JWT_SECRET 注入，不提供默认值
+    # 生成方式：openssl rand -base64 64
+    secret: ${JWT_SECRET}
+    # 令牌有效期（小时），默认为 24 小时
+    expire-hours: 24
+    # JWT 签发方标识，用于校验 token 来源
+    issuer: lifechain
+
+  # 支付配置：对接微信支付与支付宝支付
+  pay:
+    wechat:
+      # 微信支付应用的 AppId
+      appId: ${WECHAT_APP_ID:}
+      # 微信商户号 MchId
+      mchId: ${WECHAT_MCH_ID:}
+      # 微信支付 API v3 密钥（用于回调解密）
+      apiV3Key: ${WECHAT_API_V3_KEY:}
+      # 微信商户 API 证书序列号
+      serialNumber: ${WECHAT_SERIAL_NUMBER:}
+      # 微信商户 API 私钥文件路径
+      privateKeyPath: ${WECHAT_PRIVATE_KEY_PATH:}
+      # 微信支付平台证书文件路径
+      certificatePath: ${WECHAT_CERTIFICATE_PATH:}
+      # 微信支付异步回调地址（需要公网可访问）
+      notifyUrl: ${WECHAT_NOTIFY_URL:http://localhost:8080/api/payments/wechat/callback}
+      # 微信退款异步回调地址（需要公网可访问）
+      refundNotifyUrl: ${WECHAT_REFUND_NOTIFY_URL:http://localhost:8080/api/payments/wechat/callback}
+    alipay:
+      # 支付宝应用的 AppId
+      appId: ${ALIPAY_APP_ID:}
+      # 商户私钥，用于生成签名
+      privateKey: ${ALIPAY_PRIVATE_KEY:}
+      # 支付宝公钥，用于验签
+      alipayPublicKey: ${ALIPAY_PUBLIC_KEY:}
+      # 支付宝支付异步回调地址（需要公网可访问）
+      notifyUrl: ${ALIPAY_NOTIFY_URL:http://localhost:8080/api/payments/alipay/callback}
+      # 支付宝退款异步回调地址（需要公网可访问）
+      refundNotifyUrl: ${ALIPAY_REFUND_NOTIFY_URL:http://localhost:8080/api/payments/alipay/callback}
+      # 支付宝网关地址，正式环境与沙箱环境地址不同
+      serverUrl: ${ALIPAY_SERVER_URL:https://openapi.alipay.com/gateway.do}
+
+  sms:
+    # 仅开发联调时开启，开启后验证码会写入日志，生产环境必须保持关闭
+    dev-mode: ${SMS_DEV_MODE:false}
+
+app:
+  file:
+    # 上传策略缓存有效期，过期后客户端必须重新申请上传地址
+    upload-policy-expire-minutes: 30
+  security:
+    # 仅在可信反向代理会清洗转发头的情况下开启
+    trust-forward-headers: ${TRUST_FORWARD_HEADERS:false}
+  cors:
+    # 允许的跨域来源，多个值逗号分隔，生产环境通过环境变量 CORS_ALLOWED_ORIGINS 注入
+    allowed-origins:
+      - ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+  # Hyperledger Fabric 区块链配置
+  fabric:
+    # Fabric 网络连接配置文件路径（开发环境默认指向 backend/runtime-config/fabric/org1）
+    # 生产/测试环境请通过 FABRIC_NETWORK_CONFIG 显式覆盖
+    networkConfigPath: ${FABRIC_NETWORK_CONFIG:./runtime-config/fabric/org1/connection-org1.json}
+    # 使用的通道名称
+    channelName: ${FABRIC_CHANNEL:lifechainchannel}
+    # 默认使用的链码调用用户 ID
+    userId: ${FABRIC_USER:admin}
+    # 组织 MSP 标识
+    mspId: ${FABRIC_MSP:Org1MSP}
+    # 用户 X509 证书 PEM 文件路径（开发环境默认指向 backend/runtime-config/fabric/org1）
+    certPath: ${FABRIC_CERT_PATH:./runtime-config/fabric/org1/admin-cert.pem}
+    # 用户私钥 PEM 文件路径（开发环境默认指向 backend/runtime-config/fabric/org1）
+    keyPath: ${FABRIC_KEY_PATH:./runtime-config/fabric/org1/admin-key.pem}
+    # Peer 节点地址（当前开发网络使用 Org1 Peer）
+    peerEndpoint: ${FABRIC_PEER:localhost:7051}
+    # TLS CA 证书路径（如启用 TLS，否则留空）
+    tlsCertPath: ${FABRIC_TLS_CERT:}
+    # TLS 主机名覆盖（开发/测试环境使用）
+    overrideAuth: ${FABRIC_OVERRIDE_AUTH:peer0.org1.lifechain.com}
+
+  # 雪花ID配置
+  snowflake:
+    # 雪花算法 WorkerId，用于区分不同实例
+    workerId: ${SNOWFLAKE_WORKER_ID:1}
+    # 雪花算法数据中心 ID，用于区分不同机房/区域
+    datacenterId: ${SNOWFLAKE_DATACENTER_ID:1}
+
+# 日志配置
+logging:
+  level:
+    # 全局默认日志级别
+    root: INFO
+    # 业务代码包的日志级别（更详细）
+    com.lifechain: DEBUG
+    # Spring Security 相关日志级别
+    org.springframework.security: INFO
+  pattern:
+    # 控制台日志输出格式：时间、线程、级别、类名、消息
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Actuator 监控配置
+management:
+  endpoints:
+    web:
+      exposure:
+        # 对外暴露的监控端点列表（health、info、metrics）
+        include: health,info,metrics
+  endpoint:
+    health:
+      # 仅在授权时展示健康检查详情
+      show-details: when_authorized
+
+# SpringDoc API文档配置
+springdoc:
+  api-docs:
+    # OpenAPI 文档访问路径
+    path: /v3/api-docs
+    # 是否启用 API 文档，生产环境通过环境变量 SWAGGER_ENABLED=false 关闭
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    # Swagger UI 访问路径
+    path: /swagger-ui.html
+    # 是否启用 Swagger UI，生产环境通过环境变量 SWAGGER_ENABLED=false 关闭
+    enabled: ${SWAGGER_ENABLED:false}
+    # 标签排序方式：按字母排序
+    tags-sorter: alpha
+    # 接口操作排序方式：按字母排序
+    operations-sorter: alpha

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.lifechain</groupId>
+        <artifactId>lifechain-backend</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>lifechain-auth</artifactId>
+    <name>LifeChain Auth</name>
+    <description>用户与身份管理：账户、认证、角色、DID</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.lifechain</groupId>
+            <artifactId>lifechain-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.lifechain</groupId>
+            <artifactId>lifechain-infra</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.lifechain</groupId>
+            <artifactId>lifechain-chain</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>

@@ -1,0 +1,191 @@
+/**
+ * 全局样式
+ */
+@use './variables' as *;
+
+/* 重置与基础 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: $font-family-cn;
+  font-size: 14px;
+  color: $text-primary;
+  background-color: $page-bg;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  height: 100%;
+}
+
+/* 等宽字体（编号、哈希等） */
+.font-mono {
+  font-family: $font-family-mono;
+}
+
+/* 状态标签通用样式 */
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+
+  &--success {
+    background: rgba(30, 142, 90, 0.1);
+    color: $color-success;
+  }
+  &--warning {
+    background: rgba(201, 138, 18, 0.1);
+    color: $color-warning;
+  }
+  &--danger {
+    background: rgba(196, 71, 61, 0.1);
+    color: $color-danger;
+  }
+  &--frozen {
+    background: rgba(139, 61, 61, 0.1);
+    color: $color-frozen;
+  }
+  &--pending {
+    background: rgba(79, 109, 184, 0.1);
+    color: $color-pending;
+  }
+  &--draft {
+    background: rgba(122, 134, 145, 0.1);
+    color: $color-draft;
+  }
+  &--chain {
+    background: rgba(11, 127, 162, 0.1);
+    color: $chain-info-color;
+  }
+}
+
+/* 卡片基础样式 */
+.lc-card {
+  background: $content-white;
+  border-radius: $border-radius-lg;
+  box-shadow: $card-shadow;
+  padding: $content-padding;
+  transition: box-shadow 0.3s ease;
+
+  &:hover {
+    box-shadow: $card-shadow-hover;
+  }
+
+  &__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: $text-primary;
+    margin-bottom: 16px;
+  }
+}
+
+/* 链上信息卡特殊底色 */
+.chain-info-card {
+  background: $brand-light-bg;
+  border-radius: $border-radius-md;
+  padding: 16px;
+}
+
+/* 页面头部 */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+
+  &__title {
+    font-size: 20px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  &__desc {
+    font-size: 13px;
+    color: $text-secondary;
+    margin-top: 4px;
+  }
+}
+
+/* 筛选栏 */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 16px;
+  background: $content-white;
+  border-radius: $border-radius-md;
+}
+
+/* 指标卡行 */
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: $card-gap;
+  margin-bottom: $card-gap;
+}
+
+.metric-card {
+  background: $content-white;
+  border-radius: $border-radius-md;
+  padding: 20px;
+  box-shadow: $card-shadow;
+
+  &__value {
+    font-size: 28px;
+    font-weight: 700;
+    color: $text-primary;
+    font-family: $font-family-mono;
+  }
+
+  &__label {
+    font-size: 13px;
+    color: $text-secondary;
+    margin-top: 4px;
+  }
+}
+
+/* Element Plus 覆盖 */
+.el-button--primary {
+  --el-button-bg-color: #{$brand-primary};
+  --el-button-border-color: #{$brand-primary};
+  --el-button-hover-bg-color: #{$brand-dark};
+  --el-button-hover-border-color: #{$brand-dark};
+}
+
+/* 表格行高与封面缩略图 */
+.el-table {
+  .cover-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
+  }
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

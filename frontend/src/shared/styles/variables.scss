@@ -1,0 +1,65 @@
+/**
+ * 全局样式变量
+ * 与设计文档色彩系统对齐
+ */
+
+/* ========== Portal 色彩系统 ========== */
+$page-bg: #F4F7F8;
+$content-white: #FFFFFF;
+$card-border: #D9E3E6;
+$text-primary: #132126;
+$text-secondary: #5E727A;
+$text-auxiliary: #8A9AA1;
+
+/* 品牌色 */
+$brand-primary: #0F5F66;
+$brand-dark: #0A3F45;
+$brand-light-bg: #E7F4F5;
+$chain-info-color: #0B7FA2;
+
+/* 状态色 */
+$color-success: #1E8E5A;
+$color-warning: #C98A12;
+$color-danger: #C4473D;
+$color-frozen: #8B3D3D;
+$color-pending: #4F6DB8;
+$color-draft: #7A8691;
+
+/* ========== Admin 色彩系统 ========== */
+$admin-sidebar-bg: #15232A;
+$admin-sidebar-active: #1F3A45;
+$admin-content-bg: #F5F7F9;
+$admin-primary: #0B6B73;
+$admin-text-primary: #18252B;
+$admin-text-secondary: #62757D;
+
+/* ========== Regulator 色彩系统 ========== */
+$regulator-sidebar-bg: #1B242B;
+$regulator-sidebar-active: #283841;
+$regulator-content-bg: #F4F6F8;
+$regulator-primary: #2D6973;
+$regulator-danger: #B84A42;
+$regulator-frozen: #8D3D3D;
+$regulator-basis: #49697A;
+
+/* ========== 布局尺寸 ========== */
+$header-height: 64px;
+$sidebar-width: 248px;
+$admin-header-height: 60px;
+$admin-sidebar-width: 240px;
+$content-max-width: 1440px;
+$content-padding: 24px;
+$card-gap: 20px;
+
+/* 圆角 */
+$border-radius-lg: 16px;
+$border-radius-md: 12px;
+$border-radius-sm: 10px;
+
+/* 阴影 */
+$card-shadow: 0 8px 24px rgba(15, 40, 45, 0.06);
+$card-shadow-hover: 0 12px 28px rgba(15, 40, 45, 0.10);
+
+/* 字体 */
+$font-family-cn: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+$font-family-mono: 'JetBrains Mono', 'Consolas', monospace;

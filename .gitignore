@@ -1,0 +1,57 @@
+# === IDE & Editor ===
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Java / Maven ===
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# === Node / Frontend ===
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
+
+# === Go / Contracts ===
+contracts/*/vendor/
+contracts/did-chaincode/did-chaincode
+contracts/claim-chaincode/claim-chaincode
+contracts/license-chaincode/license-chaincode
+contracts/settlement-chaincode/settlement-chaincode
+contracts/regulatory-chaincode/regulatory-chaincode
+
+# === Fabric runtime assets (certs, keys, packages) ===
+backend/runtime-config/fabric/org1/admin-cert.pem
+backend/runtime-config/fabric/org1/admin-key.pem
+backend/runtime-config/fabric/org1/connection-org1.json
+backend/runtime-config/fabric/org2/connection-org2.json
+
+# === Docs (design documents, not for public repo) ===
+docs/
+
+# === Environment & Secrets ===
+.env
+.env.*
+*.pem
+*.key
+!contracts/scripts/*.sh
+
+# === Build & Temp ===
+*.swp
+*.swo
+*~

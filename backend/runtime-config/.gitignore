@@ -1,0 +1,6 @@
+*
+!.gitignore
+!README.md
+!fabric/
+fabric/*
+!fabric/.gitignore

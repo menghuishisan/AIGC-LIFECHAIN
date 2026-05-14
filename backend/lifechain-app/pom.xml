@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.lifechain</groupId>
+        <artifactId>lifechain-backend</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>lifechain-app</artifactId>
+    <name>LifeChain Application</name>
+    <description>应用启动模块：启动类、安全配置、全局配置</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.lifechain</groupId>
+            <artifactId>lifechain-auth</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.lifechain</groupId>
+            <artifactId>lifechain-work</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.lifechain</groupId>
+            <artifactId>lifechain-trade</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.lifechain</groupId>
+            <artifactId>lifechain-settlement</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.lifechain</groupId>
+            <artifactId>lifechain-regulator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>8.0.33</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
