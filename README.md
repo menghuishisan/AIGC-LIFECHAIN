@@ -53,7 +53,7 @@ AIGC-LifeChain/
 │   ├── .env.example           # 前端环境变量模板
 │   └── vite.config.ts         # Vite 配置（代理、分包）
 ├── backend/                   # 后端工程（Maven 多模块）
-│   ├── lifechain-app/         # 启动模块 & 配置 & .env.example
+│   ├── lifechain-app/         # 启动模块 & 配置 & logback
 │   ├── lifechain-auth/        # 认证授权（JWT、角色、权限）
 │   ├── lifechain-work/        # 作品管理（上传、元数据、确权申请）
 │   ├── lifechain-trade/       # 交易管理（挂牌、订单、支付）
@@ -63,7 +63,9 @@ AIGC-LifeChain/
 │   ├── lifechain-common/      # 公共组件（枚举、异常、工具）
 │   ├── lifechain-infra/       # 基础设施（MinIO、Redis、短信）
 │   ├── runtime-config/        # Fabric 运行时配置（证书，不入库）
-│   └── sql/                   # 数据库迁移 & 重置脚本
+│   ├── sql/                   # 数据库迁移 & 重置脚本
+│   ├── start.sh / start.ps1   # 启动脚本（加载 .env → java -jar）
+│   └── .env.example           # 后端环境变量模板
 ├── contracts/                 # Hyperledger Fabric 智能合约（Go）
 │   ├── did-chaincode/         # DID 身份链码
 │   ├── claim-chaincode/       # 确权链码
@@ -135,7 +137,7 @@ bash backend/sql/reset-db.sh --seed-only
 ### 3. 配置后端环境变量
 
 ```bash
-cd backend/lifechain-app
+cd backend
 cp .env.example .env
 # 编辑 .env，填入实际值（使用 infra 容器时注意端口）
 ```
@@ -174,15 +176,24 @@ bash fabric-deploy.sh --init
 
 ### 5. 启动后端
 
+启动脚本会读取 `backend/.env` 注入到进程环境变量后启动 jar，应用本身不感知 .env 文件（12-factor 风格）。
+
+```powershell
+# Windows PowerShell（项目根目录）
+.\backend\start.ps1 -Build     # 首次或源码变更时
+.\backend\start.ps1            # 已打包后直接启动
+```
+
 ```bash
-cd backend
-mvn clean package -DskipTests
-java -jar lifechain-app/target/lifechain-app-1.0.0.jar
+# bash / WSL / Linux
+bash backend/start.sh --build
+bash backend/start.sh
 ```
 
 后端启动后：
 - API 服务：http://localhost:8080
 - Swagger UI：http://localhost:8080/swagger-ui.html（需 `SWAGGER_ENABLED=true`）
+- 日志输出：`backend/logs/`（`all.log` / `error.log` / `chain.log`，按日滚动）
 
 ### 6. 启动前端
 
@@ -228,11 +239,12 @@ pnpm dev
 
 ### 后端
 
-- **配置**：所有可配置项通过环境变量注入，模板见 `backend/lifechain-app/.env.example`
+- **配置**：所有可配置项通过环境变量注入，模板见 `backend/.env.example`
+- **启动**：`backend/start.sh` 或 `start.ps1`，脚本负责加载 `.env`，应用零感知
 - **API 文档**：`SWAGGER_ENABLED=true` 后访问 `/swagger-ui.html`
 - **数据库迁移**：`backend/sql/V*__*.sql` 按版本号顺序执行
 - **数据库重置**：`backend/sql/reset-db.ps1`（PowerShell）或 `reset-db.sh`（bash）
-- **日志级别**：业务代码 DEBUG，框架 INFO，可在 `application.yml` 调整
+- **日志**：输出到 `backend/logs/`，分 `all.log` / `error.log` / `chain.log`，按日 + 100MB 滚动，保留 30 天，配置见 `lifechain-app/src/main/resources/logback-spring.xml`
 
 ### 前端
 

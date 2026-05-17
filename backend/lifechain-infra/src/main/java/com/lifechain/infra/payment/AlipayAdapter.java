@@ -53,8 +53,11 @@ public class AlipayAdapter implements PaymentAdapter {
      */
     @PostConstruct
     public void init() {
-        if (alipayConfig.getAppId() == null || alipayConfig.getAppId().isBlank()) {
-            log.warn("支付宝配置未设置，跳过初始化");
+        if (isBlank(alipayConfig.getAppId())
+                || isBlank(alipayConfig.getServerUrl())
+                || isBlank(alipayConfig.getPrivateKey())
+                || isBlank(alipayConfig.getAlipayPublicKey())) {
+            log.warn("支付宝配置不完整，跳过初始化（缺失必需字段：appId/serverUrl/privateKey/alipayPublicKey 之一）");
             return;
         }
         alipayClient = new DefaultAlipayClient(
@@ -67,6 +70,10 @@ public class AlipayAdapter implements PaymentAdapter {
                 "RSA2"
         );
         log.info("支付宝适配器初始化完成, 应用ID: {}", alipayConfig.getAppId());
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     /**

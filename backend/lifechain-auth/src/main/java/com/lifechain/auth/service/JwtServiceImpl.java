@@ -34,7 +34,7 @@ public class JwtServiceImpl implements JwtService {
     private String secret;
 
     /** JWT过期时间（小时） */
-    @Value("${lifechain.jwt.expire-hours:24}")
+    @Value("${lifechain.jwt.expire-hours}")
     private int expireHours;
 
     /** HS512 要求密钥至少 64 字节 */

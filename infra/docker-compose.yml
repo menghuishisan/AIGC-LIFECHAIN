@@ -15,6 +15,9 @@
 #   Peer Org2 -> 9051 / 9052
 #   CA Org1  -> 7054
 #   CA Org2  -> 9054
+#   OTel Collector -> 4319 (OTLP gRPC) / 4320 (OTLP HTTP) / 13133 (health)
+#   Jaeger   -> 16686 (UI)（OTLP 端口不对宿主暴露，仅 collector 容器内访问）
+#   Prometheus -> 9090
 #
 # 所有环境变量统一从 backend/.env 读取
 # 启动时必须加 --env-file ../backend/.env
@@ -30,6 +33,7 @@ volumes:
   lifechain-orderer-data:
   lifechain-peer0-org1-data:
   lifechain-peer0-org2-data:
+  lifechain-prometheus-data:
 
 services:
   # ======================== 基础设施 ========================
@@ -104,12 +108,16 @@ services:
       - ORDERER_GENERAL_GENESISFILE=/var/hyperledger/orderer/genesis.block
       - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
       - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
-      - ORDERER_GENERAL_TLS_ENABLED=false
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
     working_dir: /opt/gopath/src/github.com/hyperledger/fabric/orderer
     command: orderer
     volumes:
       - ./fabric/channel-artifacts/genesis.block:/var/hyperledger/orderer/genesis.block
       - ./fabric/crypto-config/ordererOrganizations/lifechain.com/orderers/orderer.lifechain.com/msp:/var/hyperledger/orderer/msp
+      - ./fabric/crypto-config/ordererOrganizations/lifechain.com/orderers/orderer.lifechain.com/tls:/var/hyperledger/orderer/tls
       - lifechain-orderer-data:/var/hyperledger/production/orderer
     ports:
       - "7050:7050"
@@ -133,11 +141,15 @@ services:
       - CORE_OPERATIONS_LISTENADDRESS=0.0.0.0:17051
       - CORE_PEER_LOCALMSPID=Org1MSP
       - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
-      - CORE_PEER_TLS_ENABLED=false
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
     working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
     command: peer node start
     volumes:
       - ./fabric/crypto-config/peerOrganizations/org1.lifechain.com/peers/peer0.org1.lifechain.com/msp:/etc/hyperledger/fabric/msp
+      - ./fabric/crypto-config/peerOrganizations/org1.lifechain.com/peers/peer0.org1.lifechain.com/tls:/etc/hyperledger/fabric/tls
       - /var/run/docker.sock:/var/run/docker.sock
       - lifechain-peer0-org1-data:/var/hyperledger/production
     ports:
@@ -166,11 +178,15 @@ services:
       - CORE_OPERATIONS_LISTENADDRESS=0.0.0.0:19051
       - CORE_PEER_LOCALMSPID=Org2MSP
       - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
-      - CORE_PEER_TLS_ENABLED=false
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
     working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
     command: peer node start
     volumes:
       - ./fabric/crypto-config/peerOrganizations/org2.lifechain.com/peers/peer0.org2.lifechain.com/msp:/etc/hyperledger/fabric/msp
+      - ./fabric/crypto-config/peerOrganizations/org2.lifechain.com/peers/peer0.org2.lifechain.com/tls:/etc/hyperledger/fabric/tls
       - /var/run/docker.sock:/var/run/docker.sock
       - lifechain-peer0-org2-data:/var/hyperledger/production
     ports:
@@ -218,3 +234,58 @@ services:
     networks:
       - lifechain-net
     restart: unless-stopped
+
+  # ======================== 可观测性 ========================
+  #
+  # 数据流（生产标准 OpenTelemetry 链路）:
+  #   App (OTLP HTTP/protobuf, localhost:4320) -> OTel Collector
+  #     -> trace: Collector (OTLP gRPC) -> Jaeger
+  #     -> metrics: Prometheus 直接抓取 App /actuator/prometheus
+  #
+  # Jaeger 的 OTLP 端口不再对宿主暴露：所有 trace 必须经过 Collector，
+  # 这样后续可在 Collector 处统一做采样、属性增强、多后端 fanout。
+
+  lifechain-otel-collector:
+    container_name: lifechain-otel-collector
+    image: otel/opentelemetry-collector-contrib:0.103.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4319:4317"   # OTLP gRPC（宿主 4319 -> 容器 4317，避开 Jaeger 占用过的 4317）
+      - "4320:4318"   # OTLP HTTP/protobuf（宿主 4320 -> 容器 4318）
+      - "13133:13133" # health_check
+    networks:
+      - lifechain-net
+    depends_on:
+      - lifechain-jaeger
+    restart: unless-stopped
+
+  lifechain-jaeger:
+    container_name: lifechain-jaeger
+    image: jaegertracing/all-in-one:1.57
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"   # Jaeger UI
+    networks:
+      - lifechain-net
+    restart: unless-stopped
+
+  lifechain-prometheus:
+    container_name: lifechain-prometheus
+    image: prom/prometheus:v2.52.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - lifechain-prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    networks:
+      - lifechain-net
+    restart: unless-stopped
+

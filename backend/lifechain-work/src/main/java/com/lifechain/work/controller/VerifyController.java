@@ -50,7 +50,7 @@ public class VerifyController {
     private static final int REGULATOR_BATCH_VERIFY_LIMIT = 100;
     private static final long PUBLIC_VERIFY_WINDOW_SECONDS = 60;
 
-    @Value("${app.security.trust-forward-headers:false}")
+    @Value("${app.security.trust-forward-headers}")
     private boolean trustForwardHeaders;
 
     /**

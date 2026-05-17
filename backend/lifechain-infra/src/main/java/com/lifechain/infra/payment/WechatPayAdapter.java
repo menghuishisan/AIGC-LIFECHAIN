@@ -66,8 +66,12 @@ public class WechatPayAdapter implements PaymentAdapter {
      */
     @PostConstruct
     public void init() {
-        if (wechatPayConfig.getMchId() == null || wechatPayConfig.getMchId().isBlank()) {
-            log.warn("微信支付配置未设置，跳过初始化");
+        if (isBlank(wechatPayConfig.getMchId())
+                || isBlank(wechatPayConfig.getAppId())
+                || isBlank(wechatPayConfig.getApiV3Key())
+                || isBlank(wechatPayConfig.getSerialNumber())
+                || isBlank(wechatPayConfig.getPrivateKeyPath())) {
+            log.warn("微信支付配置不完整，跳过初始化（缺失必需字段：mchId/appId/apiV3Key/serialNumber/privateKeyPath 之一）");
             return;
         }
         config = new RSAAutoCertificateConfig.Builder()
@@ -82,6 +86,10 @@ public class WechatPayAdapter implements PaymentAdapter {
         notificationParser = new NotificationParser((NotificationConfig) config);
 
         log.info("微信支付适配器初始化完成, 商户号: {}", wechatPayConfig.getMchId());
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     /**

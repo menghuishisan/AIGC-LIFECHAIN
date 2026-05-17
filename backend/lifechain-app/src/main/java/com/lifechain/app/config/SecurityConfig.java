@@ -69,10 +69,10 @@ public class SecurityConfig {
     /** Token 黑名单 Redis 前缀（退出登录时写入） */
     static final String TOKEN_BLACKLIST_PREFIX = "jwt:blacklist:";
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173}")
+    @Value("${app.cors.allowed-origins}")
     private List<String> allowedOrigins;
 
-    @Value("${springdoc.swagger-ui.enabled:false}")
+    @Value("${springdoc.swagger-ui.enabled}")
     private boolean swaggerEnabled;
 
     private static final String BEARER_PREFIX = "Bearer ";
@@ -90,7 +90,9 @@ public class SecurityConfig {
             "/api/payments/wechat/callback",
             "/api/payments/alipay/callback",
             "/api/market/**",
-            "/actuator/health"
+            "/actuator/health",
+            "/actuator/info",
+            "/actuator/prometheus"
     };
 
     /**

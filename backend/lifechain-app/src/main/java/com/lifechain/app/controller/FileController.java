@@ -68,7 +68,7 @@ public class FileController {
     private final RedisService redisService;
     private final FileBindingPermissionService fileBindingPermissionService;
 
-    @Value("${app.file.upload-policy-expire-minutes:30}")
+    @Value("${app.file.upload-policy-expire-minutes}")
     private int uploadPolicyExpireMinutes;
 
     /**

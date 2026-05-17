@@ -79,7 +79,7 @@ public class AccountServiceImpl implements AccountService {
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    @Value("${lifechain.sms.dev-mode:false}")
+    @Value("${lifechain.sms.dev-mode}")
     private boolean smsDevMode;
 
     /**

@@ -44,6 +44,19 @@ log()  { echo -e "\033[36m[$(date +%H:%M:%S)]\033[0m $*"; }
 ok()   { echo -e "\033[32m  ✓\033[0m $*"; }
 fail() { echo -e "\033[31m  ✗\033[0m $*"; exit 1; }
 
+# Peer 在编译链码时会用 docker build 生成多层中间容器，构建一旦中断这些
+# Created 状态容器就会留在宿主机上。每次脚本退出（成功或失败）都清掉一次。
+cleanup_build_intermediates() {
+  local ids
+  ids=$(docker ps -a --filter "status=created" -q 2>/dev/null || true)
+  if [[ -n "$ids" ]]; then
+    log "清理 Fabric 链码 build 中间容器"
+    echo "$ids" | xargs -r docker rm >/dev/null 2>&1 || true
+    ok "已清理 $(echo "$ids" | wc -l) 个 Created 容器"
+  fi
+}
+trap cleanup_build_intermediates EXIT
+
 # ---------- 前置检查 ----------
 log "检查前置依赖"
 command -v peer >/dev/null || fail "peer 不在 PATH"

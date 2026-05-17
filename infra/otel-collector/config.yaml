@@ -1,0 +1,50 @@
+# OpenTelemetry Collector 配置 (otel/opentelemetry-collector-contrib)
+#
+# 数据流: App (OTLP HTTP) -> Collector -> Jaeger (OTLP gRPC, 容器内 4317)
+# 指标走 Prometheus 抓取 /actuator/prometheus，不经过 Collector
+
+receivers:
+  # 接收来自 App 的 OTLP 数据
+  otlp:
+    protocols:
+      # 容器内 4317 暴露 gRPC，宿主映射到 4319 避免与 Jaeger 4317 冲突
+      grpc:
+        endpoint: 0.0.0.0:4317
+      # 容器内 4318 暴露 HTTP/protobuf，宿主映射到 4320
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # 批量发送，降低后端压力（max_export_batch_size + timeout 双触发）
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+  # 防御性内存上限：超过 limit 拒收新数据，避免 collector OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+
+exporters:
+  # 转发 trace 到 Jaeger 的 OTLP gRPC 入口（容器内通过 docker network 直连 4317）
+  otlp/jaeger:
+    endpoint: lifechain-jaeger:4317
+    tls:
+      insecure: true
+
+extensions:
+  # /readyz 与 /healthz 健康探针
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/jaeger]
+  telemetry:
+    logs:
+      level: info

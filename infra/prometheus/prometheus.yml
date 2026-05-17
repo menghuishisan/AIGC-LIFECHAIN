@@ -1,0 +1,25 @@
+# Prometheus 抓取配置
+#
+# 抓取目标:
+#   - lifechain-app: 后端 Spring Boot Actuator /actuator/prometheus
+#     注意: 后端通常运行在宿主机而非容器内, 通过 host.docker.internal 访问宿主机的 8080 端口
+#     如果将来后端也容器化, 改成对应的 service 名即可
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: dev
+    service: lifechain
+
+scrape_configs:
+  - job_name: 'lifechain-app'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+        labels:
+          application: 'lifechain-app'
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
