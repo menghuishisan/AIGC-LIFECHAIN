@@ -60,3 +60,11 @@ docs/
 *.swp
 *.swo
 *~
+
+# === Seed assets (本地素材, 上传 MinIO 后由对象存储托管) ===
+backend/upload/
+backend/seed-assets/
+
+# === Seed prompts (本地创作底稿, 不公开仓库) ===
+backend/sql/seed_works_prompts.md
+backend/sql/seed_works_prompts_*.md

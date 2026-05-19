@@ -8,6 +8,7 @@ import { ElMessage } from 'element-plus'
 import type { ApiResponse } from '@/shared/types'
 import { ErrorCodeMap } from '@/shared/constants'
 import router from '@/app/router'
+import { useUserStore } from '@/app/store/user'
 
 /** 创建 axios 实例 */
 const http: AxiosInstance = axios.create({
@@ -30,10 +31,9 @@ function releasePending(token: string) {
   pendingQueue = []
 }
 
-/** 跳转登录并清除本地令牌 */
+/** 跳转登录并清空登录态（store + sessionStorage 同步清空） */
 function goLogin(msg = '登录已过期，请重新登录') {
-  sessionStorage.removeItem('access_token')
-  sessionStorage.removeItem('refresh_token')
+  useUserStore().logout()
   ElMessage.warning(msg)
   router.push('/login')
 }
@@ -41,7 +41,7 @@ function goLogin(msg = '登录已过期，请重新登录') {
 /** 请求拦截器：注入 JWT token */
 http.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = sessionStorage.getItem('access_token')
+    const token = useUserStore().token
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -65,7 +65,7 @@ http.interceptors.response.use(
     /* 未登录或令牌失效 — 尝试用 refreshToken 续期 */
     if (data.code === '100001' || data.code === '100002') {
       const originalRequest = response.config
-      const refreshToken = sessionStorage.getItem('refresh_token')
+      const refreshToken = useUserStore().refreshToken
       if (!refreshToken) {
         goLogin()
         return Promise.reject(new Error(data.message))
@@ -86,9 +86,7 @@ http.interceptors.response.use(
           const respData = res.data
           if (respData.success) {
             const newToken: string = respData.data.accessToken
-            const newRefresh: string = respData.data.refreshToken
-            sessionStorage.setItem('access_token', newToken)
-            sessionStorage.setItem('refresh_token', newRefresh)
+            useUserStore().setLogin(respData.data)
             originalRequest.headers.Authorization = `Bearer ${newToken}`
             releasePending(newToken)
             return http(originalRequest)

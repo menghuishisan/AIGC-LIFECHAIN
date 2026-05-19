@@ -4,12 +4,12 @@
     <!-- 顶部导航 -->
     <header class="portal-header">
       <div class="portal-header__left">
-        <div class="portal-header__logo" @click="router.push('/creator/dashboard')">
+        <div class="portal-header__logo" @click="router.push(homePath)">
           <span class="portal-header__logo-icon">◈</span>
           <span class="portal-header__logo-text">LifeChain</span>
         </div>
-        <!-- 全局导航胶囊 -->
-        <div class="portal-header__nav-capsule">
+        <!-- 全局导航胶囊：仅在账号同时拥有创作者与购买者角色时显示 -->
+        <div v-if="userStore.isCreator && userStore.isBuyer" class="portal-header__nav-capsule">
           <span
             :class="['portal-header__nav-item', { active: activeCenter === 'creator' }]"
             @click="router.push('/creator/dashboard')"
@@ -59,52 +59,67 @@
           :collapse="false"
           class="portal-sidebar__menu"
         >
-          <!-- 创作中心菜单 -->
-          <el-menu-item index="/creator/dashboard">
-            <el-icon><Odometer /></el-icon>
-            <span>工作台</span>
-          </el-menu-item>
-          <el-menu-item index="/creator/works">
-            <el-icon><Picture /></el-icon>
-            <span>我的作品</span>
-          </el-menu-item>
-          <el-menu-item index="/creator/claims">
-            <el-icon><Stamp /></el-icon>
-            <span>我的确权</span>
-          </el-menu-item>
-          <el-menu-item index="/creator/listings">
-            <el-icon><Goods /></el-icon>
-            <span>我的上架</span>
-          </el-menu-item>
-          <el-menu-item index="/creator/license-templates">
-            <el-icon><Document /></el-icon>
-            <span>授权模板</span>
-          </el-menu-item>
-          <el-menu-item index="/creator/orders">
-            <el-icon><List /></el-icon>
-            <span>创作者订单</span>
-          </el-menu-item>
-          <el-menu-item index="/creator/income">
-            <el-icon><Wallet /></el-icon>
-            <span>收益管理</span>
-          </el-menu-item>
-          <el-divider />
-          <el-menu-item index="/market">
-            <el-icon><Shop /></el-icon>
-            <span>内容市场</span>
-          </el-menu-item>
-          <el-menu-item index="/buyer/dashboard">
-            <el-icon><ShoppingCart /></el-icon>
-            <span>购买中心</span>
-          </el-menu-item>
-          <el-menu-item index="/buyer/licenses">
-            <el-icon><Key /></el-icon>
-            <span>我的授权</span>
-          </el-menu-item>
+          <!-- 创作中心：仅 CREATOR 角色可见 -->
+          <template v-if="userStore.isCreator && activeCenter === 'creator'">
+            <el-menu-item index="/creator/dashboard">
+              <el-icon><Odometer /></el-icon>
+              <span>工作台</span>
+            </el-menu-item>
+            <el-menu-item index="/creator/works">
+              <el-icon><Picture /></el-icon>
+              <span>我的作品</span>
+            </el-menu-item>
+            <el-menu-item index="/creator/claims">
+              <el-icon><Stamp /></el-icon>
+              <span>我的确权</span>
+            </el-menu-item>
+            <el-menu-item index="/creator/listings">
+              <el-icon><Goods /></el-icon>
+              <span>我的上架</span>
+            </el-menu-item>
+            <el-menu-item index="/creator/license-templates">
+              <el-icon><Document /></el-icon>
+              <span>授权模板</span>
+            </el-menu-item>
+            <el-menu-item index="/creator/orders">
+              <el-icon><List /></el-icon>
+              <span>创作者订单</span>
+            </el-menu-item>
+            <el-menu-item index="/creator/income">
+              <el-icon><Wallet /></el-icon>
+              <span>收益管理</span>
+            </el-menu-item>
+            <el-menu-item index="/market">
+              <el-icon><Shop /></el-icon>
+              <span>内容市场</span>
+            </el-menu-item>
+          </template>
+
+          <!-- 交易中心：仅 BUYER 角色可见 -->
+          <template v-if="userStore.isBuyer && activeCenter === 'buyer'">
+            <el-menu-item index="/buyer/dashboard">
+              <el-icon><ShoppingCart /></el-icon>
+              <span>购买中心</span>
+            </el-menu-item>
+            <el-menu-item index="/market">
+              <el-icon><Shop /></el-icon>
+              <span>内容市场</span>
+            </el-menu-item>
+            <el-menu-item index="/buyer/licenses">
+              <el-icon><Key /></el-icon>
+              <span>我的授权</span>
+            </el-menu-item>
+          </template>
+
+          <!-- 通用区：portal 全部角色可见 -->
           <el-divider />
           <el-menu-item index="/profile">
             <el-icon><User /></el-icon>
             <span>个人中心</span>
+          </el-menu-item>
+          <el-menu-item index="/notices">
+            <el-icon><Bell /></el-icon>
+            <span>消息通知</span>
           </el-menu-item>
         </el-menu>
       </aside>
@@ -145,10 +160,25 @@ const userStore = useUserStore()
 const searchKeyword = ref('')
 const unreadCount = ref(0)
 
-/** 判断当前在哪个中心 */
-const activeCenter = computed(() => {
-  if (route.path.startsWith('/buyer') || route.path.startsWith('/market')) return 'buyer'
-  return 'creator'
+/** 当前默认首页：取 user store 的统一映射 */
+const homePath = computed(() => userStore.defaultHome)
+
+/**
+ * 当前激活的中心：
+ *   1. /buyer/** 与 /orders/** 与 /payment/** 视为交易中心。
+ *   2. /market/** 视当前账号偏好；仅 BUYER 默认为交易，否则创作。
+ *   3. 其余 portal 路径视为创作中心。
+ */
+const activeCenter = computed<'creator' | 'buyer'>(() => {
+  if (
+    route.path.startsWith('/buyer') ||
+    route.path.startsWith('/orders') ||
+    route.path.startsWith('/payment')
+  ) return 'buyer'
+  if (route.path.startsWith('/market')) {
+    return userStore.isCreator ? 'creator' : 'buyer'
+  }
+  return userStore.isCreator ? 'creator' : 'buyer'
 })
 
 /** 加载未读通知数 */

@@ -1,13 +1,10 @@
 -- =============================================================
--- 测试初始化数据（账户 + DID + 确权 + 交易 + 监管 + 结算）
--- 目标：提供可直接触发上链流程的前置业务数据。
--- 说明：
---   1) 不预置任何链上核验工件：
---      - 不写入 `chain_tx_record`
---      - 各业务表 `tx_hash`/`block_height` 默认保持 NULL
---   2) 账号密码：
---      - 本脚本所有账号明文密码均为 "123456"
---      - 下方 `password_hash` 为 "123456" 的 BCrypt 值
+-- LifeChain 数字内容版权服务平台 业务初始化数据
+-- 覆盖：账户/主体/DID/作品/AIGC元数据/确权/证书/授权模板/上架/
+--      订单/支付/授权/退款/结算/逆分账/风险/冻结/争议/监管报告
+-- 链上字段(tx_hash/block_height/chain_status)默认空值，由实际链上交互回填
+-- 账户口令统一为 123456
+--   BCrypt: $2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W
 -- =============================================================
 
 SET NAMES utf8mb4;
@@ -15,840 +12,1705 @@ SET NAMES utf8mb4;
 START TRANSACTION;
 
 -- -----------------------------
--- 清理（支持重复执行）
+-- 0) 清理（支持重复执行）
 -- -----------------------------
-DELETE FROM `settlement_item` WHERE `settle_no` IN ('SETTLE-9000001', 'SETTLE-9000002');
-DELETE FROM `settlement_record` WHERE `settle_no` IN ('SETTLE-9000001', 'SETTLE-9000002');
-
-DELETE FROM `claim_application` WHERE `claim_no` IN ('CLM-8000001', 'CLM-8000002');
-DELETE FROM `work` WHERE `work_no` IN ('WK-7000001', 'WK-7000002');
-
-DELETE FROM `did_record` WHERE `did_no` IN ('DID-6000001', 'DID-6000002', 'DID-6000003');
-
--- 扩展全链路测试数据清理
-DELETE FROM `work_settle_rule` WHERE `work_no` IN ('WK-7000001');
-
-DELETE FROM `license_record` WHERE `license_no` IN ('LIC-9100001', 'LIC-9100002');
-DELETE FROM `payment_record` WHERE `order_no` IN ('ORDER-9100001', 'ORDER-9100002', 'ORDER-9100003');
-DELETE FROM `trade_order` WHERE `order_no` IN ('ORDER-9100001', 'ORDER-9100002', 'ORDER-9100003');
-DELETE FROM `work_listing` WHERE `listing_no` IN ('LST-6200001');
-DELETE FROM `license_template` WHERE `template_code` IN ('LTPL-10001');
-
-DELETE FROM `risk_event` WHERE `risk_no` IN ('RISK-9700001');
-DELETE FROM `freeze_record` WHERE `freeze_no` IN ('FRZ-9600001', 'FRZ-9600002');
-DELETE FROM `dispute_evidence` WHERE `case_no` IN ('DSP-9800001', 'DSP-9800002', 'DSP-9800003', 'DSP-9800004', 'DSP-9800005');
-DELETE FROM `dispute_process_record` WHERE `case_no` IN ('DSP-9800001', 'DSP-9800002', 'DSP-9800003', 'DSP-9800004', 'DSP-9800005');
-DELETE FROM `dispute_case` WHERE `case_no` IN ('DSP-9800001', 'DSP-9800002', 'DSP-9800003', 'DSP-9800004', 'DSP-9800005');
-DELETE FROM `regulator_report` WHERE `report_no` IN ('RPT-9900001');
-
-DELETE FROM `account_role` WHERE `account_id` IN (1000001, 2000001, 2000002, 3000001, 4000001);
-DELETE FROM `subject_profile` WHERE `subject_no` IN ('SUBJ-10001', 'SUBJ-20001', 'SUBJ-20002', 'SUBJ-30001', 'SUBJ-40001');
-DELETE FROM `account` WHERE `account_no` IN ('PLAT-10001', 'CRE-20001', 'CRE-20002', 'BUY-30001', 'REG-40001');
-
+DELETE FROM `settlement_item`            WHERE `settle_no` LIKE 'SETTLE-90%';
+DELETE FROM `settlement_record`          WHERE `settle_no` LIKE 'SETTLE-90%';
+DELETE FROM `reverse_settlement_record`  WHERE `reverse_no` LIKE 'RSET-90%';
+DELETE FROM `refund_record`              WHERE `refund_no` LIKE 'REF-94%';
+DELETE FROM `license_record`             WHERE `license_no` LIKE 'LIC-94%';
+DELETE FROM `payment_record`             WHERE `payment_no` LIKE 'PAY-93%';
+DELETE FROM `trade_order_snapshot`       WHERE `order_no` LIKE 'ORDER-91%';
+DELETE FROM `trade_order`                WHERE `order_no` LIKE 'ORDER-91%';
+DELETE FROM `work_listing`               WHERE `listing_no` LIKE 'LST-62%';
+DELETE FROM `license_template`           WHERE `template_code` LIKE 'LTPL-%';
+DELETE FROM `work_settle_rule`           WHERE `work_no` LIKE 'WK-70%';
+DELETE FROM `settle_template_item`       WHERE `template_id` IN (8500001, 8500002);
+DELETE FROM `settle_template`            WHERE `template_code` LIKE 'STPL-%';
+DELETE FROM `certificate`                WHERE `cert_no` LIKE 'CERT-82%';
+DELETE FROM `certificate_template`       WHERE `template_code` LIKE 'CTPL-%';
+DELETE FROM `claim_review_record`        WHERE `claim_id` BETWEEN 8000001 AND 8000099;
+DELETE FROM `claim_application`          WHERE `claim_no` LIKE 'CLM-80%';
+DELETE FROM `work_similarity_check`      WHERE `work_id` BETWEEN 7000001 AND 7000099;
+DELETE FROM `work_feature`               WHERE `work_id` BETWEEN 7000001 AND 7000099;
+DELETE FROM `work_aigc_meta`             WHERE `work_id` BETWEEN 7000001 AND 7000099;
+DELETE FROM `work_file`                  WHERE `work_id` BETWEEN 7000001 AND 7000099;
+DELETE FROM `work`                       WHERE `work_no` LIKE 'WK-70%';
+DELETE FROM `dispute_evidence`           WHERE `case_no` LIKE 'DSP-98%';
+DELETE FROM `dispute_process_record`     WHERE `case_no` LIKE 'DSP-98%';
+DELETE FROM `dispute_case`               WHERE `case_no` LIKE 'DSP-98%';
+DELETE FROM `freeze_record`              WHERE `freeze_no` LIKE 'FRZ-96%';
+DELETE FROM `risk_event`                 WHERE `risk_no` LIKE 'RISK-97%';
+DELETE FROM `regulator_report`           WHERE `report_no` LIKE 'RPT-99%';
+DELETE FROM `did_record`                 WHERE `did_no` LIKE 'DID-60%';
+DELETE FROM `account_role`               WHERE `account_id` BETWEEN 1000001 AND 4999999;
+DELETE FROM `subject_profile`            WHERE `subject_no` LIKE 'SUBJ-%';
+DELETE FROM `account`                    WHERE `account_no` LIKE 'PLAT-%' OR `account_no` LIKE 'CRE-%' OR `account_no` LIKE 'BUY-%' OR `account_no` LIKE 'REG-%';
 -- -----------------------------
--- 1) 账户
+-- 1) 账户（27 个）
 -- -----------------------------
--- "123456" 对应的 BCrypt：
--- $2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W
-
 INSERT INTO `account`
-(
-  `id`, `account_no`, `mobile`, `password_hash`, `account_type`, `status`, `auth_status`,
-  `avatar_url`, `nickname`, `email`,
-  `last_login_time`, `last_login_ip`, `previous_status`,
-  `deleted_flag`, `version`, `created_at`, `updated_at`
-)
+(`id`, `account_no`, `mobile`, `password_hash`, `account_type`, `status`, `auth_status`,
+ `avatar_url`, `nickname`, `email`,
+ `last_login_time`, `last_login_ip`, `previous_status`,
+ `deleted_flag`, `version`, `created_at`, `updated_at`)
 VALUES
-  (1000001, 'PLAT-10001', '13800000001', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PLATFORM', 'AUTH_APPROVED', 'SUCCESS', NULL, '平台管理员', 'admin@lifechain.cn', NULL, NULL, NULL, 0, 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
-  (2000001, 'CRE-20001',  '13800000002', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS', NULL, '创作者甲', 'creator1@lifechain.cn', NULL, NULL, NULL, 0, 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
-  (2000002, 'CRE-20002',  '13800000003', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS', NULL, 'CreatorB', 'creator2@lifechain.cn', NULL, NULL, NULL, 0, 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
-  (3000001, 'BUY-30001',  '13800000004', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS', NULL, '购买方甲', 'buyer1@lifechain.cn', NULL, NULL, NULL, 0, 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
-  (4000001, 'REG-40001',  '13800000005', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'REGULATOR', 'AUTH_APPROVED', 'SUCCESS', NULL, '监管员甲', 'regulator1@lifechain.cn', NULL, NULL, NULL, 0, 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00');
+-- 平台运营（4）
+(1000001, 'PLAT-10001', '13911000001', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PLATFORM', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/plat-10001.png', '平台超级管理员', 'admin@lifechain.cn',
+ '2026-05-15 08:32:11', '101.230.18.42', NULL, 0, 1, '2025-12-01 09:00:00', '2026-05-15 08:32:11'),
+(1000002, 'PLAT-10002', '13911000002', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PLATFORM', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/plat-10002.png', '内容审核-周明', 'zhouming.review@lifechain.cn',
+ '2026-05-17 10:11:00', '101.230.18.43', NULL, 0, 1, '2025-12-05 09:00:00', '2026-05-17 10:11:00'),
+(1000003, 'PLAT-10003', '13911000003', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PLATFORM', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/plat-10003.png', '财务结算-林清雅', 'linqingya.finance@lifechain.cn',
+ '2026-05-16 14:20:33', '101.230.18.44', NULL, 0, 1, '2025-12-10 09:00:00', '2026-05-16 14:20:33'),
+(1000004, 'PLAT-10004', '13911000004', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PLATFORM', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/plat-10004.png', '客服中心-苏婉', 'suwan.support@lifechain.cn',
+ '2026-05-17 09:01:09', '101.230.18.45', NULL, 0, 1, '2025-12-15 09:00:00', '2026-05-17 09:01:09'),
+
+-- 创作者（个人 10）
+(2000001, 'CRE-20001', '13601029381', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/cre-20001.png', '陈墨然', 'chenmoran.art@163.com',
+ '2026-05-17 21:33:12', '223.104.65.18', NULL, 0, 1, '2026-01-08 14:11:09', '2026-05-17 21:33:12'),
+(2000002, 'CRE-20002', '13601029382', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/cre-20002.png', '林夕之', 'linxizhi.studio@qq.com',
+ '2026-05-17 11:02:55', '223.104.65.19', NULL, 0, 1, '2026-01-12 14:11:09', '2026-05-17 11:02:55'),
+(2000003, 'CRE-20003', '13601029383', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/cre-20003.png', '苏砚秋', 'suyanqiu.aigc@gmail.com',
+ '2026-05-16 22:10:40', '223.104.65.20', NULL, 0, 1, '2026-01-18 14:11:09', '2026-05-16 22:10:40'),
+(2000004, 'CRE-20004', '13601029384', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/cre-20004.png', '宋怀瑾', 'songhuaijin.music@outlook.com',
+ '2026-05-15 19:48:23', '223.104.65.21', NULL, 0, 1, '2026-01-22 14:11:09', '2026-05-15 19:48:23'),
+(2000005, 'CRE-20005', '13601029385', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/cre-20005.png', '叶知秋', 'yezhiqiu.video@163.com',
+ '2026-05-17 08:11:00', '223.104.65.22', NULL, 0, 1, '2026-01-30 14:11:09', '2026-05-17 08:11:00'),
+(2000006, 'CRE-20006', '13601029386', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/cre-20006.png', '顾长风', 'gulufeng.writer@qq.com',
+ '2026-05-14 15:22:07', '223.104.65.23', NULL, 0, 1, '2026-02-04 14:11:09', '2026-05-14 15:22:07'),
+(2000007, 'CRE-20007', '13601029387', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/cre-20007.png', '池砚之', 'chiyanzhi.illust@gmail.com',
+ '2026-05-16 23:01:18', '223.104.65.24', NULL, 0, 1, '2026-02-09 14:11:09', '2026-05-16 23:01:18'),
+(2000008, 'CRE-20008', '13601029388', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_PENDING', '',
+ NULL, '岑墨白', 'cenmobai.draft@163.com',
+ NULL, NULL, NULL, 0, 0, '2026-05-10 16:00:00', '2026-05-10 16:00:00'),
+(2000009, 'CRE-20009', '13601029389', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_REJECTED', '',
+ NULL, '聂青衫', 'nieqingshan.draft@qq.com',
+ '2026-05-09 11:00:00', '223.104.65.27', NULL, 0, 1, '2026-05-08 09:00:00', '2026-05-09 12:00:00'),
+(2000010, 'CRE-20010', '13601029390', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'ACCOUNT_FROZEN', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/cre-20010.png', '沈砚青', 'shenyanqing.frozen@gmail.com',
+ '2026-04-22 10:00:00', '223.104.65.28', 'AUTH_APPROVED', 0, 2, '2026-02-15 14:11:09', '2026-04-25 09:00:00'),
+
+-- 创作者（企业 3）
+(2000011, 'CRE-20011', '13601029391', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'ENTERPRISE', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/cre-20011.png', '杭州无界数字艺术工作室', 'contact@wujie-art.com',
+ '2026-05-17 14:33:00', '120.55.78.90', NULL, 0, 1, '2026-01-05 10:00:00', '2026-05-17 14:33:00'),
+(2000012, 'CRE-20012', '13601029392', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'ENTERPRISE', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/cre-20012.png', '上海星澜传媒有限公司', 'media@xinglan.cn',
+ '2026-05-17 16:21:00', '116.236.41.55', NULL, 0, 1, '2026-01-15 10:00:00', '2026-05-17 16:21:00'),
+(2000013, 'CRE-20013', '13601029393', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'ENTERPRISE', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/cre-20013.png', '深圳潮汐音乐工作室', 'studio@chaoxi-music.com',
+ '2026-05-16 19:00:00', '120.232.144.20', NULL, 0, 1, '2026-02-01 10:00:00', '2026-05-16 19:00:00'),
+
+-- 购买者（个人 6 + 企业 4）
+(3000001, 'BUY-30001', '13511008801', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/buy-30001.png', '黎晚舟', 'liwanzhou@163.com',
+ '2026-05-17 20:00:00', '111.30.144.10', NULL, 0, 1, '2026-02-20 10:00:00', '2026-05-17 20:00:00'),
+(3000002, 'BUY-30002', '13511008802', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/buy-30002.png', '柳清欢', 'liuqinghuan@qq.com',
+ '2026-05-17 18:00:00', '111.30.144.11', NULL, 0, 1, '2026-02-25 10:00:00', '2026-05-17 18:00:00'),
+(3000003, 'BUY-30003', '13511008803', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/buy-30003.png', '宁观雨', 'ningguanyu@gmail.com',
+ '2026-05-17 12:00:00', '111.30.144.12', NULL, 0, 1, '2026-03-01 10:00:00', '2026-05-17 12:00:00'),
+(3000004, 'BUY-30004', '13511008804', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/buy-30004.png', '范舒桐', 'fanshutong@163.com',
+ '2026-05-17 09:30:00', '111.30.144.13', NULL, 0, 1, '2026-03-04 10:00:00', '2026-05-17 09:30:00'),
+(3000005, 'BUY-30005', '13511008805', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/buy-30005.png', '康澈', 'kangche@outlook.com',
+ '2026-05-16 22:30:00', '111.30.144.14', NULL, 0, 1, '2026-03-09 10:00:00', '2026-05-16 22:30:00'),
+(3000006, 'BUY-30006', '13511008806', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'PERSONAL', 'AUTH_PENDING', '',
+ NULL, '魏疏桐', 'weishutong@163.com',
+ NULL, NULL, NULL, 0, 0, '2026-05-15 17:00:00', '2026-05-15 17:00:00'),
+(3000007, 'BUY-30007', '13511008807', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'ENTERPRISE', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/buy-30007.png', '北京方寸创意广告有限公司', 'license@fangcun-ad.cn',
+ '2026-05-17 10:50:00', '124.65.100.88', NULL, 0, 1, '2026-02-12 10:00:00', '2026-05-17 10:50:00'),
+(3000008, 'BUY-30008', '13511008808', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'ENTERPRISE', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/buy-30008.png', '广州山岚文化传播有限公司', 'license@shanlan-culture.cn',
+ '2026-05-17 11:30:00', '113.108.182.66', NULL, 0, 1, '2026-02-18 10:00:00', '2026-05-17 11:30:00'),
+(3000009, 'BUY-30009', '13511008809', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'ENTERPRISE', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/buy-30009.png', '成都拾光影视制作有限公司', 'license@shiguang-film.cn',
+ '2026-05-16 17:20:00', '171.221.255.41', NULL, 0, 1, '2026-02-26 10:00:00', '2026-05-16 17:20:00'),
+(3000010, 'BUY-30010', '13511008810', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'ENTERPRISE', 'ACCOUNT_DISABLED', 'SUCCESS',
+ NULL, '南京回声出版有限公司', 'license@huisheng-press.cn',
+ '2026-04-10 09:00:00', '180.103.218.77', 'AUTH_APPROVED', 0, 3, '2026-03-15 10:00:00', '2026-04-30 14:00:00'),
+
+-- 监管（3）
+(4000001, 'REG-40001', '13700050001', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'REGULATOR', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/reg-40001.png', '版权监察主任-韩立秋', 'hanliqiu@cnipa-supervisor.gov.cn',
+ '2026-05-17 09:00:00', '202.106.0.20', NULL, 0, 1, '2025-12-20 09:00:00', '2026-05-17 09:00:00'),
+(4000002, 'REG-40002', '13700050002', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'REGULATOR', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/reg-40002.png', '版权监察专员-马云鹤', 'mayunhe@cnipa-supervisor.gov.cn',
+ '2026-05-17 14:00:00', '202.106.0.21', NULL, 0, 1, '2025-12-22 09:00:00', '2026-05-17 14:00:00'),
+(4000003, 'REG-40003', '13700050003', '$2a$10$yNCZsnfBVARb9MZNhf4.uuFXqx3I3dFPA1o1wj0cnCmK5yMZwwX7W', 'REGULATOR', 'AUTH_APPROVED', 'SUCCESS',
+ 'https://cdn.lifechain.cn/avatar/reg-40003.png', '内容合规专员-余知瑾', 'yuzhijin@cnipa-supervisor.gov.cn',
+ '2026-05-17 16:00:00', '202.106.0.22', NULL, 0, 1, '2025-12-25 09:00:00', '2026-05-17 16:00:00');
 
 INSERT INTO `account_role`
-(
-  `id`, `account_id`, `role_code`, `status`,
-  `granted_by`, `granted_time`,
-  `deleted_flag`, `created_at`, `updated_at`
-)
+(`id`, `account_id`, `role_code`, `status`, `granted_by`, `granted_time`, `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  (11000001, 1000001, 'PLATFORM_ADMIN', 'ACTIVE', NULL, NULL, 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
-  (11000002, 2000001, 'CREATOR',        'ACTIVE', NULL, NULL, 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
-  (11000003, 2000002, 'CREATOR',        'ACTIVE', NULL, NULL, 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
-  (11000004, 3000001, 'BUYER',          'ACTIVE', NULL, NULL, 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
-  (11000005, 4000001, 'REGULATOR',      'ACTIVE', NULL, NULL, 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00');
+(11000001, 1000001, 'PLATFORM_ADMIN', 'ACTIVE', NULL, '2025-12-01 09:00:00', 0, '2025-12-01 09:00:00', '2025-12-01 09:00:00'),
+(11000002, 1000002, 'PLATFORM_ADMIN', 'ACTIVE', 1000001, '2025-12-05 09:00:00', 0, '2025-12-05 09:00:00', '2025-12-05 09:00:00'),
+(11000003, 1000003, 'PLATFORM_ADMIN', 'ACTIVE', 1000001, '2025-12-10 09:00:00', 0, '2025-12-10 09:00:00', '2025-12-10 09:00:00'),
+(11000004, 1000004, 'PLATFORM_ADMIN', 'ACTIVE', 1000001, '2025-12-15 09:00:00', 0, '2025-12-15 09:00:00', '2025-12-15 09:00:00'),
+(11000011, 2000001, 'CREATOR', 'ACTIVE', 1000002, '2026-01-08 14:11:09', 0, '2026-01-08 14:11:09', '2026-01-08 14:11:09'),
+(11000012, 2000002, 'CREATOR', 'ACTIVE', 1000002, '2026-01-12 14:11:09', 0, '2026-01-12 14:11:09', '2026-01-12 14:11:09'),
+(11000013, 2000003, 'CREATOR', 'ACTIVE', 1000002, '2026-01-18 14:11:09', 0, '2026-01-18 14:11:09', '2026-01-18 14:11:09'),
+(11000014, 2000004, 'CREATOR', 'ACTIVE', 1000002, '2026-01-22 14:11:09', 0, '2026-01-22 14:11:09', '2026-01-22 14:11:09'),
+(11000015, 2000005, 'CREATOR', 'ACTIVE', 1000002, '2026-01-30 14:11:09', 0, '2026-01-30 14:11:09', '2026-01-30 14:11:09'),
+(11000016, 2000006, 'CREATOR', 'ACTIVE', 1000002, '2026-02-04 14:11:09', 0, '2026-02-04 14:11:09', '2026-02-04 14:11:09'),
+(11000017, 2000007, 'CREATOR', 'ACTIVE', 1000002, '2026-02-09 14:11:09', 0, '2026-02-09 14:11:09', '2026-02-09 14:11:09'),
+(11000018, 2000008, 'CREATOR', 'INACTIVE', NULL, NULL, 0, '2026-05-10 16:00:00', '2026-05-10 16:00:00'),
+(11000019, 2000009, 'CREATOR', 'INACTIVE', NULL, NULL, 0, '2026-05-08 09:00:00', '2026-05-09 12:00:00'),
+(11000020, 2000010, 'CREATOR', 'INACTIVE', 1000002, '2026-02-15 14:11:09', 0, '2026-02-15 14:11:09', '2026-04-25 09:00:00'),
+(11000021, 2000011, 'CREATOR', 'ACTIVE', 1000002, '2026-01-05 10:00:00', 0, '2026-01-05 10:00:00', '2026-01-05 10:00:00'),
+(11000022, 2000012, 'CREATOR', 'ACTIVE', 1000002, '2026-01-15 10:00:00', 0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(11000023, 2000013, 'CREATOR', 'ACTIVE', 1000002, '2026-02-01 10:00:00', 0, '2026-02-01 10:00:00', '2026-02-01 10:00:00'),
+(11000031, 3000001, 'BUYER', 'ACTIVE', 1000002, '2026-02-20 10:00:00', 0, '2026-02-20 10:00:00', '2026-02-20 10:00:00'),
+(11000032, 3000002, 'BUYER', 'ACTIVE', 1000002, '2026-02-25 10:00:00', 0, '2026-02-25 10:00:00', '2026-02-25 10:00:00'),
+(11000033, 3000003, 'BUYER', 'ACTIVE', 1000002, '2026-03-01 10:00:00', 0, '2026-03-01 10:00:00', '2026-03-01 10:00:00'),
+(11000034, 3000004, 'BUYER', 'ACTIVE', 1000002, '2026-03-04 10:00:00', 0, '2026-03-04 10:00:00', '2026-03-04 10:00:00'),
+(11000035, 3000005, 'BUYER', 'ACTIVE', 1000002, '2026-03-09 10:00:00', 0, '2026-03-09 10:00:00', '2026-03-09 10:00:00'),
+(11000036, 3000006, 'BUYER', 'INACTIVE', NULL, NULL, 0, '2026-05-15 17:00:00', '2026-05-15 17:00:00'),
+(11000037, 3000007, 'BUYER', 'ACTIVE', 1000002, '2026-02-12 10:00:00', 0, '2026-02-12 10:00:00', '2026-02-12 10:00:00'),
+(11000038, 3000008, 'BUYER', 'ACTIVE', 1000002, '2026-02-18 10:00:00', 0, '2026-02-18 10:00:00', '2026-02-18 10:00:00'),
+(11000039, 3000009, 'BUYER', 'ACTIVE', 1000002, '2026-02-26 10:00:00', 0, '2026-02-26 10:00:00', '2026-02-26 10:00:00'),
+(11000040, 3000010, 'BUYER', 'INACTIVE', 1000002, '2026-03-15 10:00:00', 0, '2026-03-15 10:00:00', '2026-04-30 14:00:00'),
+(11000051, 4000001, 'REGULATOR', 'ACTIVE', 1000001, '2025-12-20 09:00:00', 0, '2025-12-20 09:00:00', '2025-12-20 09:00:00'),
+(11000052, 4000002, 'REGULATOR', 'ACTIVE', 1000001, '2025-12-22 09:00:00', 0, '2025-12-22 09:00:00', '2025-12-22 09:00:00'),
+(11000053, 4000003, 'REGULATOR', 'ACTIVE', 1000001, '2025-12-25 09:00:00', 0, '2025-12-25 09:00:00', '2025-12-25 09:00:00');
 
 -- -----------------------------
 -- 2) 主体档案
+-- 身份证号采用《GB 11643-1999》规范的合法校验位；
+-- 企业统一社会信用代码采用《GB 32100-2015》18位规范，含校验位。
 -- -----------------------------
 INSERT INTO `subject_profile`
-(
-  `id`, `subject_no`, `account_id`, `subject_type`,
-  `real_name`,
-  `id_card_type`, `id_card_no`,
-  `enterprise_code`, `contact_name`, `contact_phone`,
-  `auth_material_url`,
-  `deleted_flag`, `created_at`, `updated_at`
-)
+(`id`, `subject_no`, `account_id`, `subject_type`, `real_name`,
+ `id_card_type`, `id_card_no`,
+ `enterprise_code`, `contact_name`, `contact_phone`,
+ `auth_material_url`,
+ `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  (5000001, 'SUBJ-10001', 1000001, 'ENTERPRISE', 'LifeChain平台运营中心',
-   'ID_CARD', '110101199003074321', NULL, '平台管理员', '13800000001',
-   'https://assets.lifechain.cn/materials/admin/rea.pdf',
-   0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
+(5000001, 'SUBJ-PLAT-10001', 1000001, 'ENTERPRISE', 'LifeChain数字内容版权服务平台运营中心',
+ NULL, NULL, '91110108MA01H8XK7G', '王砚舟', '13911000001',
+ 'https://oss.lifechain.cn/auth/PLAT-10001/business_license.pdf', 0, '2025-12-01 09:00:00', '2025-12-01 09:00:00'),
+(5000002, 'SUBJ-PLAT-10002', 1000002, 'PERSONAL', '周明',
+ 'ID_CARD', '110108198705124617', NULL, '周明', '13911000002',
+ 'https://oss.lifechain.cn/auth/PLAT-10002/idcard.pdf', 0, '2025-12-05 09:00:00', '2025-12-05 09:00:00'),
+(5000003, 'SUBJ-PLAT-10003', 1000003, 'PERSONAL', '林清雅',
+ 'ID_CARD', '310104198812083628', NULL, '林清雅', '13911000003',
+ 'https://oss.lifechain.cn/auth/PLAT-10003/idcard.pdf', 0, '2025-12-10 09:00:00', '2025-12-10 09:00:00'),
+(5000004, 'SUBJ-PLAT-10004', 1000004, 'PERSONAL', '苏婉',
+ 'ID_CARD', '320105199003228625', NULL, '苏婉', '13911000004',
+ 'https://oss.lifechain.cn/auth/PLAT-10004/idcard.pdf', 0, '2025-12-15 09:00:00', '2025-12-15 09:00:00'),
 
-  (5000002, 'SUBJ-20001', 2000001, 'PERSONAL', '张伟',
-   'ID_CARD', '110105199001017654', NULL, '张伟', '13800000002',
-   'https://assets.lifechain.cn/materials/creator1/rea.pdf',
-   0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
+(5000011, 'SUBJ-CRE-20001', 2000001, 'PERSONAL', '陈墨然',
+ 'ID_CARD', '110105199207192014', NULL, '陈墨然', '13601029381',
+ 'https://oss.lifechain.cn/auth/CRE-20001/idcard.pdf', 0, '2026-01-08 14:11:09', '2026-01-08 14:11:09'),
+(5000012, 'SUBJ-CRE-20002', 2000002, 'PERSONAL', '林夕之',
+ 'ID_CARD', '440305199311052749', NULL, '林夕之', '13601029382',
+ 'https://oss.lifechain.cn/auth/CRE-20002/idcard.pdf', 0, '2026-01-12 14:11:09', '2026-01-12 14:11:09'),
+(5000013, 'SUBJ-CRE-20003', 2000003, 'PERSONAL', '苏砚秋',
+ 'ID_CARD', '330106199501240942', NULL, '苏砚秋', '13601029383',
+ 'https://oss.lifechain.cn/auth/CRE-20003/idcard.pdf', 0, '2026-01-18 14:11:09', '2026-01-18 14:11:09'),
+(5000014, 'SUBJ-CRE-20004', 2000004, 'PERSONAL', '宋怀瑾',
+ 'ID_CARD', '510104198803151635', NULL, '宋怀瑾', '13601029384',
+ 'https://oss.lifechain.cn/auth/CRE-20004/idcard.pdf', 0, '2026-01-22 14:11:09', '2026-01-22 14:11:09'),
+(5000015, 'SUBJ-CRE-20005', 2000005, 'PERSONAL', '叶知秋',
+ 'ID_CARD', '110105199604136624', NULL, '叶知秋', '13601029385',
+ 'https://oss.lifechain.cn/auth/CRE-20005/idcard.pdf', 0, '2026-01-30 14:11:09', '2026-01-30 14:11:09'),
+(5000016, 'SUBJ-CRE-20006', 2000006, 'PERSONAL', '顾长风',
+ 'ID_CARD', '320104199004156012', NULL, '顾长风', '13601029386',
+ 'https://oss.lifechain.cn/auth/CRE-20006/idcard.pdf', 0, '2026-02-04 14:11:09', '2026-02-04 14:11:09'),
+(5000017, 'SUBJ-CRE-20007', 2000007, 'PERSONAL', '池砚之',
+ 'ID_CARD', '330106199712283729', NULL, '池砚之', '13601029387',
+ 'https://oss.lifechain.cn/auth/CRE-20007/idcard.pdf', 0, '2026-02-09 14:11:09', '2026-02-09 14:11:09'),
+(5000018, 'SUBJ-CRE-20008', 2000008, 'PERSONAL', '岑墨白',
+ 'ID_CARD', '110105200001031816', NULL, '岑墨白', '13601029388',
+ 'https://oss.lifechain.cn/auth/CRE-20008/idcard.pdf', 0, '2026-05-10 16:00:00', '2026-05-10 16:00:00'),
+(5000019, 'SUBJ-CRE-20009', 2000009, 'PERSONAL', '聂青衫',
+ 'ID_CARD', '440106199809047215', NULL, '聂青衫', '13601029389',
+ 'https://oss.lifechain.cn/auth/CRE-20009/idcard.pdf', 0, '2026-05-08 09:00:00', '2026-05-08 09:00:00'),
+(5000020, 'SUBJ-CRE-20010', 2000010, 'PERSONAL', '沈砚青',
+ 'ID_CARD', '320104199105172627', NULL, '沈砚青', '13601029390',
+ 'https://oss.lifechain.cn/auth/CRE-20010/idcard.pdf', 0, '2026-02-15 14:11:09', '2026-02-15 14:11:09'),
 
-  (5000003, 'SUBJ-20002', 2000002, 'PERSONAL', '王芳',
-   'ID_CARD', '110105198912120987', NULL, '王芳', '13800000003',
-   'https://assets.lifechain.cn/materials/creator2/rea.pdf',
-   0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
+(5000021, 'SUBJ-CRE-20011', 2000011, 'ENTERPRISE', '杭州无界数字艺术工作室',
+ NULL, NULL, '91330106MA2GD9F23X', '蒋砚清', '13601029391',
+ 'https://oss.lifechain.cn/auth/CRE-20011/business_license.pdf', 0, '2026-01-05 10:00:00', '2026-01-05 10:00:00'),
+(5000022, 'SUBJ-CRE-20012', 2000012, 'ENTERPRISE', '上海星澜传媒有限公司',
+ NULL, NULL, '91310104MA1FP78Q4L', '应澜舟', '13601029392',
+ 'https://oss.lifechain.cn/auth/CRE-20012/business_license.pdf', 0, '2026-01-15 10:00:00', '2026-01-15 10:00:00'),
+(5000023, 'SUBJ-CRE-20013', 2000013, 'ENTERPRISE', '深圳潮汐音乐工作室',
+ NULL, NULL, '91440300MA5EHGTW3K', '麦穗澜', '13601029393',
+ 'https://oss.lifechain.cn/auth/CRE-20013/business_license.pdf', 0, '2026-02-01 10:00:00', '2026-02-01 10:00:00'),
 
-  (5000004, 'SUBJ-30001', 3000001, 'PERSONAL', '赵敏',
-   'ID_CARD', '110105199512180123', NULL, '赵敏', '13800000004',
-   'https://assets.lifechain.cn/materials/buyer1/rea.pdf',
-   0, '2026-03-21 10:00:00', '2026-03-21 10:00:00'),
+(5000031, 'SUBJ-BUY-30001', 3000001, 'PERSONAL', '黎晚舟',
+ 'ID_CARD', '110108199108221421', NULL, '黎晚舟', '13511008801',
+ 'https://oss.lifechain.cn/auth/BUY-30001/idcard.pdf', 0, '2026-02-20 10:00:00', '2026-02-20 10:00:00'),
+(5000032, 'SUBJ-BUY-30002', 3000002, 'PERSONAL', '柳清欢',
+ 'ID_CARD', '320105199306158925', NULL, '柳清欢', '13511008802',
+ 'https://oss.lifechain.cn/auth/BUY-30002/idcard.pdf', 0, '2026-02-25 10:00:00', '2026-02-25 10:00:00'),
+(5000033, 'SUBJ-BUY-30003', 3000003, 'PERSONAL', '宁观雨',
+ 'ID_CARD', '440305199012082836', NULL, '宁观雨', '13511008803',
+ 'https://oss.lifechain.cn/auth/BUY-30003/idcard.pdf', 0, '2026-03-01 10:00:00', '2026-03-01 10:00:00'),
+(5000034, 'SUBJ-BUY-30004', 3000004, 'PERSONAL', '范舒桐',
+ 'ID_CARD', '330106199501203024', NULL, '范舒桐', '13511008804',
+ 'https://oss.lifechain.cn/auth/BUY-30004/idcard.pdf', 0, '2026-03-04 10:00:00', '2026-03-04 10:00:00'),
+(5000035, 'SUBJ-BUY-30005', 3000005, 'PERSONAL', '康澈',
+ 'ID_CARD', '510104198907042010', NULL, '康澈', '13511008805',
+ 'https://oss.lifechain.cn/auth/BUY-30005/idcard.pdf', 0, '2026-03-09 10:00:00', '2026-03-09 10:00:00'),
+(5000036, 'SUBJ-BUY-30006', 3000006, 'PERSONAL', '魏疏桐',
+ 'ID_CARD', '110108199404071019', NULL, '魏疏桐', '13511008806',
+ 'https://oss.lifechain.cn/auth/BUY-30006/idcard.pdf', 0, '2026-05-15 17:00:00', '2026-05-15 17:00:00'),
 
-  (5000005, 'SUBJ-40001', 4000001, 'ENTERPRISE', '区域数字内容监管机构',
-   NULL, NULL,
-   '91350100MA35TESTCODE1', '监管员甲', '13800000005',
-   'https://assets.lifechain.cn/materials/regulator1/report.pdf',
-   0, '2026-03-21 10:00:00', '2026-03-21 10:00:00');
+(5000037, 'SUBJ-BUY-30007', 3000007, 'ENTERPRISE', '北京方寸创意广告有限公司',
+ NULL, NULL, '91110105MA01TY982E', '高未央', '13511008807',
+ 'https://oss.lifechain.cn/auth/BUY-30007/business_license.pdf', 0, '2026-02-12 10:00:00', '2026-02-12 10:00:00'),
+(5000038, 'SUBJ-BUY-30008', 3000008, 'ENTERPRISE', '广州山岚文化传播有限公司',
+ NULL, NULL, '91440101MA9UL9P88X', '齐砚舟', '13511008808',
+ 'https://oss.lifechain.cn/auth/BUY-30008/business_license.pdf', 0, '2026-02-18 10:00:00', '2026-02-18 10:00:00'),
+(5000039, 'SUBJ-BUY-30009', 3000009, 'ENTERPRISE', '成都拾光影视制作有限公司',
+ NULL, NULL, '91510104MA6CK2X28A', '阮知白', '13511008809',
+ 'https://oss.lifechain.cn/auth/BUY-30009/business_license.pdf', 0, '2026-02-26 10:00:00', '2026-02-26 10:00:00'),
+(5000040, 'SUBJ-BUY-30010', 3000010, 'ENTERPRISE', '南京回声出版有限公司',
+ NULL, NULL, '91320104MA1MGWXR4Y', '蓝砚知', '13511008810',
+ 'https://oss.lifechain.cn/auth/BUY-30010/business_license.pdf', 0, '2026-03-15 10:00:00', '2026-03-15 10:00:00'),
+
+(5000051, 'SUBJ-REG-40001', 4000001, 'ENTERPRISE', '国家版权监察机构华东监督所',
+ NULL, NULL, '12100000400000123A', '韩立秋', '13700050001',
+ 'https://oss.lifechain.cn/auth/REG-40001/legal_letter.pdf', 0, '2025-12-20 09:00:00', '2025-12-20 09:00:00'),
+(5000052, 'SUBJ-REG-40002', 4000002, 'ENTERPRISE', '国家版权监察机构华南监督所',
+ NULL, NULL, '12100000400000456B', '马云鹤', '13700050002',
+ 'https://oss.lifechain.cn/auth/REG-40002/legal_letter.pdf', 0, '2025-12-22 09:00:00', '2025-12-22 09:00:00'),
+(5000053, 'SUBJ-REG-40003', 4000003, 'ENTERPRISE', '国家版权监察机构华北监督所',
+ NULL, NULL, '12100000400000789C', '余知瑾', '13700050003',
+ 'https://oss.lifechain.cn/auth/REG-40003/legal_letter.pdf', 0, '2025-12-25 09:00:00', '2025-12-25 09:00:00');
 
 -- -----------------------------
--- 3) DID 记录
---    - 创作者A：DID_ACTIVE（用于授权上链流程）
---    - 创作者B：DID_PENDING（用于DID审核上链流程）
---    - 买家A：DID_ACTIVE（用于授权上链流程）
+-- 3) DID 记录（覆盖 DID_ACTIVE / DID_PENDING / DID_APPROVED_PENDING_CHAIN /
+--    DID_CHAIN_FAILED / DID_SUSPENDED / DID_REVOKED 等关键状态）
 -- -----------------------------
 INSERT INTO `did_record`
-(
-  `id`, `did_no`, `did_value`,
-  `account_id`, `subject_id`,
-  `status`, `chain_status`,
-  `apply_time`, `approve_time`, `active_time`, `suspend_time`, `revoke_time`,
-  `tx_hash`, `block_height`, `fail_reason`,
-  `reviewer_id`, `review_comment`, `reason_code`,
-  `deleted_flag`, `version`,
-  `created_at`, `updated_at`
-)
+(`id`, `did_no`, `did_value`, `account_id`, `subject_id`,
+ `status`, `previous_status`, `chain_status`,
+ `apply_time`, `approve_time`, `active_time`, `suspend_time`, `revoke_time`,
+ `tx_hash`, `block_height`, `fail_reason`,
+ `reviewer_id`, `review_comment`, `reason_code`,
+ `deleted_flag`, `version`, `created_at`, `updated_at`)
 VALUES
-  (6000001, 'DID-6000001', 'did:lifechain:CRE-20001',
-   2000001, 5000002,
-   'DID_ACTIVE', '',
-   '2026-03-18 10:00:00', '2026-03-18 12:00:00', '2026-03-18 12:10:00', NULL, NULL,
-   NULL, NULL, NULL,
-   1000001, '初始化导入', 'RC-DID-SEED-ACTIVE',
-   0, 0,
-   '2026-03-18 10:00:00', '2026-03-18 12:10:00'),
+-- 创作者 DID
+(6000001, 'DID-60001', 'did:lifechain:cre:0xa3f1b2c4d5e6f7081929a3b4c5d6e7f8091a2b3c', 2000001, 5000011,
+ 'DID_ACTIVE', NULL, '', '2026-01-08 14:30:00', '2026-01-08 16:00:00', '2026-01-08 16:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '身份证与活体识别一致，准予签发DID', 'RC-DID-PASS',
+ 0, 1, '2026-01-08 14:30:00', '2026-01-08 16:05:00'),
+(6000002, 'DID-60002', 'did:lifechain:cre:0xb4f2c3d5e6f7081929a3b4c5d6e7f8091a2b3c4d', 2000002, 5000012,
+ 'DID_ACTIVE', NULL, '', '2026-01-12 14:30:00', '2026-01-12 16:00:00', '2026-01-12 16:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '材料齐备，签发数字身份', 'RC-DID-PASS',
+ 0, 1, '2026-01-12 14:30:00', '2026-01-12 16:05:00'),
+(6000003, 'DID-60003', 'did:lifechain:cre:0xc5f3d4e5e6f7081929a3b4c5d6e7f8091a2b3c4d', 2000003, 5000013,
+ 'DID_ACTIVE', NULL, '', '2026-01-18 14:30:00', '2026-01-18 16:00:00', '2026-01-18 16:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-01-18 14:30:00', '2026-01-18 16:05:00'),
+(6000004, 'DID-60004', 'did:lifechain:cre:0xd6f4e5f6e6f7081929a3b4c5d6e7f8091a2b3c4d', 2000004, 5000014,
+ 'DID_ACTIVE', NULL, '', '2026-01-22 14:30:00', '2026-01-22 16:00:00', '2026-01-22 16:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-01-22 14:30:00', '2026-01-22 16:05:00'),
+(6000005, 'DID-60005', 'did:lifechain:cre:0xe7f5f6f7e6f7081929a3b4c5d6e7f8091a2b3c4d', 2000005, 5000015,
+ 'DID_ACTIVE', NULL, '', '2026-01-30 14:30:00', '2026-01-30 16:00:00', '2026-01-30 16:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-01-30 14:30:00', '2026-01-30 16:05:00'),
+(6000006, 'DID-60006', 'did:lifechain:cre:0xf8061718e6f7081929a3b4c5d6e7f8091a2b3c4d', 2000006, 5000016,
+ 'DID_ACTIVE', NULL, '', '2026-02-04 14:30:00', '2026-02-04 16:00:00', '2026-02-04 16:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-02-04 14:30:00', '2026-02-04 16:05:00'),
+(6000007, 'DID-60007', 'did:lifechain:cre:0x091819296e6f7081929a3b4c5d6e7f8091a2b3c4', 2000007, 5000017,
+ 'DID_ACTIVE', NULL, '', '2026-02-09 14:30:00', '2026-02-09 16:00:00', '2026-02-09 16:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-02-09 14:30:00', '2026-02-09 16:05:00'),
+(6000008, 'DID-60008', 'did:lifechain:cre:0x192a3b4c5d6e7f8091a2b3c4d5e6f7081929a3b4', 2000008, 5000018,
+ 'DID_PENDING', NULL, '', '2026-05-10 16:10:00', NULL, NULL, NULL, NULL,
+ NULL, NULL, NULL, NULL, NULL, NULL,
+ 0, 0, '2026-05-10 16:10:00', '2026-05-10 16:10:00'),
+(6000009, 'DID-60009', 'did:lifechain:cre:0x2a3b4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5', 2000009, 5000019,
+ 'DID_CHAIN_FAILED', 'DID_APPROVED_PENDING_CHAIN', 'CHAIN_FAILED', '2026-05-08 09:30:00', '2026-05-08 11:00:00', NULL, NULL, NULL,
+ NULL, NULL, '链上端点 peer1.lifechain.cn:7051 通信超时（>30s），背书未完成', 1000002, '审核通过待重试上链', 'RC-DID-CHAIN-TIMEOUT',
+ 0, 1, '2026-05-08 09:30:00', '2026-05-08 11:30:00'),
+(6000010, 'DID-60010', 'did:lifechain:cre:0x3b4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6', 2000010, 5000020,
+ 'DID_SUSPENDED', 'DID_ACTIVE', '', '2026-02-15 14:30:00', '2026-02-15 16:00:00', '2026-02-15 16:05:00', '2026-04-25 09:00:00', NULL,
+ NULL, NULL, NULL, 4000001, '账户因关联高风险作品被监管暂停DID使用权', 'RC-DID-SUSPEND-RISK',
+ 0, 2, '2026-02-15 14:30:00', '2026-04-25 09:00:00'),
 
-  (6000002, 'DID-6000002', 'did:lifechain:CRE-20002',
-   2000002, 5000003,
-   'DID_PENDING', '',
-   '2026-03-18 11:00:00', NULL, NULL, NULL, NULL,
-   NULL, NULL, NULL,
-   NULL, NULL, NULL,
-   0, 0,
-   '2026-03-18 11:00:00', '2026-03-18 11:00:00'),
+-- 企业创作者 DID
+(6000011, 'DID-60011', 'did:lifechain:ent:0x4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7', 2000011, 5000021,
+ 'DID_ACTIVE', NULL, '', '2026-01-05 10:30:00', '2026-01-05 12:00:00', '2026-01-05 12:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '营业执照与法人代表一致', 'RC-DID-PASS',
+ 0, 1, '2026-01-05 10:30:00', '2026-01-05 12:05:00'),
+(6000012, 'DID-60012', 'did:lifechain:ent:0x5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8', 2000012, 5000022,
+ 'DID_ACTIVE', NULL, '', '2026-01-15 10:30:00', '2026-01-15 12:00:00', '2026-01-15 12:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '工商信息核验通过', 'RC-DID-PASS',
+ 0, 1, '2026-01-15 10:30:00', '2026-01-15 12:05:00'),
+(6000013, 'DID-60013', 'did:lifechain:ent:0x6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f809', 2000013, 5000023,
+ 'DID_ACTIVE', NULL, '', '2026-02-01 10:30:00', '2026-02-01 12:00:00', '2026-02-01 12:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-02-01 10:30:00', '2026-02-01 12:05:00'),
 
-  (6000003, 'DID-6000003', 'did:lifechain:BUY-30001',
-   3000001, 5000004,
-   'DID_ACTIVE', '',
-   '2026-03-18 09:30:00', '2026-03-18 11:00:00', '2026-03-18 11:10:00', NULL, NULL,
-   NULL, NULL, NULL,
-   1000001, '初始化导入', 'RC-DID-SEED-ACTIVE',
-   0, 0,
-   '2026-03-18 09:30:00', '2026-03-18 11:10:00');
+-- 购买者 DID
+(6000021, 'DID-60021', 'did:lifechain:buy:0x7f8091a2b3c4d5e6f7081929a3b4c5d6e7f80919', 3000001, 5000031,
+ 'DID_ACTIVE', NULL, '', '2026-02-20 10:30:00', '2026-02-20 12:00:00', '2026-02-20 12:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-02-20 10:30:00', '2026-02-20 12:05:00'),
+(6000022, 'DID-60022', 'did:lifechain:buy:0x8091a2b3c4d5e6f7081929a3b4c5d6e7f8091929', 3000002, 5000032,
+ 'DID_ACTIVE', NULL, '', '2026-02-25 10:30:00', '2026-02-25 12:00:00', '2026-02-25 12:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-02-25 10:30:00', '2026-02-25 12:05:00'),
+(6000023, 'DID-60023', 'did:lifechain:buy:0x91a2b3c4d5e6f7081929a3b4c5d6e7f80919293a', 3000003, 5000033,
+ 'DID_ACTIVE', NULL, '', '2026-03-01 10:30:00', '2026-03-01 12:00:00', '2026-03-01 12:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-03-01 10:30:00', '2026-03-01 12:05:00'),
+(6000024, 'DID-60024', 'did:lifechain:buy:0xa2b3c4d5e6f7081929a3b4c5d6e7f80919293a4b', 3000004, 5000034,
+ 'DID_ACTIVE', NULL, '', '2026-03-04 10:30:00', '2026-03-04 12:00:00', '2026-03-04 12:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-03-04 10:30:00', '2026-03-04 12:05:00'),
+(6000025, 'DID-60025', 'did:lifechain:buy:0xb3c4d5e6f7081929a3b4c5d6e7f80919293a4b5c', 3000005, 5000035,
+ 'DID_ACTIVE', NULL, '', '2026-03-09 10:30:00', '2026-03-09 12:00:00', '2026-03-09 12:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-03-09 10:30:00', '2026-03-09 12:05:00'),
+(6000026, 'DID-60026', 'did:lifechain:buy:0xc4d5e6f7081929a3b4c5d6e7f80919293a4b5c6d', 3000007, 5000037,
+ 'DID_ACTIVE', NULL, '', '2026-02-12 10:30:00', '2026-02-12 12:00:00', '2026-02-12 12:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-02-12 10:30:00', '2026-02-12 12:05:00'),
+(6000027, 'DID-60027', 'did:lifechain:buy:0xd5e6f7081929a3b4c5d6e7f80919293a4b5c6d7e', 3000008, 5000038,
+ 'DID_ACTIVE', NULL, '', '2026-02-18 10:30:00', '2026-02-18 12:00:00', '2026-02-18 12:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-02-18 10:30:00', '2026-02-18 12:05:00'),
+(6000028, 'DID-60028', 'did:lifechain:buy:0xe6f7081929a3b4c5d6e7f80919293a4b5c6d7e8f', 3000009, 5000039,
+ 'DID_ACTIVE', NULL, '', '2026-02-26 10:30:00', '2026-02-26 12:00:00', '2026-02-26 12:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000002, '审核通过', 'RC-DID-PASS',
+ 0, 1, '2026-02-26 10:30:00', '2026-02-26 12:05:00'),
+(6000029, 'DID-60029', 'did:lifechain:buy:0xf7081929a3b4c5d6e7f80919293a4b5c6d7e8f90', 3000010, 5000040,
+ 'DID_REVOKED', 'DID_ACTIVE', '', '2026-03-15 10:30:00', '2026-03-15 12:00:00', '2026-03-15 12:05:00', NULL, '2026-04-30 14:00:00',
+ NULL, NULL, NULL, 4000001, '企业被市场监督部门吊销营业执照，吊销关联DID', 'RC-DID-REVOKE-LICENSE-VOID',
+ 0, 3, '2026-03-15 10:30:00', '2026-04-30 14:00:00'),
+
+-- 监管 DID
+(6000031, 'DID-60031', 'did:lifechain:reg:0x081929a3b4c5d6e7f80919293a4b5c6d7e8f9001', 4000001, 5000051,
+ 'DID_ACTIVE', NULL, '', '2025-12-20 09:30:00', '2025-12-20 11:00:00', '2025-12-20 11:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000001, '监管单位证件核验通过', 'RC-DID-PASS',
+ 0, 1, '2025-12-20 09:30:00', '2025-12-20 11:05:00'),
+(6000032, 'DID-60032', 'did:lifechain:reg:0x1929a3b4c5d6e7f80919293a4b5c6d7e8f900112', 4000002, 5000052,
+ 'DID_ACTIVE', NULL, '', '2025-12-22 09:30:00', '2025-12-22 11:00:00', '2025-12-22 11:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000001, '监管单位证件核验通过', 'RC-DID-PASS',
+ 0, 1, '2025-12-22 09:30:00', '2025-12-22 11:05:00'),
+(6000033, 'DID-60033', 'did:lifechain:reg:0x29a3b4c5d6e7f80919293a4b5c6d7e8f90011223', 4000003, 5000053,
+ 'DID_ACTIVE', NULL, '', '2025-12-25 09:30:00', '2025-12-25 11:00:00', '2025-12-25 11:05:00', NULL, NULL,
+ NULL, NULL, NULL, 1000001, '监管单位证件核验通过', 'RC-DID-PASS',
+ 0, 1, '2025-12-25 09:30:00', '2025-12-25 11:05:00');
 
 -- -----------------------------
--- 4) 作品 + 确权
---    - 作品状态：READY_FOR_CLAIM
---    - 确权状态：CLAIM_SUBMITTED（管理端审核后触发上链）
+-- 4) 作品（12 部，覆盖 IMAGE/VIDEO/AUDIO/TEXT/MODEL）
+-- 状态分布：DRAFT / UPLOADED / FEATURE_PENDING / READY_FOR_CLAIM /
+--          SIMILARITY_HIGH_RISK / CLAIM_REVIEWING / CLAIM_CHAIN_PENDING /
+--          OWNERSHIP_CONFIRMED / CLAIM_FAILED / LISTED / UNLISTED / RISK_FROZEN
 -- -----------------------------
 INSERT INTO `work`
-(
-  `id`, `work_no`,
-  `creator_account_id`, `creator_subject_id`, `creator_did_id`,
-  `title`, `description`, `work_type`,
-  `status`,
-  `file_hash`, `meta_hash`,
-  `cover_url`,
-  `submit_time`,
-  `deleted_flag`, `version`,
-  `created_at`, `updated_at`
-)
+(`id`, `work_no`, `creator_account_id`, `creator_subject_id`, `creator_did_id`,
+ `title`, `description`, `work_type`, `status`,
+ `file_hash`, `meta_hash`, `cover_url`,
+ `submit_time`, `deleted_flag`, `version`, `created_at`, `updated_at`)
 VALUES
-  (7000001, 'WK-7000001',
-   2000001, 5000002, 6000001,
-   '可信AIGC示例作品A',
-   '用于版权确权的AIGC政策分析稿，包含完整作者轨迹元数据',
-   'TEXT',
-   'READY_FOR_CLAIM',
-   '2169a9e1435dd67b320ca081f75e502644cd4b7655253e69c9105a8b276881fa',
-   '4866eb5a5fd39d1aa3c7daf926b6937e8fa9bfd2509fdedc340b319fb918a7eb',
-   'https://assets.lifechain.cn/covers/WK-7000001.png',
-   '2026-03-19 09:00:00',
-   0, 0,
-   '2026-03-19 09:00:00', '2026-03-19 09:00:00');
+(7000001, 'WK-70001', 2000001, 5000011, 6000001,
+ '《暮色长安》——盛唐街景数字插画',
+ '基于Midjourney V6.1生成的盛唐长安朱雀大街黄昏全景插画，融合敦煌壁画色彩体系与新海诚式光晕处理，已通过原创检测。',
+ 'IMAGE', 'OWNERSHIP_CONFIRMED',
+ '7e3a4b1f9c2d5e8a6b1f4c7d2e5a8b3c6d9f2a5b8c1d4e7f0a3b6c9d2e5f8a1b',
+ 'a1b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
+ 'https://oss.lifechain.cn/cover/WK-70001.png',
+ '2026-02-10 09:00:00', 0, 3, '2026-02-09 16:00:00', '2026-02-12 14:00:00'),
 
+(7000002, 'WK-70002', 2000002, 5000012, 6000002,
+ '《潮汐回响》——氛围电子原创单曲',
+ '使用Suno V4生成主旋律及人声(中英混搭)，FL Studio 21混音收尾的氛围电子带人声单曲，时长3分47秒，44.1kHz/16bit立体声WAV。',
+ 'AUDIO', 'OWNERSHIP_CONFIRMED',
+ 'b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
+ 'b2a3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
+ 'https://oss.lifechain.cn/cover/WK-70002.png',
+ '2026-02-15 09:00:00', 0, 3, '2026-02-14 18:00:00', '2026-02-17 11:00:00'),
+
+(7000003, 'WK-70003', 2000003, 5000013, 6000003,
+ '《青瓷物语》——宋代美学短视频',
+ '基于Runway Gen-3 Alpha Turbo生成主体镜头，DaVinci Resolve 19调色合成的宋代青瓷主题15秒短视频，1920x1080/24fps。',
+ 'VIDEO', 'LISTED',
+ 'c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f',
+ 'c3b4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9',
+ 'https://oss.lifechain.cn/cover/WK-70003.png',
+ '2026-02-20 09:00:00', 0, 4, '2026-02-19 20:00:00', '2026-03-01 09:00:00'),
+
+(7000004, 'WK-70004', 2000004, 5000014, 6000004,
+ '《夜行者》——电影级带人声氛围曲',
+ '采用Suno V4生成男声主轨(中英混搭)，Logic Pro 11编排叠加雨声/警笛/磁带嘶声等环境音的Cyberpunk neo-noir氛围曲，2分18秒。',
+ 'AUDIO', 'LISTED',
+ 'd4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90',
+ 'd4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0',
+ 'https://oss.lifechain.cn/cover/WK-70004.png',
+ '2026-02-25 09:00:00', 0, 4, '2026-02-24 22:00:00', '2026-03-05 09:00:00'),
+
+(7000005, 'WK-70005', 2000005, 5000015, 6000005,
+ '《敦煌九色鹿》——AI重绘动态壁画',
+ '在Stable Diffusion XL 1.0基础上叠加自训练LoRA(dunhuang-mural-v2)生成关键帧，After Effects 2025合成动态壁画，10秒循环。',
+ 'VIDEO', 'LISTED',
+ 'e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001',
+ 'e5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1',
+ 'https://oss.lifechain.cn/cover/WK-70005.png',
+ '2026-03-02 09:00:00', 0, 4, '2026-03-01 14:00:00', '2026-03-08 09:00:00'),
+
+(7000006, 'WK-70006', 2000006, 5000016, 6000006,
+ '《拾光纪事》——AIGC辅助散文集第一卷',
+ '基于Claude 3.5 Sonnet 辅助构思的散文集，作者完成全部最终行文与编辑，共12篇约4.2万字。',
+ 'TEXT', 'OWNERSHIP_CONFIRMED',
+ 'f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112',
+ 'f6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1e2',
+ 'https://oss.lifechain.cn/cover/WK-70006.png',
+ '2026-03-08 09:00:00', 0, 3, '2026-03-07 19:00:00', '2026-03-10 11:00:00'),
+
+(7000007, 'WK-70007', 2000007, 5000017, 6000007,
+ '《赛博·上海2089》——概念插画',
+ '基于Midjourney V6.1 + Adobe Photoshop 2025手工修缮，描绘2089年上海陆家嘴未来城市景观。',
+ 'IMAGE', 'CLAIM_REVIEWING',
+ '0718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223',
+ '0708091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1e2f3',
+ 'https://oss.lifechain.cn/cover/WK-70007.png',
+ '2026-05-12 14:00:00', 0, 1, '2026-05-12 13:00:00', '2026-05-13 09:00:00'),
+
+(7000008, 'WK-70008', 2000011, 5000021, 6000011,
+ '《无界·节气》——24节气主题数字海报系列',
+ '工作室全员协作出品的24节气主题海报系列首发12张，AI仅作初稿生成，最终由首席设计师手绘完稿。',
+ 'IMAGE', 'CLAIM_CHAIN_PENDING',
+ '18293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334',
+ '1819293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223',
+ 'https://oss.lifechain.cn/cover/WK-70008.png',
+ '2026-05-15 10:00:00', 0, 2, '2026-05-15 09:00:00', '2026-05-16 18:00:00'),
+
+(7000009, 'WK-70009', 2000012, 5000022, 6000012,
+ '《星澜·城市夜》——4K HDR城市风光纪录片',
+ '索尼FX6实拍 + Topaz Video AI 4超分辨率重制的城市夜景纪录片，4K HDR10，时长1分58秒。',
+ 'VIDEO', 'READY_FOR_CLAIM',
+ '293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112233445',
+ '29293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334',
+ 'https://oss.lifechain.cn/cover/WK-70009.png',
+ '2026-05-16 16:00:00', 0, 1, '2026-05-16 15:00:00', '2026-05-16 16:00:00'),
+
+(7000010, 'WK-70010', 2000013, 5000023, 6000013,
+ '《潮汐》——带人声电子氛围专辑12首合集',
+ '深圳潮汐音乐工作室年度专辑，含12首带人声(中英混搭)氛围电子曲目，单独购买授权按曲目计费，总授权按合集计费。',
+ 'AUDIO', 'LISTED',
+ '3a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223344556',
+ '3a3b4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b',
+ 'https://oss.lifechain.cn/cover/WK-70010.png',
+ '2026-03-12 09:00:00', 0, 4, '2026-03-11 19:00:00', '2026-03-15 11:00:00'),
+
+(7000011, 'WK-70011', 2000010, 5000020, 6000010,
+ '《九霄云外》——风险样本作品',
+ '本作品在上架后被举报涉嫌使用未授权训练数据，进入风控冻结流程。',
+ 'IMAGE', 'RISK_FROZEN',
+ '4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334455667',
+ '4b4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c',
+ 'https://oss.lifechain.cn/cover/WK-70011.png',
+ '2026-03-20 09:00:00', 0, 5, '2026-03-19 20:00:00', '2026-04-22 10:00:00'),
+
+(7000012, 'WK-70012', 2000009, 5000019, 6000009,
+ '《无题草稿》',
+ '创作者DID尚未上链通过，作品仅为草稿状态。',
+ 'IMAGE', 'DRAFT',
+ NULL, NULL, NULL,
+ NULL, 0, 0, '2026-05-17 10:00:00', '2026-05-17 10:00:00');
+
+-- 作品文件
+INSERT INTO `work_file`
+(`id`, `work_id`, `file_name`, `file_path`, `file_size`, `file_type`, `file_hash`, `file_url`, `purpose`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(7100001, 7000001, '暮色长安_origin.png', '/work/WK-70001/origin.png', 3067965, 'PNG',
+ '7e3a4b1f9c2d5e8a6b1f4c7d2e5a8b3c6d9f2a5b8c1d4e7f0a3b6c9d2e5f8a1b',
+ 'https://oss.lifechain.cn/work/WK-70001/origin.png', 'ORIGINAL', 0, '2026-02-09 16:00:00', '2026-02-09 16:00:00'),
+(7100002, 7000001, '暮色长安_封面.png', '/cover/WK-70001.png', 2328983, 'PNG',
+ '8f4b5c2a0d3e6f9b7c2a5d8e1f4c7d0a3b6c9d2e5f8a1b4c7d0a3b6c9d2e5f8a',
+ 'https://oss.lifechain.cn/cover/WK-70001.png', 'PREVIEW', 0, '2026-02-09 16:00:00', '2026-02-09 16:00:00'),
+(7100003, 7000002, '潮汐回响_master.wav', '/work/WK-70002/master.wav', 35051692, 'WAV',
+ 'b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
+ 'https://oss.lifechain.cn/work/WK-70002/master.wav', 'ORIGINAL', 0, '2026-02-14 18:00:00', '2026-02-14 18:00:00'),
+(7100004, 7000003, '青瓷物语_1080p.mp4', '/work/WK-70003/master.mp4', 47185920, 'MP4',
+ 'c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f',
+ 'https://oss.lifechain.cn/work/WK-70003/master.mp4', 'ORIGINAL', 0, '2026-02-19 20:00:00', '2026-02-19 20:00:00'),
+(7100005, 7000004, '夜行者_origin.mp3', '/work/WK-70004/origin.mp3', 4151083, 'MP3',
+ 'd4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90',
+ 'https://oss.lifechain.cn/work/WK-70004/origin.mp3', 'ORIGINAL', 0, '2026-02-24 22:00:00', '2026-02-24 22:00:00'),
+(7100006, 7000005, '九色鹿动态壁画_4K.mp4', '/work/WK-70005/master.mp4', 88080384, 'MP4',
+ 'e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001',
+ 'https://oss.lifechain.cn/work/WK-70005/master.mp4', 'ORIGINAL', 0, '2026-03-01 14:00:00', '2026-03-01 14:00:00'),
+(7100007, 7000006, '拾光纪事_全卷.zip', '/work/WK-70006/origin.zip', 2858112, 'ZIP',
+ 'f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112',
+ 'https://oss.lifechain.cn/work/WK-70006/origin.zip', 'ORIGINAL', 0, '2026-03-07 19:00:00', '2026-03-07 19:00:00'),
+(7100008, 7000007, '赛博_上海2089_origin.png', '/work/WK-70007/origin.png', 2559982, 'PNG',
+ '0718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223',
+ 'https://oss.lifechain.cn/work/WK-70007/origin.png', 'ORIGINAL', 0, '2026-05-12 13:00:00', '2026-05-12 13:00:00'),
+(7100009, 7000008, '无界节气_海报01_立春.png', '/work/WK-70008/01_lichun.png', 2173072, 'PNG',
+ '18293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334',
+ 'https://oss.lifechain.cn/work/WK-70008/01_lichun.png', 'ORIGINAL', 0, '2026-05-15 09:00:00', '2026-05-15 09:00:00'),
+(7100010, 7000009, '星澜_城市夜_4K_HDR10.mov', '/work/WK-70009/master.mov', 528482304, 'MOV',
+ '293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112233445',
+ 'https://oss.lifechain.cn/work/WK-70009/master.mov', 'ORIGINAL', 0, '2026-05-16 15:00:00', '2026-05-16 15:00:00'),
+(7100011, 7000010, '潮汐_合集_MP3专辑.zip', '/work/WK-70010/album.zip', 87622872, 'ZIP',
+ '3a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223344556',
+ 'https://oss.lifechain.cn/work/WK-70010/album.zip', 'ORIGINAL', 0, '2026-03-11 19:00:00', '2026-03-11 19:00:00'),
+(7100012, 7000011, '九霄云外_origin.png', '/work/WK-70011/origin.png', 3059216, 'PNG',
+ '4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334455667',
+ 'https://oss.lifechain.cn/work/WK-70011/origin.png', 'ORIGINAL', 0, '2026-03-19 20:00:00', '2026-03-19 20:00:00'),
+(7100013, 7000008, '无界节气_海报02_雨水.png', '/work/WK-70008/02_yushui.png', 2208152, 'PNG',
+ '5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112233445566702',
+ 'https://oss.lifechain.cn/work/WK-70008/02_yushui.png', 'ORIGINAL', 0, '2026-05-15 09:01:00', '2026-05-15 09:01:00'),
+(7100014, 7000008, '无界节气_海报03_惊蛰.png', '/work/WK-70008/03_jingzhe.png', 2121076, 'PNG',
+ '6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223344556670203',
+ 'https://oss.lifechain.cn/work/WK-70008/03_jingzhe.png', 'ORIGINAL', 0, '2026-05-15 09:02:00', '2026-05-15 09:02:00'),
+(7100015, 7000008, '无界节气_海报04_春分.png', '/work/WK-70008/04_chunfen.png', 2287794, 'PNG',
+ '7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334455667020304',
+ 'https://oss.lifechain.cn/work/WK-70008/04_chunfen.png', 'ORIGINAL', 0, '2026-05-15 09:03:00', '2026-05-15 09:03:00'),
+(7100016, 7000008, '无界节气_海报05_清明.png', '/work/WK-70008/05_qingming.png', 1895255, 'PNG',
+ '8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112233445566702030405',
+ 'https://oss.lifechain.cn/work/WK-70008/05_qingming.png', 'ORIGINAL', 0, '2026-05-15 09:04:00', '2026-05-15 09:04:00'),
+(7100017, 7000008, '无界节气_海报06_谷雨.png', '/work/WK-70008/06_guyu.png', 1967257, 'PNG',
+ '901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223344556670203040506',
+ 'https://oss.lifechain.cn/work/WK-70008/06_guyu.png', 'ORIGINAL', 0, '2026-05-15 09:05:00', '2026-05-15 09:05:00'),
+(7100018, 7000008, '无界节气_海报07_立夏.png', '/work/WK-70008/07_lixia.png', 2053248, 'PNG',
+ '01a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334455667020304050607',
+ 'https://oss.lifechain.cn/work/WK-70008/07_lixia.png', 'ORIGINAL', 0, '2026-05-15 09:06:00', '2026-05-15 09:06:00'),
+(7100019, 7000008, '无界节气_海报08_小满.png', '/work/WK-70008/08_xiaoman.png', 2070198, 'PNG',
+ '1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223344556670203040506070',
+ 'https://oss.lifechain.cn/work/WK-70008/08_xiaoman.png', 'ORIGINAL', 0, '2026-05-15 09:07:00', '2026-05-15 09:07:00'),
+(7100020, 7000008, '无界节气_海报09_芒种.png', '/work/WK-70008/09_manzhong.png', 2407181, 'PNG',
+ '2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112233445566702030405060708',
+ 'https://oss.lifechain.cn/work/WK-70008/09_manzhong.png', 'ORIGINAL', 0, '2026-05-15 09:08:00', '2026-05-15 09:08:00'),
+(7100021, 7000008, '无界节气_海报10_夏至.png', '/work/WK-70008/10_xiazhi.png', 2164858, 'PNG',
+ '3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112233445566702030405060708a9',
+ 'https://oss.lifechain.cn/work/WK-70008/10_xiazhi.png', 'ORIGINAL', 0, '2026-05-15 09:09:00', '2026-05-15 09:09:00'),
+(7100022, 7000008, '无界节气_海报11_小暑.png', '/work/WK-70008/11_xiaoshu.png', 2289334, 'PNG',
+ '4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334455667020304050607080a9b',
+ 'https://oss.lifechain.cn/work/WK-70008/11_xiaoshu.png', 'ORIGINAL', 0, '2026-05-15 09:10:00', '2026-05-15 09:10:00'),
+(7100023, 7000008, '无界节气_海报12_大暑.png', '/work/WK-70008/12_dashu.png', 2072643, 'PNG',
+ '5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112233445566702030405060708a9b0c1',
+ 'https://oss.lifechain.cn/work/WK-70008/12_dashu.png', 'ORIGINAL', 0, '2026-05-15 09:11:00', '2026-05-15 09:11:00'),
+(7100024, 7000008, '无界节气_系列封面.png', '/cover/WK-70008.png', 2321040, 'PNG',
+ '6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334455667020304050607080a9b0c1d',
+ 'https://oss.lifechain.cn/cover/WK-70008.png', 'PREVIEW', 0, '2026-05-15 09:12:00', '2026-05-15 09:12:00');
+
+-- 作品 AIGC 元数据
+INSERT INTO `work_aigc_meta`
+(`id`, `work_id`, `aigc_tool`, `aigc_model`, `aigc_version`,
+ `prompt_summary`, `generation_params`, `generation_time`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(7200001, 7000001, 'Midjourney', 'Midjourney V6.1', '6.1.0',
+ 'A cinematic ultra-detailed bird-eye view of Tang Dynasty Chang''an Zhuque Avenue at dusk, golden hour light, Dunhuang fresco color palette, Makoto Shinkai style atmospheric haze, 8k, masterpiece',
+ '{"aspect_ratio":"1:1","stylize":350,"chaos":12,"quality":2,"seed":4185297,"weird":0,"version":"6.1","model":"v6"}',
+ '2026-02-09 14:30:00', 0, '2026-02-09 16:00:00', '2026-02-09 16:00:00'),
+(7200002, 7000002, 'Suno', 'Suno V4', '4.0.0',
+ 'Lyrics: 中英混搭歌词(《潮汐回响》, 立意：海作为时间的信使); Style: ambient lo-fi electronic dreampop with breathy female vocal, 78bpm, A minor; Mode: chirp-v4 / vocal / custom; Duration: 3:47',
+ '{"model":"chirp-v4","mode":"custom","style":"ambient,lo-fi,electronic,dreampop","vocal":true,"vocal_gender":"female","language":"zh-CN+en","bpm":78,"key":"Am","duration_sec":227}',
+ '2026-02-14 16:00:00', 0, '2026-02-14 18:00:00', '2026-02-14 18:00:00'),
+(7200003, 7000003, 'Runway', 'Gen-3 Alpha Turbo', '3.0-turbo',
+ 'Slow camera dolly-in to a Song Dynasty celadon ware, soft window light, ink wash painting backdrop, museum exhibit aesthetic, 24fps cinematic',
+ '{"resolution":"1920x1080","fps":24,"duration":15,"motion_score":7,"camera":"dolly-in","seed":918273,"upscale":false}',
+ '2026-02-19 15:30:00', 0, '2026-02-19 20:00:00', '2026-02-19 20:00:00'),
+(7200004, 7000004, 'Suno + Logic Pro 11', 'Suno V4 + 工作室环境音叠加', '4.0.0',
+ 'Lyrics: 中英混搭歌词(《夜行者》, 立意：夜行者是城市夜班的良心); Style: cyberpunk neo-noir cinematic with smoky baritone male vocal, deep sub-bass, granular reversed pad, distant sirens, rainy ambience; Mode: chirp-v4 / vocal / custom; 2:18, 110bpm, D minor',
+ '{"model":"chirp-v4","mode":"custom","style":"cyberpunk,neo-noir,cinematic","vocal":true,"vocal_gender":"male","language":"zh-CN+en","bpm":110,"key":"Dm","duration_sec":138,"post":"Logic Pro 11 layered rain/siren/tape-hiss"}',
+ '2026-02-24 21:00:00', 0, '2026-02-24 22:00:00', '2026-02-24 22:00:00'),
+(7200005, 7000005, 'Stable Diffusion', 'SDXL 1.0 + LoRA dunhuang-mural-v2', '1.0',
+ 'Animated nine-color deer mural in Dunhuang Mogao caves style, mineral pigments, weathered cave wall texture, looped 10s, ultra detailed',
+ '{"sampler":"DPM++ 2M Karras","steps":40,"cfg_scale":7,"width":1024,"height":1024,"lora":"dunhuang-mural-v2:0.85","seed":2876541}',
+ '2026-03-01 12:00:00', 0, '2026-03-01 14:00:00', '2026-03-01 14:00:00'),
+(7200006, 7000006, 'Anthropic Claude', 'Claude 3.5 Sonnet', 'claude-3-5-sonnet-20241022',
+ '辅助散文集结构梳理与素材建议，最终所有段落由作者亲自定稿。',
+ '{"temperature":0.7,"max_tokens":4096,"system":"作为散文写作助手，仅提供结构与意象建议，不直接代写","total_calls":42}',
+ '2026-03-07 16:00:00', 0, '2026-03-07 19:00:00', '2026-03-07 19:00:00'),
+(7200007, 7000007, 'Midjourney', 'Midjourney V6.1', '6.1.0',
+ 'Cyberpunk Shanghai 2089, neon-drenched Lujiazui skyline, holographic billboards, rain-soaked streets, Blade Runner 2049 cinematography, 8k ultra-detailed',
+ '{"aspect_ratio":"16:9","stylize":500,"chaos":18,"quality":2,"seed":7283912,"version":"6.1"}',
+ '2026-05-12 12:00:00', 0, '2026-05-12 13:00:00', '2026-05-12 13:00:00'),
+(7200008, 7000008, 'Adobe Firefly + Photoshop 2025', 'Firefly Image 3 + 手绘合成', '3.0',
+ '24节气主题海报，先以Firefly生成节气意象底稿，再由首席设计师在Photoshop 2025用手写板完稿。',
+ '{"firefly_seed":12345678,"composition":"square_2048","style_preset":"dynamic","manual_layers":["sketch","lineart","color","fx"]}',
+ '2026-05-14 18:00:00', 0, '2026-05-15 09:00:00', '2026-05-15 09:00:00'),
+(7200009, 7000009, 'Topaz Video AI', 'Topaz Video AI Proteus v4', '4.2.1',
+ '索尼FX6 4K原片经Proteus v4提升至8K再降回4K HDR10，去噪+稳定+插帧。',
+ '{"input":"4096x2160","output":"3840x2160","model":"proteus-v4","denoise":0.4,"sharpen":0.3,"frame_interp":"chronos-fast-v4"}',
+ '2026-05-16 12:00:00', 0, '2026-05-16 15:00:00', '2026-05-16 15:00:00'),
+(7200010, 7000010, 'Suno + Logic Pro 11', 'Suno V4 + 工作室手工编排', '4.0.0',
+ '12首带人声(中英混搭)氛围电子曲目，每首主旋律与人声由Suno V4 vocal模式起稿，工作室在Logic Pro 11完成最终编曲与母带处理。',
+ '{"track_count":12,"avg_duration_sec":214,"vocal":true,"language":"zh-CN+en","vocal_gender_distribution":{"female_lead":8,"male_lead":3,"duet":1},"final_master_format":"MP3 320kbps","mastering_engineer":"麦穗澜"}',
+ '2026-03-10 20:00:00', 0, '2026-03-11 19:00:00', '2026-03-11 19:00:00'),
+(7200011, 7000011, 'Stable Diffusion', 'SDXL 1.0', '1.0',
+ 'Floating immortal palace above clouds, Chinese mythology, jade architecture, swirling auspicious clouds, ultra detailed',
+ '{"sampler":"Euler a","steps":35,"cfg_scale":8,"width":1024,"height":1024,"seed":4592018,"negative":"low quality, blurry"}',
+ '2026-03-19 18:00:00', 0, '2026-03-19 20:00:00', '2026-03-19 20:00:00');
+
+-- 作品特征（感知哈希）
+INSERT INTO `work_feature`
+(`id`, `work_id`, `feature_type`, `feature_value`, `perceptual_hash`,
+ `extract_status`, `extract_time`, `fail_reason`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(7300001, 7000001, 'PERCEPTUAL_HASH', NULL, 'pdq:f8e1c2a4b6d8f0e2', 'SUCCESS', '2026-02-09 16:30:00', NULL, 0, '2026-02-09 16:30:00', '2026-02-09 16:30:00'),
+(7300002, 7000002, 'FINGERPRINT', NULL, 'chromaprint:AQADtMmSREkOJUmQJUmSJEmSJUmSJEmSJEmS', 'SUCCESS', '2026-02-14 18:30:00', NULL, 0, '2026-02-14 18:30:00', '2026-02-14 18:30:00'),
+(7300003, 7000003, 'PERCEPTUAL_HASH', NULL, 'videohash:8c4e2f1a9b3d7c5e', 'SUCCESS', '2026-02-19 20:30:00', NULL, 0, '2026-02-19 20:30:00', '2026-02-19 20:30:00'),
+(7300004, 7000004, 'FINGERPRINT', NULL, 'chromaprint:AQADtMmSREkOJUkSJEmSJEmSJEmSJEmSJUmS', 'SUCCESS', '2026-02-24 22:30:00', NULL, 0, '2026-02-24 22:30:00', '2026-02-24 22:30:00'),
+(7300005, 7000005, 'PERCEPTUAL_HASH', NULL, 'videohash:7d3f1e0a8b2c6d4f', 'SUCCESS', '2026-03-01 14:30:00', NULL, 0, '2026-03-01 14:30:00', '2026-03-01 14:30:00'),
+(7300006, 7000006, 'VECTOR', '[0.0231,-0.1842,0.0593,0.2741,-0.0817,0.1124,0.0398,-0.2015]', NULL, 'SUCCESS', '2026-03-07 19:30:00', NULL, 0, '2026-03-07 19:30:00', '2026-03-07 19:30:00'),
+(7300007, 7000007, 'PERCEPTUAL_HASH', NULL, 'pdq:e2d3f4a1b5c6d7e8', 'SUCCESS', '2026-05-12 13:30:00', NULL, 0, '2026-05-12 13:30:00', '2026-05-12 13:30:00'),
+(7300008, 7000008, 'PERCEPTUAL_HASH', NULL, 'pdq:b1c2d3e4f5a6b7c8', 'SUCCESS', '2026-05-15 09:30:00', NULL, 0, '2026-05-15 09:30:00', '2026-05-15 09:30:00'),
+(7300009, 7000009, 'PERCEPTUAL_HASH', NULL, 'videohash:5e4d3c2b1a098f76', 'PENDING', NULL, NULL, 0, '2026-05-16 15:00:00', '2026-05-16 15:00:00'),
+(7300010, 7000010, 'FINGERPRINT', NULL, 'chromaprint:AQADtMmSREkOJUkSJEkSJEmSJEmSJEmSJEkS', 'SUCCESS', '2026-03-11 19:30:00', NULL, 0, '2026-03-11 19:30:00', '2026-03-11 19:30:00'),
+(7300011, 7000011, 'PERCEPTUAL_HASH', NULL, 'pdq:c3d4e5f6a7b8c9d0', 'SUCCESS', '2026-03-19 20:30:00', NULL, 0, '2026-03-19 20:30:00', '2026-03-19 20:30:00');
+
+-- 相似度检测（含一条 HIGH_RISK 用于风控展示）
+INSERT INTO `work_similarity_check`
+(`id`, `work_id`, `compared_work_id`, `similarity_score`, `check_result`, `check_time`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(7400001, 7000001, 7000007, 0.1842, 'PASS', '2026-02-09 16:35:00', 0, '2026-02-09 16:35:00', '2026-02-09 16:35:00'),
+(7400002, 7000003, 7000005, 0.2417, 'PASS', '2026-02-19 20:35:00', 0, '2026-02-19 20:35:00', '2026-02-19 20:35:00'),
+(7400003, 7000011, 7000005, 0.8923, 'HIGH_RISK', '2026-03-19 20:40:00', 0, '2026-03-19 20:40:00', '2026-03-19 20:40:00'),
+(7400004, 7000007, 7000001, 0.1842, 'PASS', '2026-05-12 13:35:00', 0, '2026-05-12 13:35:00', '2026-05-12 13:35:00'),
+(7400005, 7000008, 7000001, 0.3127, 'PASS', '2026-05-15 09:35:00', 0, '2026-05-15 09:35:00', '2026-05-15 09:35:00');
+
+-- -----------------------------
+-- 5) 确权申请（覆盖 SUBMITTED / REVIEWING / APPROVED_PENDING_CHAIN /
+--   CHAIN_FAILED / SUCCESS / REJECTED 状态）
+-- -----------------------------
 INSERT INTO `claim_application`
-(
-  `id`, `claim_no`,
-  `work_id`, `work_no`,
-  `applicant_account_id`, `applicant_did_id`,
-  `status`, `chain_status`,
-  `submit_time`,
-  `review_time`, `approve_time`,
-  `chain_submit_time`, `chain_confirm_time`,
-  `tx_hash`, `block_height`,
-  `summary_hash`,
-  `reviewer_id`, `review_comment`,
-  `reject_reason`, `reason_code`, `fail_reason`,
-  `deleted_flag`, `version`,
-  `created_at`, `updated_at`
-)
+(`id`, `claim_no`, `work_id`, `work_no`, `applicant_account_id`, `applicant_did_id`,
+ `status`, `chain_status`,
+ `submit_time`, `review_time`, `approve_time`,
+ `chain_submit_time`, `chain_confirm_time`,
+ `tx_hash`, `block_height`, `summary_hash`,
+ `reviewer_id`, `review_comment`, `reject_reason`, `reason_code`, `fail_reason`,
+ `deleted_flag`, `version`, `created_at`, `updated_at`)
 VALUES
-  (8000001, 'CLM-8000001',
-   7000001, 'WK-7000001',
-   2000001, 6000001,
-   'CLAIM_SUBMITTED', '',
-   '2026-03-19 12:00:00',
-   NULL, NULL,
-   NULL, NULL,
-   NULL, NULL,
-   NULL,
-   NULL, NULL,
-   NULL, NULL, NULL,
-   0, 0,
-   '2026-03-19 12:00:00', '2026-03-19 12:00:00');
+(8000001, 'CLM-80001', 7000001, 'WK-70001', 2000001, 6000001,
+ 'CLAIM_SUCCESS', 'CHAIN_SUCCESS',
+ '2026-02-10 09:00:00', '2026-02-10 14:00:00', '2026-02-10 15:00:00',
+ '2026-02-10 15:05:00', '2026-02-10 15:08:30',
+ NULL, NULL, '7e3a4b1f9c2d5e8a6b1f4c7d2e5a8b3c6d9f2a5b8c1d4e7f0a3b6c9d2e5f8a1b',
+ 1000002, 'AIGC生成参数完整，相似度检测通过，准予确权', NULL, 'RC-CLM-PASS', NULL,
+ 0, 3, '2026-02-10 09:00:00', '2026-02-12 14:00:00'),
+
+(8000002, 'CLM-80002', 7000002, 'WK-70002', 2000002, 6000002,
+ 'CLAIM_SUCCESS', 'CHAIN_SUCCESS',
+ '2026-02-15 09:00:00', '2026-02-15 14:00:00', '2026-02-15 15:00:00',
+ '2026-02-15 15:05:00', '2026-02-15 15:08:30',
+ NULL, NULL, 'b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
+ 1000002, 'Suno V4生成证据齐备，准予确权', NULL, 'RC-CLM-PASS', NULL,
+ 0, 3, '2026-02-15 09:00:00', '2026-02-17 11:00:00'),
+
+(8000003, 'CLM-80003', 7000003, 'WK-70003', 2000003, 6000003,
+ 'CLAIM_SUCCESS', 'CHAIN_SUCCESS',
+ '2026-02-20 09:00:00', '2026-02-20 14:00:00', '2026-02-20 15:00:00',
+ '2026-02-20 15:05:00', '2026-02-20 15:08:30',
+ NULL, NULL, 'c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f',
+ 1000002, '审核通过', NULL, 'RC-CLM-PASS', NULL,
+ 0, 3, '2026-02-20 09:00:00', '2026-03-01 09:00:00'),
+
+(8000004, 'CLM-80004', 7000004, 'WK-70004', 2000004, 6000004,
+ 'CLAIM_SUCCESS', 'CHAIN_SUCCESS',
+ '2026-02-25 09:00:00', '2026-02-25 14:00:00', '2026-02-25 15:00:00',
+ '2026-02-25 15:05:00', '2026-02-25 15:08:30',
+ NULL, NULL, 'd4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90',
+ 1000002, '审核通过', NULL, 'RC-CLM-PASS', NULL,
+ 0, 3, '2026-02-25 09:00:00', '2026-03-05 09:00:00'),
+
+(8000005, 'CLM-80005', 7000005, 'WK-70005', 2000005, 6000005,
+ 'CLAIM_SUCCESS', 'CHAIN_SUCCESS',
+ '2026-03-02 09:00:00', '2026-03-02 14:00:00', '2026-03-02 15:00:00',
+ '2026-03-02 15:05:00', '2026-03-02 15:08:30',
+ NULL, NULL, 'e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001',
+ 1000002, '自训练LoRA数据集证明已附，准予确权', NULL, 'RC-CLM-PASS', NULL,
+ 0, 3, '2026-03-02 09:00:00', '2026-03-08 09:00:00'),
+
+(8000006, 'CLM-80006', 7000006, 'WK-70006', 2000006, 6000006,
+ 'CLAIM_SUCCESS', 'CHAIN_SUCCESS',
+ '2026-03-08 09:00:00', '2026-03-08 14:00:00', '2026-03-08 15:00:00',
+ '2026-03-08 15:05:00', '2026-03-08 15:08:30',
+ NULL, NULL, 'f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112',
+ 1000002, '作者亲自完稿证据充分', NULL, 'RC-CLM-PASS', NULL,
+ 0, 3, '2026-03-08 09:00:00', '2026-03-10 11:00:00'),
+
+(8000007, 'CLM-80007', 7000007, 'WK-70007', 2000007, 6000007,
+ 'CLAIM_REVIEWING', '',
+ '2026-05-12 14:00:00', '2026-05-13 09:00:00', NULL,
+ NULL, NULL,
+ NULL, NULL, NULL,
+ 1000002, '审核中：等待AIGC日志补充', NULL, NULL, NULL,
+ 0, 1, '2026-05-12 14:00:00', '2026-05-13 09:00:00'),
+
+(8000008, 'CLM-80008', 7000008, 'WK-70008', 2000011, 6000011,
+ 'CLAIM_APPROVED_PENDING_CHAIN', 'CHAIN_PENDING',
+ '2026-05-15 10:00:00', '2026-05-16 14:00:00', '2026-05-16 17:00:00',
+ NULL, NULL,
+ NULL, NULL, '18293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334',
+ 1000002, '审核通过，已排队上链', NULL, 'RC-CLM-PASS', NULL,
+ 0, 2, '2026-05-15 10:00:00', '2026-05-16 17:00:00'),
+
+(8000009, 'CLM-80009', 7000010, 'WK-70010', 2000013, 6000013,
+ 'CLAIM_SUCCESS', 'CHAIN_SUCCESS',
+ '2026-03-12 09:00:00', '2026-03-12 14:00:00', '2026-03-12 15:00:00',
+ '2026-03-12 15:05:00', '2026-03-12 15:08:30',
+ NULL, NULL, '3a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223344556',
+ 1000002, '工作室出品证明完整', NULL, 'RC-CLM-PASS', NULL,
+ 0, 3, '2026-03-12 09:00:00', '2026-03-15 11:00:00'),
+
+(8000010, 'CLM-80010', 7000011, 'WK-70011', 2000010, 6000010,
+ 'CLAIM_REJECTED', '',
+ '2026-03-20 09:00:00', '2026-03-21 10:00:00', NULL,
+ NULL, NULL,
+ NULL, NULL, NULL,
+ 1000002, '与已确权作品WK-70005相似度0.8923，超出阈值0.85', '相似度过高，存在使用未授权作品作为训练样本的嫌疑', 'RC-CLM-REJECT-SIMILARITY', NULL,
+ 0, 1, '2026-03-20 09:00:00', '2026-03-21 10:00:00');
+
+-- 确权审核记录
+INSERT INTO `claim_review_record`
+(`id`, `claim_id`, `reviewer_id`, `review_action`, `review_result`, `review_comment`, `reason_code`, `review_time`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(8100001, 8000001, 1000002, 'APPROVE', 'PASS', 'AIGC生成参数完整，相似度检测通过', 'RC-CLM-PASS', '2026-02-10 15:00:00', 0, '2026-02-10 15:00:00', '2026-02-10 15:00:00'),
+(8100002, 8000002, 1000002, 'APPROVE', 'PASS', '审核通过', 'RC-CLM-PASS', '2026-02-15 15:00:00', 0, '2026-02-15 15:00:00', '2026-02-15 15:00:00'),
+(8100003, 8000003, 1000002, 'APPROVE', 'PASS', '审核通过', 'RC-CLM-PASS', '2026-02-20 15:00:00', 0, '2026-02-20 15:00:00', '2026-02-20 15:00:00'),
+(8100004, 8000004, 1000002, 'APPROVE', 'PASS', '审核通过', 'RC-CLM-PASS', '2026-02-25 15:00:00', 0, '2026-02-25 15:00:00', '2026-02-25 15:00:00'),
+(8100005, 8000005, 1000002, 'APPROVE', 'PASS', '自训练LoRA数据集证明已附', 'RC-CLM-PASS', '2026-03-02 15:00:00', 0, '2026-03-02 15:00:00', '2026-03-02 15:00:00'),
+(8100006, 8000006, 1000002, 'APPROVE', 'PASS', '作者亲自完稿证据充分', 'RC-CLM-PASS', '2026-03-08 15:00:00', 0, '2026-03-08 15:00:00', '2026-03-08 15:00:00'),
+(8100007, 8000007, 1000002, 'REVIEWING', NULL, '材料补充中', NULL, '2026-05-13 09:00:00', 0, '2026-05-13 09:00:00', '2026-05-13 09:00:00'),
+(8100008, 8000008, 1000002, 'APPROVE', 'PASS', '24节气海报系列，工作室出品证明完整', 'RC-CLM-PASS', '2026-05-16 17:00:00', 0, '2026-05-16 17:00:00', '2026-05-16 17:00:00'),
+(8100009, 8000009, 1000002, 'APPROVE', 'PASS', '工作室出品证明完整', 'RC-CLM-PASS', '2026-03-12 15:00:00', 0, '2026-03-12 15:00:00', '2026-03-12 15:00:00'),
+(8100010, 8000010, 1000002, 'REJECT', 'FAIL', '与已确权作品WK-70005相似度0.8923超出阈值0.85，疑似使用未授权训练样本', 'RC-CLM-REJECT-SIMILARITY', '2026-03-21 10:00:00', 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00');
+
+-- 证书模板
+INSERT INTO `certificate_template`
+(`id`, `template_name`, `template_code`, `template_content`, `status`, `description`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(8200001, 'LifeChain数字内容版权证书 标准版', 'CTPL-CERT-STD-V1',
+ '{"layout":"A4-portrait","sections":["title","work_info","creator_info","aigc_info","chain_info","qr_verify"],"signature":"platform","theme":"classic-jade"}',
+ 'ACTIVE', '通用版数字版权证书模板，适用于个人创作者作品', 0, '2025-12-01 09:00:00', '2025-12-01 09:00:00'),
+(8200002, 'LifeChain数字内容版权证书 企业版', 'CTPL-CERT-ENT-V1',
+ '{"layout":"A4-portrait","sections":["title","work_info","enterprise_info","team_credits","aigc_info","chain_info","qr_verify"],"signature":"platform","theme":"corporate-navy"}',
+ 'ACTIVE', '企业版数字版权证书模板，附带团队署名', 0, '2025-12-01 09:00:00', '2025-12-01 09:00:00');
+
+-- 证书
+INSERT INTO `certificate`
+(`id`, `cert_no`, `work_id`, `work_no`, `claim_id`, `claim_no`,
+ `holder_account_id`, `holder_did_id`,
+ `status`, `cert_hash`, `cert_file_url`,
+ `version`, `previous_cert_id`,
+ `issue_time`, `expire_time`, `revoke_time`, `revoke_reason`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(8300001, 'CERT-820001', 7000001, 'WK-70001', 8000001, 'CLM-80001', 2000001, 6000001,
+ 'CERT_ACTIVE', '7e3a4b1f9c2d5e8a6b1f4c7d2e5a8b3c6d9f2a5b8c1d4e7f0a3b6c9d2e5f8a1b',
+ 'https://oss.lifechain.cn/cert/CERT-820001.pdf', 1, NULL,
+ '2026-02-10 15:10:00', NULL, NULL, NULL,
+ 0, '2026-02-10 15:10:00', '2026-02-10 15:10:00'),
+(8300002, 'CERT-820002', 7000002, 'WK-70002', 8000002, 'CLM-80002', 2000002, 6000002,
+ 'CERT_ACTIVE', 'b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
+ 'https://oss.lifechain.cn/cert/CERT-820002.pdf', 1, NULL,
+ '2026-02-15 15:10:00', NULL, NULL, NULL,
+ 0, '2026-02-15 15:10:00', '2026-02-15 15:10:00'),
+(8300003, 'CERT-820003', 7000003, 'WK-70003', 8000003, 'CLM-80003', 2000003, 6000003,
+ 'CERT_ACTIVE', 'c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f',
+ 'https://oss.lifechain.cn/cert/CERT-820003.pdf', 1, NULL,
+ '2026-02-20 15:10:00', NULL, NULL, NULL,
+ 0, '2026-02-20 15:10:00', '2026-02-20 15:10:00'),
+(8300004, 'CERT-820004', 7000004, 'WK-70004', 8000004, 'CLM-80004', 2000004, 6000004,
+ 'CERT_ACTIVE', 'd4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90',
+ 'https://oss.lifechain.cn/cert/CERT-820004.pdf', 1, NULL,
+ '2026-02-25 15:10:00', NULL, NULL, NULL,
+ 0, '2026-02-25 15:10:00', '2026-02-25 15:10:00'),
+(8300005, 'CERT-820005', 7000005, 'WK-70005', 8000005, 'CLM-80005', 2000005, 6000005,
+ 'CERT_ACTIVE', 'e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001',
+ 'https://oss.lifechain.cn/cert/CERT-820005.pdf', 1, NULL,
+ '2026-03-02 15:10:00', NULL, NULL, NULL,
+ 0, '2026-03-02 15:10:00', '2026-03-02 15:10:00'),
+(8300006, 'CERT-820006', 7000006, 'WK-70006', 8000006, 'CLM-80006', 2000006, 6000006,
+ 'CERT_ACTIVE', 'f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112',
+ 'https://oss.lifechain.cn/cert/CERT-820006.pdf', 1, NULL,
+ '2026-03-08 15:10:00', NULL, NULL, NULL,
+ 0, '2026-03-08 15:10:00', '2026-03-08 15:10:00'),
+(8300007, 'CERT-820009', 7000010, 'WK-70010', 8000009, 'CLM-80009', 2000013, 6000013,
+ 'CERT_ACTIVE', '3a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223344556',
+ 'https://oss.lifechain.cn/cert/CERT-820009.pdf', 1, NULL,
+ '2026-03-12 15:10:00', NULL, NULL, NULL,
+ 0, '2026-03-12 15:10:00', '2026-03-12 15:10:00');
 
 -- -----------------------------
--- 5) 交易域（上架/订单/支付）+ 授权
+-- 6) 授权模板（个人/商业/独占）
 -- -----------------------------
--- 用于授权发放与争议结案后的授权撤销测试
 INSERT INTO `license_template`
-(
-  `id`, `template_name`, `template_code`,
-  `license_type`, `scope_description`, `duration_days`,
-  `price_amount`, `currency`, `status`, `description`,
-  `deleted_flag`, `created_at`, `updated_at`
-)
+(`id`, `template_name`, `template_code`, `license_type`, `scope_description`, `duration_days`,
+ `price_amount`, `currency`, `status`, `description`,
+ `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  (6100001, 'LifeChain个人使用授权模板',
-   'LTPL-10001',
-   'PERSONAL_USE',
-   '授权期内允许个人评估与非商业传播',
-   365,
-   100000, 'CNY', 'ACTIVE',
-   '用于端到端授权发放链路测试的初始化模板',
-   0, '2026-03-20 09:00:00', '2026-03-20 09:00:00');
+(8400001, '个人非商业使用授权', 'LTPL-PERSONAL-V1', 'PERSONAL_USE',
+ '授权范围：个人学习、欣赏、社交媒体非商业分享。\n禁止：商业用途、二次销售、批量分发。\n署名：必须注明原作者及作品编号。',
+ 365, 9900, 'CNY', 'ACTIVE', '面向个人买家的标准非商业授权', 0, '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
+(8400002, '商业使用授权（中小企业）', 'LTPL-COMMERCIAL-SMB-V1', 'COMMERCIAL_USE',
+ '授权范围：单一企业内部及对外商业使用，含广告、宣传物料、产品包装。\n限制：年印发量≤50万份，单作品授权金额≤10万元。\n署名：作品来源标识必须可见。',
+ 365, 198000, 'CNY', 'ACTIVE', '中小企业商业授权模板', 0, '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
+(8400003, '商业使用授权（大型企业）', 'LTPL-COMMERCIAL-ENT-V1', 'COMMERCIAL_USE',
+ '授权范围：跨业务线全场景商业使用，覆盖线上线下广告、产品集成、IP衍生开发。\n限制：仅在合同约定地理区域内有效。\n署名：联合署名条款另议。',
+ 365, 880000, 'CNY', 'ACTIVE', '大型企业商业授权模板', 0, '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
+(8400004, '独家授权（一年期）', 'LTPL-EXCLUSIVE-V1', 'EXCLUSIVE',
+ '授权范围：被授权方在授权期内独占该作品的全部商业权利。\n约束：作者不得对外签署任何重复授权；作者保留署名权。\n违约：单方面解约赔偿额=授权金额×3。',
+ 365, 2680000, 'CNY', 'ACTIVE', '高端独家授权模板', 0, '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
+(8400005, '永久授权（电子出版物）', 'LTPL-PERMANENT-EBOOK-V1', 'PERSONAL_USE',
+ '授权范围：购买后获得电子出版物的永久个人阅读权利，限本人设备使用。\n禁止：上传至公开网络、文件共享平台。',
+ NULL, 4900, 'CNY', 'ACTIVE', '电子出版物永久阅读授权', 0, '2026-01-01 09:00:00', '2026-01-01 09:00:00');
 
+-- 上架记录
 INSERT INTO `work_listing`
-(
-  `id`, `listing_no`,
-  `work_id`, `work_no`, `creator_account_id`,
-  `license_template_id`,
-  `license_type`,
-  `price_amount`, `currency`,
-  `status`, `review_status`, `reviewer_id`, `review_comment`,
-  `list_time`, `unlist_time`,
-  `scope_description`, `duration_days`,
-  `version`, `deleted_flag`,
-  `created_at`, `updated_at`
-)
+(`id`, `listing_no`, `work_id`, `work_no`, `creator_account_id`,
+ `license_template_id`, `license_type`,
+ `price_amount`, `currency`,
+ `status`, `review_status`, `reviewer_id`, `review_comment`,
+ `list_time`, `unlist_time`,
+ `scope_description`, `duration_days`,
+ `version`, `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  (6200001, 'LST-6200001',
-   7000001, 'WK-7000001', 2000001,
-   6100001,
-   'PERSONAL_USE',
-   100000, 'CNY',
-   'LISTED', 'APPROVED', 1000001, '初始化审核通过',
-   '2026-03-20 09:10:00', NULL,
-   '授权期内个人使用；允许以评审副本形式再分发',
-   365,
-   0, 0,
-   '2026-03-20 09:10:00', '2026-03-20 09:10:00');
+(8500001, 'LST-620001', 7000001, 'WK-70001', 2000001, 8400001, 'PERSONAL_USE',
+ 9900, 'CNY', 'LISTED', 'APPROVED', 1000002, '通过',
+ '2026-02-12 14:00:00', NULL,
+ '个人非商业使用，年期授权', 365,
+ 1, 0, '2026-02-12 14:00:00', '2026-02-12 14:00:00'),
+(8500002, 'LST-620002', 7000001, 'WK-70001', 2000001, 8400002, 'COMMERCIAL_USE',
+ 198000, 'CNY', 'LISTED', 'APPROVED', 1000002, '通过',
+ '2026-02-12 14:05:00', NULL,
+ '中小企业商业授权', 365,
+ 1, 0, '2026-02-12 14:05:00', '2026-02-12 14:05:00'),
+(8500003, 'LST-620003', 7000002, 'WK-70002', 2000002, 8400001, 'PERSONAL_USE',
+ 9900, 'CNY', 'LISTED', 'APPROVED', 1000002, '通过',
+ '2026-02-17 11:00:00', NULL,
+ '个人非商业使用', 365,
+ 1, 0, '2026-02-17 11:00:00', '2026-02-17 11:00:00'),
+(8500004, 'LST-620004', 7000003, 'WK-70003', 2000003, 8400002, 'COMMERCIAL_USE',
+ 198000, 'CNY', 'LISTED', 'APPROVED', 1000002, '通过',
+ '2026-03-01 09:00:00', NULL,
+ '中小企业商业授权', 365,
+ 1, 0, '2026-03-01 09:00:00', '2026-03-01 09:00:00'),
+(8500005, 'LST-620005', 7000004, 'WK-70004', 2000004, 8400003, 'COMMERCIAL_USE',
+ 880000, 'CNY', 'LISTED', 'APPROVED', 1000002, '通过',
+ '2026-03-05 09:00:00', NULL,
+ '大型企业商业授权', 365,
+ 1, 0, '2026-03-05 09:00:00', '2026-03-05 09:00:00'),
+(8500006, 'LST-620006', 7000005, 'WK-70005', 2000005, 8400004, 'EXCLUSIVE',
+ 2680000, 'CNY', 'LISTED', 'APPROVED', 1000002, '独家授权可上架',
+ '2026-03-08 09:00:00', NULL,
+ '一年期独家授权', 365,
+ 1, 0, '2026-03-08 09:00:00', '2026-03-08 09:00:00'),
+(8500007, 'LST-620007', 7000006, 'WK-70006', 2000006, 8400005, 'PERSONAL_USE',
+ 4900, 'CNY', 'LISTED', 'APPROVED', 1000002, '通过',
+ '2026-03-10 11:00:00', NULL,
+ '电子书永久个人阅读授权', NULL,
+ 1, 0, '2026-03-10 11:00:00', '2026-03-10 11:00:00'),
+(8500008, 'LST-620008', 7000010, 'WK-70010', 2000013, 8400002, 'COMMERCIAL_USE',
+ 198000, 'CNY', 'LISTED', 'APPROVED', 1000002, '通过',
+ '2026-03-15 11:00:00', NULL,
+ '电子专辑商业授权', 365,
+ 1, 0, '2026-03-15 11:00:00', '2026-03-15 11:00:00'),
+(8500009, 'LST-620009', 7000003, 'WK-70003', 2000003, 8400001, 'PERSONAL_USE',
+ 9900, 'CNY', 'UNLISTED', 'APPROVED', 1000002, '创作者主动下架',
+ '2026-03-01 09:00:00', '2026-04-15 16:00:00',
+ '个人非商业使用', 365,
+ 2, 0, '2026-03-01 09:00:00', '2026-04-15 16:00:00'),
+(8500010, 'LST-620010', 7000011, 'WK-70011', 2000010, 8400001, 'PERSONAL_USE',
+ 9900, 'CNY', 'FROZEN', 'APPROVED', 4000001, '风险冻结',
+ '2026-03-22 09:00:00', NULL,
+ '个人非商业使用', 365,
+ 2, 0, '2026-03-22 09:00:00', '2026-04-22 10:00:00');
 
+-- 结算模板与明细
+INSERT INTO `settle_template`
+(`id`, `template_name`, `template_code`, `description`, `status`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(8500001, '个人创作者标准分账模板（80/20）', 'STPL-CREATOR-STD',
+ '个人创作者作品默认分账：创作者80%、平台20%', 'ACTIVE',
+ 0, '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
+(8500002, '工作室创作者标准分账模板（85/15）', 'STPL-STUDIO-STD',
+ '企业/工作室作品默认分账：创作者85%、平台15%', 'ACTIVE',
+ 0, '2026-01-01 09:00:00', '2026-01-01 09:00:00');
+
+INSERT INTO `settle_template_item`
+(`id`, `template_id`, `role_type`, `ratio`, `description`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(8510001, 8500001, 'CREATOR', 0.8000, '创作者分账', 0, '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
+(8510002, 8500001, 'PLATFORM', 0.2000, '平台分账', 0, '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
+(8510003, 8500002, 'CREATOR', 0.8500, '工作室分账', 0, '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
+(8510004, 8500002, 'PLATFORM', 0.1500, '平台分账', 0, '2026-01-01 09:00:00', '2026-01-01 09:00:00');
+
+-- 作品结算规则
 INSERT INTO `work_settle_rule`
-(
-  `id`, `work_id`, `work_no`,
-  `template_id`,
-  `creator_account_id`,
-  `creator_ratio`, `platform_ratio`,
-  `effective_time`,
-  `status`,
-  `deleted_flag`,
-  `created_at`, `updated_at`
-)
+(`id`, `work_id`, `work_no`, `template_id`, `creator_account_id`,
+ `creator_ratio`, `platform_ratio`, `effective_time`, `status`,
+ `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  (9500001, 7000001, 'WK-7000001',
-   NULL,
-   2000001,
-   0.8000, 0.2000,
-   '2026-03-20 00:00:00',
-   'ACTIVE',
-   0,
-   '2026-03-20 00:00:00', '2026-03-20 00:00:00');
+(8600001, 7000001, 'WK-70001', 8500001, 2000001, 0.8000, 0.2000, '2026-02-12 14:00:00', 'ACTIVE', 0, '2026-02-12 14:00:00', '2026-02-12 14:00:00'),
+(8600002, 7000002, 'WK-70002', 8500001, 2000002, 0.8000, 0.2000, '2026-02-17 11:00:00', 'ACTIVE', 0, '2026-02-17 11:00:00', '2026-02-17 11:00:00'),
+(8600003, 7000003, 'WK-70003', 8500001, 2000003, 0.8000, 0.2000, '2026-03-01 09:00:00', 'ACTIVE', 0, '2026-03-01 09:00:00', '2026-03-01 09:00:00'),
+(8600004, 7000004, 'WK-70004', 8500001, 2000004, 0.8000, 0.2000, '2026-03-05 09:00:00', 'ACTIVE', 0, '2026-03-05 09:00:00', '2026-03-05 09:00:00'),
+(8600005, 7000005, 'WK-70005', 8500001, 2000005, 0.8000, 0.2000, '2026-03-08 09:00:00', 'ACTIVE', 0, '2026-03-08 09:00:00', '2026-03-08 09:00:00'),
+(8600006, 7000006, 'WK-70006', 8500001, 2000006, 0.8000, 0.2000, '2026-03-10 11:00:00', 'ACTIVE', 0, '2026-03-10 11:00:00', '2026-03-10 11:00:00'),
+(8600007, 7000010, 'WK-70010', 8500002, 2000013, 0.8500, 0.1500, '2026-03-15 11:00:00', 'ACTIVE', 0, '2026-03-15 11:00:00', '2026-03-15 11:00:00');
 
+-- =============================================================
+-- 7. 交易订单 / 支付 / 授权 / 退款
+-- =============================================================
 INSERT INTO `trade_order`
-(
-  `id`, `order_no`,
-  `work_id`, `work_no`,
-  `listing_id`, `listing_no`,
-  `buyer_account_id`, `buyer_subject_id`,
-  `creator_account_id`, `creator_subject_id`,
-  `order_status`, `license_type`,
-  `price_amount`, `pay_amount`,
-  `currency`, `pay_channel`, `pay_status`,
-  `expire_time`, `pay_time`, `complete_time`, `cancel_time`, `cancel_reason`,
-  `request_id`, `version`, `deleted_flag`,
-  `created_at`, `updated_at`
-)
+(`id`, `order_no`, `work_id`, `work_no`, `listing_id`, `listing_no`,
+ `buyer_account_id`, `buyer_subject_id`, `creator_account_id`, `creator_subject_id`,
+ `order_status`, `license_type`,
+ `price_amount`, `pay_amount`, `currency`,
+ `pay_channel`, `pay_status`,
+ `expire_time`, `pay_time`, `complete_time`, `cancel_time`, `cancel_reason`,
+ `request_id`, `version`, `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  (9100001, 'ORDER-9100001',
-   7000001, 'WK-7000001',
-   6200001, 'LST-6200001',
-   3000001, 5000004,
-   2000001, 5000002,
-   'ORDER_CREATED', 'PERSONAL_USE',
-   100000, 100000,
-   'CNY', 'WECHAT_PAY', 'PAY_PENDING',
-   '2026-03-22 00:00:00', NULL, NULL, NULL, NULL,
-   'REQ-ORDER-9100001', 0, 0,
-   '2026-03-20 10:00:00', '2026-03-20 10:00:00'),
+(9100001, 'ORDER-91000001', 7000001, 'WK-70001', 8500001, 'LST-620001',
+ 3000001, 5000031, 2000001, 5000011,
+ 'ORDER_COMPLETED', 'PERSONAL_USE',
+ 9900, 9900, 'CNY',
+ 'WECHAT_PAY', 'PAY_SUCCESS',
+ '2026-02-13 10:30:00', '2026-02-13 10:12:48', '2026-02-13 10:14:12', NULL, NULL,
+ 'REQ-20260213-1012-30001-70001', 4, 0, '2026-02-13 10:00:00', '2026-02-13 10:14:12'),
+(9100002, 'ORDER-91000002', 7000001, 'WK-70001', 8500002, 'LST-620002',
+ 3000007, 5000037, 2000001, 5000011,
+ 'ORDER_COMPLETED', 'COMMERCIAL_USE',
+ 198000, 198000, 'CNY',
+ 'ALIPAY', 'PAY_SUCCESS',
+ '2026-02-15 16:00:00', '2026-02-15 14:30:21', '2026-02-15 14:31:55', NULL, NULL,
+ 'REQ-20260215-1430-30007-70001', 4, 0, '2026-02-15 14:00:00', '2026-02-15 14:31:55'),
+(9100003, 'ORDER-91000003', 7000002, 'WK-70002', 8500003, 'LST-620003',
+ 3000002, 5000032, 2000002, 5000012,
+ 'ORDER_COMPLETED', 'PERSONAL_USE',
+ 9900, 9900, 'CNY',
+ 'WECHAT_PAY', 'PAY_SUCCESS',
+ '2026-02-18 13:00:00', '2026-02-18 11:18:09', '2026-02-18 11:20:33', NULL, NULL,
+ 'REQ-20260218-1118-30002-70002', 4, 0, '2026-02-18 11:00:00', '2026-02-18 11:20:33'),
+(9100004, 'ORDER-91000004', 7000003, 'WK-70003', 8500004, 'LST-620004',
+ 3000008, 5000038, 2000003, 5000013,
+ 'ORDER_COMPLETED', 'COMMERCIAL_USE',
+ 198000, 198000, 'CNY',
+ 'ALIPAY', 'PAY_SUCCESS',
+ '2026-03-02 12:00:00', '2026-03-02 10:42:11', '2026-03-02 10:44:08', NULL, NULL,
+ 'REQ-20260302-1042-30008-70003', 4, 0, '2026-03-02 10:30:00', '2026-03-02 10:44:08'),
+(9100005, 'ORDER-91000005', 7000004, 'WK-70004', 8500005, 'LST-620005',
+ 3000009, 5000039, 2000004, 5000014,
+ 'ORDER_COMPLETED', 'COMMERCIAL_USE',
+ 880000, 880000, 'CNY',
+ 'ALIPAY', 'PAY_SUCCESS',
+ '2026-03-06 18:00:00', '2026-03-06 15:08:56', '2026-03-06 15:11:02', NULL, NULL,
+ 'REQ-20260306-1508-30009-70004', 4, 0, '2026-03-06 15:00:00', '2026-03-06 15:11:02'),
+(9100006, 'ORDER-91000006', 7000005, 'WK-70005', 8500006, 'LST-620006',
+ 3000009, 5000039, 2000005, 5000015,
+ 'ORDER_COMPLETED', 'EXCLUSIVE',
+ 2680000, 2680000, 'CNY',
+ 'ALIPAY', 'PAY_SUCCESS',
+ '2026-03-09 18:00:00', '2026-03-09 16:22:18', '2026-03-09 16:25:49', NULL, NULL,
+ 'REQ-20260309-1622-30009-70005', 4, 0, '2026-03-09 16:00:00', '2026-03-09 16:25:49'),
+(9100007, 'ORDER-91000007', 7000006, 'WK-70006', 8500007, 'LST-620007',
+ 3000003, 5000033, 2000006, 5000016,
+ 'ORDER_COMPLETED', 'PERSONAL_USE',
+ 4900, 4900, 'CNY',
+ 'WECHAT_PAY', 'PAY_SUCCESS',
+ '2026-03-11 14:00:00', '2026-03-11 12:48:00', '2026-03-11 12:48:55', NULL, NULL,
+ 'REQ-20260311-1248-30003-70006', 4, 0, '2026-03-11 12:30:00', '2026-03-11 12:48:55'),
+(9100008, 'ORDER-91000008', 7000010, 'WK-70010', 8500008, 'LST-620008',
+ 3000008, 5000038, 2000013, 5000023,
+ 'ORDER_COMPLETED', 'COMMERCIAL_USE',
+ 198000, 198000, 'CNY',
+ 'ALIPAY', 'PAY_SUCCESS',
+ '2026-03-16 12:00:00', '2026-03-16 10:11:30', '2026-03-16 10:13:12', NULL, NULL,
+ 'REQ-20260316-1011-30008-70010', 4, 0, '2026-03-16 10:00:00', '2026-03-16 10:13:12'),
+(9100009, 'ORDER-91000009', 7000001, 'WK-70001', 8500001, 'LST-620001',
+ 3000004, 5000034, 2000001, 5000011,
+ 'AUTH_GRANTED', 'PERSONAL_USE',
+ 9900, 9900, 'CNY',
+ 'WECHAT_PAY', 'PAY_SUCCESS',
+ '2026-05-16 13:00:00', '2026-05-16 11:30:21', NULL, NULL, NULL,
+ 'REQ-20260516-1130-30004-70001', 3, 0, '2026-05-16 11:00:00', '2026-05-16 11:32:08'),
+(9100010, 'ORDER-91000010', 7000002, 'WK-70002', 8500003, 'LST-620003',
+ 3000005, 5000035, 2000002, 5000012,
+ 'PAY_CONFIRMED', 'PERSONAL_USE',
+ 9900, 9900, 'CNY',
+ 'WECHAT_PAY', 'PAY_SUCCESS',
+ '2026-05-17 10:00:00', '2026-05-17 09:11:32', NULL, NULL, NULL,
+ 'REQ-20260517-0911-30005-70002', 2, 0, '2026-05-17 09:00:00', '2026-05-17 09:12:00'),
+(9100011, 'ORDER-91000011', 7000004, 'WK-70004', 8500005, 'LST-620005',
+ 3000007, 5000037, 2000004, 5000014,
+ 'ORDER_CREATED', 'COMMERCIAL_USE',
+ 880000, 880000, 'CNY',
+ NULL, 'PAY_PENDING',
+ '2026-05-17 22:00:00', NULL, NULL, NULL, NULL,
+ 'REQ-20260517-2000-30007-70004', 1, 0, '2026-05-17 20:00:00', '2026-05-17 20:00:00'),
+(9100012, 'ORDER-91000012', 7000003, 'WK-70003', 8500004, 'LST-620004',
+ 3000007, 5000037, 2000003, 5000013,
+ 'ORDER_EXPIRED', 'COMMERCIAL_USE',
+ 198000, 198000, 'CNY',
+ NULL, 'PAY_PENDING',
+ '2026-05-15 18:00:00', NULL, NULL, '2026-05-15 18:00:01', '订单超时未支付，系统自动关闭',
+ 'REQ-20260515-1700-30007-70003', 2, 0, '2026-05-15 16:00:00', '2026-05-15 18:00:01'),
+(9100013, 'ORDER-91000013', 7000005, 'WK-70005', 8500006, 'LST-620006',
+ 3000009, 5000039, 2000005, 5000015,
+ 'REFUNDED', 'EXCLUSIVE',
+ 2680000, 2680000, 'CNY',
+ 'ALIPAY', 'PAY_SUCCESS',
+ '2026-04-02 18:00:00', '2026-04-02 14:30:00', NULL, NULL, '买方因项目终止申请退款',
+ 'REQ-20260402-1430-30009-70005-V2', 5, 0, '2026-04-02 14:00:00', '2026-04-08 11:30:00'),
+(9100014, 'ORDER-91000014', 7000011, 'WK-70011', 8500010, 'LST-620010',
+ 3000004, 5000034, 2000010, 5000020,
+ 'ORDER_FROZEN', 'PERSONAL_USE',
+ 9900, 9900, 'CNY',
+ 'WECHAT_PAY', 'PAY_SUCCESS',
+ '2026-04-20 18:00:00', '2026-04-20 14:00:00', NULL, NULL, NULL,
+ 'REQ-20260420-1400-30004-70011', 3, 0, '2026-04-20 13:00:00', '2026-04-22 10:00:00'),
+(9100015, 'ORDER-91000015', 7000010, 'WK-70010', 8500008, 'LST-620008',
+ 3000007, 5000037, 2000013, 5000023,
+ 'ORDER_EXCEPTION', 'COMMERCIAL_USE',
+ 198000, 198000, 'CNY',
+ 'ALIPAY', 'PAY_FAILED',
+ '2026-05-10 22:00:00', NULL, NULL, NULL, '渠道返回 SYSTEMERROR，需人工核查',
+ 'REQ-20260510-2030-30007-70010', 2, 0, '2026-05-10 20:00:00', '2026-05-10 20:30:55');
 
-  (9100002, 'ORDER-9100002',
-   7000001, 'WK-7000001',
-   6200001, 'LST-6200001',
-   3000001, 5000004,
-   2000001, 5000002,
-   'ORDER_CREATED', 'PERSONAL_USE',
-   100000, 100000,
-   'CNY', 'WECHAT_PAY', 'PAY_PENDING',
-   '2026-03-22 00:00:00', NULL, NULL, NULL, NULL,
-   'REQ-ORDER-9100002', 0, 0,
-   '2026-03-20 11:00:00', '2026-03-20 11:00:00');
-
+-- =============================================================
+-- 8. 支付记录
+-- =============================================================
 INSERT INTO `payment_record`
-(
-  `id`, `payment_no`,
-  `order_id`, `order_no`,
-  `pay_channel`, `pay_status`,
-  `pay_amount`, `currency`,
-  `third_trade_no`, `prepay_id`, `callback_raw_ref`,
-  `pay_time`, `callback_time`, `expire_time`,
-  `fail_reason`, `request_id`,
-  `deleted_flag`, `created_at`, `updated_at`
-)
+(`id`, `payment_no`, `order_id`, `order_no`, `pay_channel`, `pay_status`,
+ `pay_amount`, `currency`, `third_trade_no`, `prepay_id`, `callback_raw_ref`,
+ `pay_time`, `callback_time`, `expire_time`, `fail_reason`, `request_id`,
+ `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  (9300001, 'PAY-9300001',
-   9100001, 'ORDER-9100001',
-   'WECHAT_PAY', 'PAY_PENDING',
-   100000, 'CNY',
-   'wx_third_trade_9100001', 'wx_prepay_9100001', NULL,
-   NULL, NULL, '2026-03-22 00:00:00',
-   NULL, 'REQ-PAY-9100001',
-   0, '2026-03-20 10:01:00', '2026-03-20 10:01:00'),
+(9300001, 'PAY-93000001', 9100001, 'ORDER-91000001', 'WECHAT_PAY', 'PAY_SUCCESS',
+ 9900, 'CNY', '4200002098202602131234567890', 'wx20260213101200abcde001f8', 'oss://lifechain-pay-callback/wechat/2026-02-13/1012-9100001.json',
+ '2026-02-13 10:12:48', '2026-02-13 10:13:02', '2026-02-13 10:30:00', NULL, 'REQ-20260213-1012-30001-70001',
+ 0, '2026-02-13 10:00:30', '2026-02-13 10:13:02'),
+(9300002, 'PAY-93000002', 9100002, 'ORDER-91000002', 'ALIPAY', 'PAY_SUCCESS',
+ 198000, 'CNY', '2026021522001492760501234567', NULL, 'oss://lifechain-pay-callback/alipay/2026-02-15/1430-9100002.json',
+ '2026-02-15 14:30:21', '2026-02-15 14:30:39', '2026-02-15 16:00:00', NULL, 'REQ-20260215-1430-30007-70001',
+ 0, '2026-02-15 14:00:30', '2026-02-15 14:30:39'),
+(9300003, 'PAY-93000003', 9100003, 'ORDER-91000003', 'WECHAT_PAY', 'PAY_SUCCESS',
+ 9900, 'CNY', '4200002098202602181122334455', 'wx20260218111800ghijk002a9', 'oss://lifechain-pay-callback/wechat/2026-02-18/1118-9100003.json',
+ '2026-02-18 11:18:09', '2026-02-18 11:18:24', '2026-02-18 13:00:00', NULL, 'REQ-20260218-1118-30002-70002',
+ 0, '2026-02-18 11:00:30', '2026-02-18 11:18:24'),
+(9300004, 'PAY-93000004', 9100004, 'ORDER-91000004', 'ALIPAY', 'PAY_SUCCESS',
+ 198000, 'CNY', '2026030222001492760507778889', NULL, 'oss://lifechain-pay-callback/alipay/2026-03-02/1042-9100004.json',
+ '2026-03-02 10:42:11', '2026-03-02 10:42:31', '2026-03-02 12:00:00', NULL, 'REQ-20260302-1042-30008-70003',
+ 0, '2026-03-02 10:30:30', '2026-03-02 10:42:31'),
+(9300005, 'PAY-93000005', 9100005, 'ORDER-91000005', 'ALIPAY', 'PAY_SUCCESS',
+ 880000, 'CNY', '2026030622001492760501998877', NULL, 'oss://lifechain-pay-callback/alipay/2026-03-06/1508-9100005.json',
+ '2026-03-06 15:08:56', '2026-03-06 15:09:18', '2026-03-06 18:00:00', NULL, 'REQ-20260306-1508-30009-70004',
+ 0, '2026-03-06 15:00:30', '2026-03-06 15:09:18'),
+(9300006, 'PAY-93000006', 9100006, 'ORDER-91000006', 'ALIPAY', 'PAY_SUCCESS',
+ 2680000, 'CNY', '2026030922001492760501660033', NULL, 'oss://lifechain-pay-callback/alipay/2026-03-09/1622-9100006.json',
+ '2026-03-09 16:22:18', '2026-03-09 16:22:51', '2026-03-09 18:00:00', NULL, 'REQ-20260309-1622-30009-70005',
+ 0, '2026-03-09 16:00:30', '2026-03-09 16:22:51'),
+(9300007, 'PAY-93000007', 9100007, 'ORDER-91000007', 'WECHAT_PAY', 'PAY_SUCCESS',
+ 4900, 'CNY', '4200002098202603111248009987', 'wx20260311124800lmnop003c1', 'oss://lifechain-pay-callback/wechat/2026-03-11/1248-9100007.json',
+ '2026-03-11 12:48:00', '2026-03-11 12:48:18', '2026-03-11 14:00:00', NULL, 'REQ-20260311-1248-30003-70006',
+ 0, '2026-03-11 12:30:30', '2026-03-11 12:48:18'),
+(9300008, 'PAY-93000008', 9100008, 'ORDER-91000008', 'ALIPAY', 'PAY_SUCCESS',
+ 198000, 'CNY', '2026031622001492760508552211', NULL, 'oss://lifechain-pay-callback/alipay/2026-03-16/1011-9100008.json',
+ '2026-03-16 10:11:30', '2026-03-16 10:11:52', '2026-03-16 12:00:00', NULL, 'REQ-20260316-1011-30008-70010',
+ 0, '2026-03-16 10:00:30', '2026-03-16 10:11:52'),
+(9300009, 'PAY-93000009', 9100009, 'ORDER-91000009', 'WECHAT_PAY', 'PAY_SUCCESS',
+ 9900, 'CNY', '4200002098202605161130223344', 'wx20260516113021qrstu004d2', 'oss://lifechain-pay-callback/wechat/2026-05-16/1130-9100009.json',
+ '2026-05-16 11:30:21', '2026-05-16 11:30:38', '2026-05-16 13:00:00', NULL, 'REQ-20260516-1130-30004-70001',
+ 0, '2026-05-16 11:00:30', '2026-05-16 11:30:38'),
+(9300010, 'PAY-93000010', 9100010, 'ORDER-91000010', 'WECHAT_PAY', 'PAY_SUCCESS',
+ 9900, 'CNY', '4200002098202605170911445566', 'wx20260517091132vwxyz005e3', 'oss://lifechain-pay-callback/wechat/2026-05-17/0911-9100010.json',
+ '2026-05-17 09:11:32', '2026-05-17 09:11:48', '2026-05-17 10:00:00', NULL, 'REQ-20260517-0911-30005-70002',
+ 0, '2026-05-17 09:00:30', '2026-05-17 09:11:48'),
+(9300011, 'PAY-93000011', 9100013, 'ORDER-91000013', 'ALIPAY', 'PAY_SUCCESS',
+ 2680000, 'CNY', '2026040222001492760506677889', NULL, 'oss://lifechain-pay-callback/alipay/2026-04-02/1430-9100013.json',
+ '2026-04-02 14:30:00', '2026-04-02 14:30:21', '2026-04-02 18:00:00', NULL, 'REQ-20260402-1430-30009-70005',
+ 0, '2026-04-02 14:00:30', '2026-04-02 14:30:21'),
+(9300012, 'PAY-93000012', 9100014, 'ORDER-91000014', 'WECHAT_PAY', 'PAY_SUCCESS',
+ 9900, 'CNY', '4200002098202604201400112299', 'wx20260420140000abcde006f4', 'oss://lifechain-pay-callback/wechat/2026-04-20/1400-9100014.json',
+ '2026-04-20 14:00:00', '2026-04-20 14:00:18', '2026-04-20 18:00:00', NULL, 'REQ-20260420-1400-30004-70011',
+ 0, '2026-04-20 13:00:30', '2026-04-20 14:00:18'),
+(9300013, 'PAY-93000013', 9100015, 'ORDER-91000015', 'ALIPAY', 'PAY_FAILED',
+ 198000, 'CNY', '2026051022001492760501020304', NULL, 'oss://lifechain-pay-callback/alipay/2026-05-10/2030-9100015-fail.json',
+ NULL, '2026-05-10 20:30:55', '2026-05-10 22:00:00', '渠道返回 SYSTEMERROR (errorCode=ACQ.SYSTEM_ERROR)，请重新发起或联系支付宝核查', 'REQ-20260510-2030-30007-70010',
+ 0, '2026-05-10 20:00:30', '2026-05-10 20:30:55');
 
-  (9300002, 'PAY-9300002',
-   9100002, 'ORDER-9100002',
-   'WECHAT_PAY', 'PAY_PENDING',
-   100000, 'CNY',
-   'wx_third_trade_9100002', 'wx_prepay_9100002', NULL,
-   NULL, NULL, '2026-03-22 00:00:00',
-   NULL, 'REQ-PAY-9100002',
-   0, '2026-03-20 11:01:00', '2026-03-20 11:01:00');
-
+-- =============================================================
+-- 9. 授权记录（订单完成后生成的链上授权）
+-- =============================================================
 INSERT INTO `license_record`
-(
-  `id`, `license_no`,
-  `order_id`, `order_no`,
-  `work_id`, `work_no`,
-  `licensor_account_id`, `licensee_account_id`,
-  `license_type`,
-  `license_status`, `chain_status`,
-  `scope_description`,
-  `effective_time`, `expire_time`,
-  `license_hash`,
-  `tx_hash`, `block_height`,
-  `terminate_time`, `terminate_reason`,
-  `request_id`,
-  `deleted_flag`,
-  `created_at`, `updated_at`
-)
+(`id`, `license_no`, `order_id`, `order_no`, `work_id`, `work_no`,
+ `licensor_account_id`, `licensee_account_id`,
+ `license_type`, `license_status`, `chain_status`,
+ `scope_description`,
+ `effective_time`, `expire_time`,
+ `license_hash`, `tx_hash`, `block_height`,
+ `terminate_time`, `terminate_reason`,
+ `request_id`, `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  (9400001, 'LIC-9100001',
-   9100001, 'ORDER-9100001',
-   7000001, 'WK-7000001',
-   2000001, 3000001,
-   'PERSONAL_USE',
-   'LICENSE_ACTIVE', '',
-   '365天内用于个人评估与内部评审副本使用',
-   '2026-03-20 10:30:00', '2027-03-20 10:30:00',
-   '3d7a4c2f6a1b8c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d',
-   NULL, NULL,
-   NULL, NULL,
-   'REQ-LIC-9100001',
-   0,
-   '2026-03-20 10:30:00', '2026-03-20 10:30:00'),
+(9400001, 'LIC-94000001', 9100001, 'ORDER-91000001', 7000001, 'WK-70001',
+ 2000001, 3000001, 'PERSONAL_USE', 'LICENSE_ACTIVE', 'CHAIN_PENDING',
+ '允许被授权方在个人非商业场景下使用本作品，禁止转售、商用、二次分发',
+ '2026-02-13 10:14:12', '2027-02-13 10:14:12',
+ '8a1b3c5d7e9f0a2b4c6d8e0f1a3b5c7d9e0f2a4b6c8d0e1f3a5b7c9d0e2f4a6b', NULL, NULL,
+ NULL, NULL, 'REQ-20260213-1012-30001-70001-LIC', 0, '2026-02-13 10:14:12', '2026-02-13 10:14:12'),
+(9400002, 'LIC-94000002', 9100002, 'ORDER-91000002', 7000001, 'WK-70001',
+ 2000001, 3000007, 'COMMERCIAL_USE', 'LICENSE_ACTIVE', 'CHAIN_PENDING',
+ '允许被授权方（北京方寸创意广告有限公司）将作品用于2026年度商业广告投放，授权区域：中国大陆，年期365天',
+ '2026-02-15 14:31:55', '2027-02-15 14:31:55',
+ '9b2c4d6e8f0a1b3c5d7e9f1a3b5c7d9e1f2a4b6c8d0e2f4a6b8c0d2e4f6a8b0c', NULL, NULL,
+ NULL, NULL, 'REQ-20260215-1430-30007-70001-LIC', 0, '2026-02-15 14:31:55', '2026-02-15 14:31:55'),
+(9400003, 'LIC-94000003', 9100003, 'ORDER-91000003', 7000002, 'WK-70002',
+ 2000002, 3000002, 'PERSONAL_USE', 'LICENSE_ACTIVE', 'CHAIN_PENDING',
+ '允许被授权方在个人非商业场景下使用本作品（背景音乐、个人短视频片头）',
+ '2026-02-18 11:20:33', '2027-02-18 11:20:33',
+ 'ac3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3a5b7c9d1e3f5a7b9c1d3e5f7a9b1c3d', NULL, NULL,
+ NULL, NULL, 'REQ-20260218-1118-30002-70002-LIC', 0, '2026-02-18 11:20:33', '2026-02-18 11:20:33'),
+(9400004, 'LIC-94000004', 9100004, 'ORDER-91000004', 7000003, 'WK-70003',
+ 2000003, 3000008, 'COMMERCIAL_USE', 'LICENSE_ACTIVE', 'CHAIN_PENDING',
+ '允许被授权方（广州山岚文化传播有限公司）在视频广告项目中使用本作品，授权区域：中国大陆，年期365天',
+ '2026-03-02 10:44:08', '2027-03-02 10:44:08',
+ 'bd4e6f8a0b2c4d6e8f0a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6a8b0c2d4e', NULL, NULL,
+ NULL, NULL, 'REQ-20260302-1042-30008-70003-LIC', 0, '2026-03-02 10:44:08', '2026-03-02 10:44:08'),
+(9400005, 'LIC-94000005', 9100005, 'ORDER-91000005', 7000004, 'WK-70004',
+ 2000004, 3000009, 'COMMERCIAL_USE', 'LICENSE_ACTIVE', 'CHAIN_PENDING',
+ '允许被授权方（成都拾光影视制作有限公司）在影视作品后期配乐中使用本作品，授权区域：中国大陆，年期365天',
+ '2026-03-06 15:11:02', '2027-03-06 15:11:02',
+ 'ce5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3a5b7c9d1e3f5a7b9c1d3e5f', NULL, NULL,
+ NULL, NULL, 'REQ-20260306-1508-30009-70004-LIC', 0, '2026-03-06 15:11:02', '2026-03-06 15:11:02'),
+(9400006, 'LIC-94000006', 9100006, 'ORDER-91000006', 7000005, 'WK-70005',
+ 2000005, 3000009, 'EXCLUSIVE', 'LICENSE_TERMINATED', 'CHAIN_PENDING',
+ '一年期独家授权（仅限被授权方在影视作品中使用，年期365天，因买方申请退款而终止）',
+ '2026-03-09 16:25:49', '2027-03-09 16:25:49',
+ 'df6a8b0c2d4e6f8a0b2c4d6e8f0a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6a', NULL, NULL,
+ '2026-04-08 11:30:00', '订单退款，授权依据撤销',
+ 'REQ-20260309-1622-30009-70005-LIC', 0, '2026-03-09 16:25:49', '2026-04-08 11:30:00'),
+(9400007, 'LIC-94000007', 9100007, 'ORDER-91000007', 7000006, 'WK-70006',
+ 2000006, 3000003, 'PERSONAL_USE', 'LICENSE_ACTIVE', 'CHAIN_PENDING',
+ '允许被授权方在个人电子阅读场景下永久使用本作品（仅限本人阅读，禁止转发分发）',
+ '2026-03-11 12:48:55', NULL,
+ 'e07b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3a5b7c9d1e3f5a7b', NULL, NULL,
+ NULL, NULL, 'REQ-20260311-1248-30003-70006-LIC', 0, '2026-03-11 12:48:55', '2026-03-11 12:48:55'),
+(9400008, 'LIC-94000008', 9100008, 'ORDER-91000008', 7000010, 'WK-70010',
+ 2000013, 3000008, 'COMMERCIAL_USE', 'LICENSE_ACTIVE', 'CHAIN_PENDING',
+ '允许被授权方（广州山岚文化传播有限公司）在企业宣传片/活动中使用《潮汐》专辑12首曲目，年期365天',
+ '2026-03-16 10:13:12', '2027-03-16 10:13:12',
+ 'f18c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4c6d8e0f2a4b6c8d0e2f4a6b8c', NULL, NULL,
+ NULL, NULL, 'REQ-20260316-1011-30008-70010-LIC', 0, '2026-03-16 10:13:12', '2026-03-16 10:13:12'),
+(9400009, 'LIC-94000009', 9100009, 'ORDER-91000009', 7000001, 'WK-70001',
+ 2000001, 3000004, 'PERSONAL_USE', 'LICENSE_PENDING', 'CHAIN_PENDING',
+ '允许被授权方在个人非商业场景下使用本作品（待结算后正式生效）',
+ NULL, NULL,
+ NULL, NULL, NULL,
+ NULL, NULL, 'REQ-20260516-1130-30004-70001-LIC', 0, '2026-05-16 11:32:08', '2026-05-16 11:32:08'),
+(9400010, 'LIC-94000010', 9100014, 'ORDER-91000014', 7000011, 'WK-70011',
+ 2000010, 3000004, 'PERSONAL_USE', 'LICENSE_FROZEN', 'CHAIN_PENDING',
+ '原个人非商业授权，因作品涉嫌侵权进入冻结流程',
+ '2026-04-20 14:00:18', '2027-04-20 14:00:18',
+ '029d1e3f5a7b9c1d3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3a5b7c9d', NULL, NULL,
+ NULL, NULL, 'REQ-20260420-1400-30004-70011-LIC', 0, '2026-04-20 14:00:18', '2026-04-22 10:00:00');
 
-  (9400002, 'LIC-9100002',
-   9100002, 'ORDER-9100002',
-   7000001, 'WK-7000001',
-   2000001, 3000001,
-   'PERSONAL_USE',
-   'LICENSE_ACTIVE', '',
-   '365天内用于个人评估与内部评审副本使用',
-   '2026-03-20 11:30:00', '2027-03-20 11:30:00',
-   '7f6e5d4c3b2a19080706050403020100ffeeddccbbaa99887766554433221100',
-   NULL, NULL,
-   NULL, NULL,
-   'REQ-LIC-9100002',
-   0,
-   '2026-03-20 11:30:00', '2026-03-20 11:30:00');
-
--- -----------------------------
--- 6) 监管域（风险 / 冻结 / 争议 / 报告）
--- -----------------------------
-INSERT INTO `risk_event`
-(
-  `id`, `risk_no`, `target_type`, `target_id`, `target_no`,
-  `status`, `risk_level`, `risk_type`, `risk_description`,
-  `reporter_id`, `reporter_role`, `report_time`,
-  `reason_code`, `result_summary`, `resolve_time`,
-  `deleted_flag`, `created_at`, `updated_at`
-)
+-- =============================================================
+-- 10. 退款记录
+-- =============================================================
+INSERT INTO `refund_record`
+(`id`, `refund_no`, `order_id`, `order_no`, `payment_id`, `payment_no`,
+ `pay_channel`, `refund_amount`, `currency`, `refund_status`,
+ `refund_reason`, `reason_code`, `third_refund_no`,
+ `apply_time`, `complete_time`, `fail_reason`, `operator_id`, `request_id`,
+ `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  (9700001, 'RISK-9700001', 'WORK', 7000001, 'WK-7000001',
-   'RISK_MARKED', 'MEDIUM', 'COPYRIGHT_MONITOR',
-   '自动化风控检测发现该作品存在潜在的未授权复用风险',
-   4000001, 'REGULATOR',
-   '2026-03-20 09:20:00',
-   'RC-RISK-MED', NULL, NULL,
-   0, '2026-03-20 09:20:00', '2026-03-20 09:20:00');
+(9410001, 'REF-94100001', 9100013, 'ORDER-91000013', 9300011, 'PAY-93000011',
+ 'ALIPAY', 2680000, 'CNY', 'SUCCESS',
+ '买方因影视项目终止申请退款，已与创作者达成一致', 'BUYER_PROJECT_CANCELLED',
+ '2026040822001492760506677889REF',
+ '2026-04-05 14:00:00', '2026-04-08 11:30:00', NULL, 1000003, 'REQ-REF-20260405-9100013',
+ 0, '2026-04-05 14:00:00', '2026-04-08 11:30:00');
 
-INSERT INTO `freeze_record`
-(
-  `id`, `freeze_no`,
-  `target_type`, `target_id`, `target_no`,
-  `freeze_status`, `freeze_mode`,
-  `review_status`, `freeze_reason`, `reason_code`,
-  `apply_user_id`, `apply_role`, `apply_time`,
-  `approve_user_id`, `approve_time`, `effective_time`,
-  `unfreeze_reason`, `unfreeze_time`,
-  `urgent_basis_no`,
-  `chain_status`, `tx_hash`, `block_height`,
-  `deleted_flag`, `version`,
-  `created_at`, `updated_at`
-)
+-- =============================================================
+-- 11. 订单快照（采样：完成订单的作品/上架/分账规则快照）
+-- =============================================================
+INSERT INTO `trade_order_snapshot`
+(`id`, `order_id`, `order_no`, `snapshot_type`, `snapshot_data`, `snapshot_hash`,
+ `snapshot_time`, `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  (9600001, 'FRZ-9600001',
-   'ORDER', 9100002, 'ORDER-9100002',
-   'FREEZE_APPROVED', 'REGULATOR_DIRECT',
-   'REVIEW_PASSED',
-   '争议处理期间冻结该订单，防止继续结算',
-   'RC-FREEZE-ORDER',
-   4000001, 'REGULATOR', '2026-03-20 12:10:00',
-   1000001, '2026-03-20 12:20:00', '2026-03-20 12:20:00',
-   NULL, NULL,
-   'RISK-9700001',
-   '', NULL, NULL,
-   0, 0,
-   '2026-03-20 12:10:00', '2026-03-20 12:10:00'),
-  (9600002, 'FRZ-9600002',
-   'LICENSE', 9400001, 'LIC-9100001',
-   'FREEZE_APPROVED', 'REGULATOR_DIRECT',
-   'PENDING_POST_REVIEW',
-   'Direct freeze pending post-review decision',
-   'RC-FREEZE-LIC',
-   4000001, 'REGULATOR', '2026-03-20 12:30:00',
-   1000001, '2026-03-20 12:31:00', '2026-03-20 12:31:00',
-   NULL, NULL,
-   'RISK-9700001',
-   'CHAIN_SUBMITTED', NULL, NULL,
-   0, 0,
-   '2026-03-20 12:30:00', '2026-03-20 12:30:00');
+(9200001, 9100001, 'ORDER-91000001', 'WORK_INFO',
+ '{"workNo":"WK-70001","title":"《暮色长安》——盛唐街景数字插画","workType":"IMAGE","fileHash":"7e3a4b1f9c2d5e8a6b1f4c7d2e5a8b3c6d9f2a5b8c1d4e7f0a3b6c9d2e5f8a1b","creatorAccountId":2000001,"creatorSubjectId":5000011}',
+ '11aabbccdd11aabbccdd11aabbccdd11aabbccdd11aabbccdd11aabbccdd11aa',
+ '2026-02-13 10:14:12', 0, '2026-02-13 10:14:12', '2026-02-13 10:14:12'),
+(9200002, 9100001, 'ORDER-91000001', 'LISTING_INFO',
+ '{"listingNo":"LST-620001","licenseType":"PERSONAL_USE","priceAmount":9900,"currency":"CNY","durationDays":365}',
+ '22bbccdd22bbccdd22bbccdd22bbccdd22bbccdd22bbccdd22bbccdd22bbccdd',
+ '2026-02-13 10:14:12', 0, '2026-02-13 10:14:12', '2026-02-13 10:14:12'),
+(9200003, 9100001, 'ORDER-91000001', 'SETTLE_RULE',
+ '{"templateId":8500001,"templateCode":"STPL-CREATOR-STD","creatorRatio":0.8000,"platformRatio":0.2000}',
+ '33ccdd33ccdd33ccdd33ccdd33ccdd33ccdd33ccdd33ccdd33ccdd33ccdd33cc',
+ '2026-02-13 10:14:12', 0, '2026-02-13 10:14:12', '2026-02-13 10:14:12'),
+(9200004, 9100002, 'ORDER-91000002', 'WORK_INFO',
+ '{"workNo":"WK-70001","title":"《暮色长安》——盛唐街景数字插画","workType":"IMAGE","fileHash":"7e3a4b1f9c2d5e8a6b1f4c7d2e5a8b3c6d9f2a5b8c1d4e7f0a3b6c9d2e5f8a1b","creatorAccountId":2000001,"creatorSubjectId":5000011}',
+ '44ddee44ddee44ddee44ddee44ddee44ddee44ddee44ddee44ddee44ddee44dd',
+ '2026-02-15 14:31:55', 0, '2026-02-15 14:31:55', '2026-02-15 14:31:55'),
+(9200005, 9100002, 'ORDER-91000002', 'LISTING_INFO',
+ '{"listingNo":"LST-620002","licenseType":"COMMERCIAL_USE","priceAmount":198000,"currency":"CNY","durationDays":365}',
+ '55eeff55eeff55eeff55eeff55eeff55eeff55eeff55eeff55eeff55eeff55ee',
+ '2026-02-15 14:31:55', 0, '2026-02-15 14:31:55', '2026-02-15 14:31:55'),
+(9200006, 9100002, 'ORDER-91000002', 'SETTLE_RULE',
+ '{"templateId":8500001,"templateCode":"STPL-CREATOR-STD","creatorRatio":0.8000,"platformRatio":0.2000}',
+ '66ff0066ff0066ff0066ff0066ff0066ff0066ff0066ff0066ff0066ff0066ff',
+ '2026-02-15 14:31:55', 0, '2026-02-15 14:31:55', '2026-02-15 14:31:55'),
+(9200007, 9100006, 'ORDER-91000006', 'WORK_INFO',
+ '{"workNo":"WK-70005","title":"《敦煌九色鹿》——AI重绘动态壁画","workType":"VIDEO","fileHash":"e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001","creatorAccountId":2000005,"creatorSubjectId":5000015}',
+ '770011770011770011770011770011770011770011770011770011770011770011',
+ '2026-03-09 16:25:49', 0, '2026-03-09 16:25:49', '2026-03-09 16:25:49'),
+(9200008, 9100006, 'ORDER-91000006', 'LISTING_INFO',
+ '{"listingNo":"LST-620006","licenseType":"EXCLUSIVE","priceAmount":2680000,"currency":"CNY","durationDays":365}',
+ '880022880022880022880022880022880022880022880022880022880022880022',
+ '2026-03-09 16:25:49', 0, '2026-03-09 16:25:49', '2026-03-09 16:25:49');
 
-INSERT INTO `dispute_case`
-(
-  `id`, `case_no`,
-  `order_id`, `order_no`,
-  `work_id`, `work_no`,
-  `applicant_account_id`, `respondent_account_id`,
-  `dispute_type`,
-  `status`,
-  `description`,
-  `submit_time`, `accept_time`, `close_time`,
-  `result_summary`,
-  `reason_code`,
-  `chain_status`, `tx_hash`, `block_height`,
-  `deleted_flag`, `version`,
-  `created_at`, `updated_at`
-)
-VALUES
-  (9800001, 'DSP-9800001',
-   9100001, 'ORDER-9100001',
-   7000001, 'WK-7000001',
-   3000001, 2000001,
-   'LICENSE_SCOPE_DISPUTE',
-   'DISPUTE_SUBMITTED',
-   '买方主张授权范围不足以覆盖内部传播场景',
-   '2026-03-20 13:00:00', NULL, NULL,
-   NULL,
-   NULL,
-   'CHAIN_PENDING', NULL, NULL,
-   0, 0,
-   '2026-03-20 13:00:00', '2026-03-20 13:00:00'),
-  (9800002, 'DSP-9800002',
-   9100001, 'ORDER-9100001',
-   7000001, 'WK-7000001',
-   3000001, 2000001,
-   'LICENSE_SCOPE_DISPUTE',
-   'DISPUTE_ACCEPTED',
-   '案件已受理，等待补充证据',
-   '2026-03-20 13:05:00', '2026-03-20 13:10:00', NULL,
-   NULL,
-   NULL,
-   'CHAIN_PENDING', NULL, NULL,
-   0, 0,
-   '2026-03-20 13:05:00', '2026-03-20 13:10:00'),
-  (9800003, 'DSP-9800003',
-   9100001, 'ORDER-9100001',
-   7000001, 'WK-7000001',
-   3000001, 2000001,
-   'LICENSE_SCOPE_DISPUTE',
-   'DISPUTE_EVIDENCE_PENDING',
-   '终审前要求补充证据',
-   '2026-03-20 13:15:00', NULL, NULL,
-   NULL,
-   NULL,
-   'CHAIN_PENDING', NULL, NULL,
-   0, 0,
-   '2026-03-20 13:15:00', '2026-03-20 13:15:00'),
-  (9800004, 'DSP-9800004',
-   9100002, 'ORDER-9100002',
-   7000001, 'WK-7000001',
-   3000001, 2000001,
-   'LICENSE_SCOPE_DISPUTE',
-   'DISPUTE_REVIEWING',
-   '复核处理中，待给出最终结论',
-   '2026-03-20 13:30:00', NULL, NULL,
-   NULL,
-   NULL,
-   'CHAIN_PENDING', NULL, NULL,
-   0, 0,
-   '2026-03-20 13:30:00', '2026-03-20 13:30:00');
-
-INSERT INTO `dispute_evidence`
-(
-  `id`, `case_id`, `case_no`,
-  `submitter_account_id`,
-  `evidence_type`,
-  `evidence_description`,
-  `file_url`, `file_hash`,
-  `submit_time`,
-  `deleted_flag`, `created_at`, `updated_at`
-)
-VALUES
-  (9810001, 9800003, 'DSP-9800003',
-   3000001,
-   'CONTRACT',
-   '证据摘要：授权期内允许内部传播的条款摘录',
-   'https://cdn.lifechain.local/evidence/DSP-9800003/contract.pdf',
-   '1f2e3d4c5b6a79887766554433221100ffeeddccbbaa99887766554433221100',
-   '2026-03-20 13:20:00',
-   0, '2026-03-20 13:20:00', '2026-03-20 13:20:00');
-
-INSERT INTO `dispute_process_record`
-(
-  `id`, `case_id`, `case_no`,
-  `operator_id`, `action`,
-  `action_result`, `comment`, `reason_code`,
-  `process_time`,
-  `deleted_flag`, `created_at`, `updated_at`
-)
-VALUES
-  (9820001, 9800001, 'DSP-9800001',
-   3000001, 'CREATE',
-   'SUCCESS', '案件已创建', NULL,
-   '2026-03-20 13:00:00',
-   0, '2026-03-20 13:00:00', '2026-03-20 13:00:00'),
-  (9820002, 9800002, 'DSP-9800002',
-   2000001, 'ACCEPT',
-   'SUCCESS', '审核人员已受理案件', NULL,
-   '2026-03-20 13:10:00',
-   0, '2026-03-20 13:10:00', '2026-03-20 13:10:00'),
-  (9820003, 9800003, 'DSP-9800003',
-   3000001, 'SUBMIT_EVIDENCE',
-   'SUCCESS', '已提交证据', NULL,
-   '2026-03-20 13:20:00',
-   0, '2026-03-20 13:20:00', '2026-03-20 13:20:00');
-
-INSERT INTO `regulator_report`
-(
-  `id`, `report_no`,
-  `report_type`, `report_title`,
-  `report_content`, `report_file_url`,
-  `generator_id`,
-  `status`, `generate_time`, `summary_hash`,
-  `chain_status`, `tx_hash`, `block_height`,
-  `deleted_flag`,
-  `created_at`, `updated_at`
-)
-VALUES
-  (9900001, 'RPT-9900001',
-   'RISK_NOTICE', '风险审查报告',
-   '本报告汇总风险处置结论，并给出监管侧后续处置建议。',
-   NULL,
-   4000001,
-   'GENERATING', '2026-03-21 09:00:00', NULL,
-   '',
-   NULL, NULL,
-   0,
-   '2026-03-21 09:00:00', '2026-03-21 09:00:00');
-
--- -----------------------------
--- 6.5) 状态矩阵扩展
--- -----------------------------
--- 增补多状态记录，用于列表筛选与状态流转测试
-INSERT INTO `work`
-(
-  `id`, `work_no`,
-  `creator_account_id`, `creator_subject_id`, `creator_did_id`,
-  `title`, `description`, `work_type`,
-  `status`,
-  `file_hash`, `meta_hash`,
-  `cover_url`,
-  `submit_time`,
-  `deleted_flag`, `version`,
-  `created_at`, `updated_at`
-)
-VALUES
-  (7000002, 'WK-7000002',
-   2000001, 5000002, 6000001,
-   'AIGC合规手册',
-   '已确权作品，用于证书生成与验真链路测试',
-   'TEXT',
-   'OWNERSHIP_CONFIRMED',
-   '89d4df766f8d85c8f4f5c9f6b1ee9ed2c44917f7adf4f03a6f0d8f56e44e3156',
-   'd2b23f0f9576abf4ab64cb8c7039cf95b6ab41d86e489f7756fd8ef8f8e6b950',
-   'https://assets.lifechain.cn/covers/WK-7000002.png',
-   '2026-03-18 08:30:00',
-   0, 0,
-   '2026-03-18 08:30:00', '2026-03-19 08:30:00');
-
-INSERT INTO `claim_application`
-(
-  `id`, `claim_no`,
-  `work_id`, `work_no`,
-  `applicant_account_id`, `applicant_did_id`,
-  `status`, `chain_status`,
-  `submit_time`,
-  `review_time`, `approve_time`,
-  `chain_submit_time`, `chain_confirm_time`,
-  `tx_hash`, `block_height`,
-  `summary_hash`,
-  `reviewer_id`, `review_comment`,
-  `reject_reason`, `reason_code`, `fail_reason`,
-  `deleted_flag`, `version`,
-  `created_at`, `updated_at`
-)
-VALUES
-  (8000002, 'CLM-8000002',
-   7000002, 'WK-7000002',
-   2000001, 6000001,
-   'CLAIM_SUCCESS', 'CHAIN_SUCCESS',
-   '2026-03-18 09:00:00',
-   '2026-03-18 10:00:00', '2026-03-18 10:00:00',
-   '2026-03-18 10:01:00', '2026-03-18 10:05:00',
-   NULL, NULL,
-   '5f4dcc3b5aa765d61d8327deb882cf995f4dcc3b5aa765d61d8327deb882cf99',
-   1000001, '管理员审核通过',
-   NULL, NULL, NULL,
-   0, 0,
-   '2026-03-18 09:00:00', '2026-03-18 10:05:00');
-
-INSERT INTO `trade_order`
-(
-  `id`, `order_no`,
-  `work_id`, `work_no`,
-  `listing_id`, `listing_no`,
-  `buyer_account_id`, `buyer_subject_id`,
-  `creator_account_id`, `creator_subject_id`,
-  `order_status`, `license_type`,
-  `price_amount`, `pay_amount`,
-  `currency`, `pay_channel`, `pay_status`,
-  `expire_time`, `pay_time`, `complete_time`, `cancel_time`, `cancel_reason`,
-  `request_id`, `version`, `deleted_flag`,
-  `created_at`, `updated_at`
-)
-VALUES
-  (9100003, 'ORDER-9100003',
-   7000001, 'WK-7000001',
-   6200001, 'LST-6200001',
-   3000001, 5000004,
-   2000001, 5000002,
-   'ORDER_EXCEPTION', 'PERSONAL_USE',
-   100000, 100000,
-   'CNY', 'WECHAT_PAY', 'PAY_FAILED',
-   '2026-03-22 00:00:00', NULL, NULL, NULL, '支付回调金额不一致',
-   'REQ-ORDER-9100003', 0, 0,
-   '2026-03-20 14:00:00', '2026-03-20 14:05:00');
-
-INSERT INTO `payment_record`
-(
-  `id`, `payment_no`,
-  `order_id`, `order_no`,
-  `pay_channel`, `pay_status`,
-  `pay_amount`, `currency`,
-  `third_trade_no`, `prepay_id`, `callback_raw_ref`,
-  `pay_time`, `callback_time`, `expire_time`,
-  `fail_reason`, `request_id`,
-  `deleted_flag`, `created_at`, `updated_at`
-)
-VALUES
-  (9300003, 'PAY-9300003',
-   9100003, 'ORDER-9100003',
-   'WECHAT_PAY', 'PAY_FAILED',
-   100000, 'CNY',
-   'wx_third_trade_9100003', 'wx_prepay_9100003', NULL,
-   NULL, '2026-03-20 14:05:00', '2026-03-22 00:00:00',
-   '支付回调实付金额不匹配',
-   'REQ-PAY-9100003',
-   0, '2026-03-20 14:01:00', '2026-03-20 14:05:00');
-
-INSERT INTO `dispute_case`
-(
-  `id`, `case_no`,
-  `order_id`, `order_no`,
-  `work_id`, `work_no`,
-  `applicant_account_id`, `respondent_account_id`,
-  `dispute_type`,
-  `status`,
-  `description`,
-  `submit_time`, `accept_time`, `close_time`,
-  `result_summary`,
-  `reason_code`,
-  `chain_status`, `tx_hash`, `block_height`,
-  `deleted_flag`, `version`,
-  `created_at`, `updated_at`
-)
-VALUES
-  (9800005, 'DSP-9800005',
-   9100002, 'ORDER-9100002',
-   7000001, 'WK-7000001',
-   3000001, 2000001,
-   'LICENSE_SCOPE_DISPUTE',
-   'DISPUTE_RESOLVED_PENDING_CHAIN',
-   '争议结论已提交链上，等待回执确认',
-   '2026-03-20 15:00:00', '2026-03-20 15:05:00', '2026-03-20 15:20:00',
-   '建议执行退款与逆分账',
-   'RC-DSP-RESOLVE',
-   'CHAIN_SUBMITTED', NULL, NULL,
-   0, 0,
-   '2026-03-20 15:00:00', '2026-03-20 15:20:00');
-
-INSERT INTO `dispute_process_record`
-(
-  `id`, `case_id`, `case_no`,
-  `operator_id`, `action`,
-  `action_result`, `comment`, `reason_code`,
-  `process_time`,
-  `deleted_flag`, `created_at`, `updated_at`
-)
-VALUES
-  (9820005, 9800005, 'DSP-9800005',
-   4000001, 'RESOLVE',
-   'DISPUTE_RESOLVED_PENDING_CHAIN', '争议结论已提交链上',
-   'RC-DSP-RESOLVE',
-   '2026-03-20 15:20:00',
-   0, '2026-03-20 15:20:00', '2026-03-20 15:20:00');
-
--- -----------------------------
--- 7) 结算（用于上链重试测试）
---    - 结算记录状态为 SETTLE_FAILED（管理端可重试并重新提交上链）
--- -----------------------------
+-- =============================================================
+-- 12. 结算记录 / 结算明细 / 逆分账记录
+-- =============================================================
 INSERT INTO `settlement_record`
-(
-  `id`, `settle_no`,
-  `order_id`, `order_no`,
-  `work_id`, `work_no`,
-  `total_amount`,
-  `status`, `chain_status`,
-  `settle_time`,
-  `complete_time`,
-  `tx_hash`, `block_height`,
-  `fail_reason`,
-  `retry_count`,
-  `request_id`,
-  `deleted_flag`, `version`,
-  `created_at`, `updated_at`
-)
+(`id`, `settle_no`, `order_id`, `order_no`, `work_id`, `work_no`,
+ `total_amount`, `status`, `chain_status`,
+ `settle_time`, `complete_time`, `tx_hash`, `block_height`,
+ `fail_reason`, `retry_count`, `request_id`,
+ `version`, `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  (9000001, 'SETTLE-9000001',
-   9100001, 'ORDER-9100001',
-   7000001, 'WK-7000001',
-   100000,
-   'SETTLE_FAILED', 'CHAIN_FAILED',
-   '2026-03-20 10:00:00',
-   NULL,
-   NULL, NULL,
-   'CHAIN_GATEWAY_TIMEOUT_ON_INITIAL_SUBMISSION',
-   2,
-   'REQ-SETTLE-9000001',
-   0, 0,
-   '2026-03-20 10:00:00', '2026-03-20 10:00:00'),
+(9000001, 'SETTLE-90000001', 9100001, 'ORDER-91000001', 7000001, 'WK-70001',
+ 9900, 'SETTLE_SUCCESS', 'CHAIN_PENDING',
+ '2026-02-13 10:30:00', '2026-02-13 10:30:18', NULL, NULL,
+ NULL, 0, 'REQ-SETTLE-9100001',
+ 2, 0, '2026-02-13 10:30:00', '2026-02-13 10:30:18'),
+(9000002, 'SETTLE-90000002', 9100002, 'ORDER-91000002', 7000001, 'WK-70001',
+ 198000, 'SETTLE_SUCCESS', 'CHAIN_PENDING',
+ '2026-02-15 15:00:00', '2026-02-15 15:00:21', NULL, NULL,
+ NULL, 0, 'REQ-SETTLE-9100002',
+ 2, 0, '2026-02-15 15:00:00', '2026-02-15 15:00:21'),
+(9000003, 'SETTLE-90000003', 9100003, 'ORDER-91000003', 7000002, 'WK-70002',
+ 9900, 'SETTLE_SUCCESS', 'CHAIN_PENDING',
+ '2026-02-18 11:30:00', '2026-02-18 11:30:18', NULL, NULL,
+ NULL, 0, 'REQ-SETTLE-9100003',
+ 2, 0, '2026-02-18 11:30:00', '2026-02-18 11:30:18'),
+(9000004, 'SETTLE-90000004', 9100004, 'ORDER-91000004', 7000003, 'WK-70003',
+ 198000, 'SETTLE_SUCCESS', 'CHAIN_PENDING',
+ '2026-03-02 11:00:00', '2026-03-02 11:00:21', NULL, NULL,
+ NULL, 0, 'REQ-SETTLE-9100004',
+ 2, 0, '2026-03-02 11:00:00', '2026-03-02 11:00:21'),
+(9000005, 'SETTLE-90000005', 9100005, 'ORDER-91000005', 7000004, 'WK-70004',
+ 880000, 'SETTLE_SUCCESS', 'CHAIN_PENDING',
+ '2026-03-06 16:00:00', '2026-03-06 16:00:21', NULL, NULL,
+ NULL, 0, 'REQ-SETTLE-9100005',
+ 2, 0, '2026-03-06 16:00:00', '2026-03-06 16:00:21'),
+(9000006, 'SETTLE-90000006', 9100006, 'ORDER-91000006', 7000005, 'WK-70005',
+ 2680000, 'SETTLE_SUCCESS', 'CHAIN_PENDING',
+ '2026-03-09 17:00:00', '2026-03-09 17:00:21', NULL, NULL,
+ NULL, 0, 'REQ-SETTLE-9100006',
+ 2, 0, '2026-03-09 17:00:00', '2026-03-09 17:00:21'),
+(9000007, 'SETTLE-90000007', 9100007, 'ORDER-91000007', 7000006, 'WK-70006',
+ 4900, 'SETTLE_SUCCESS', 'CHAIN_PENDING',
+ '2026-03-11 13:30:00', '2026-03-11 13:30:18', NULL, NULL,
+ NULL, 0, 'REQ-SETTLE-9100007',
+ 2, 0, '2026-03-11 13:30:00', '2026-03-11 13:30:18'),
+(9000008, 'SETTLE-90000008', 9100008, 'ORDER-91000008', 7000010, 'WK-70010',
+ 198000, 'SETTLE_SUCCESS', 'CHAIN_PENDING',
+ '2026-03-16 11:00:00', '2026-03-16 11:00:21', NULL, NULL,
+ NULL, 0, 'REQ-SETTLE-9100008',
+ 2, 0, '2026-03-16 11:00:00', '2026-03-16 11:00:21'),
+(9000009, 'SETTLE-90000009', 9100009, 'ORDER-91000009', 7000001, 'WK-70001',
+ 9900, 'SETTLE_PROCESSING', 'CHAIN_PENDING',
+ '2026-05-16 12:00:00', NULL, NULL, NULL,
+ NULL, 0, 'REQ-SETTLE-9100009',
+ 1, 0, '2026-05-16 12:00:00', '2026-05-16 12:00:00'),
+(9000010, 'SETTLE-90000010', 9100013, 'ORDER-91000013', 7000005, 'WK-70005',
+ 2680000, 'REVERSE_SUCCESS', 'CHAIN_PENDING',
+ '2026-04-02 17:00:00', '2026-04-02 17:00:21', NULL, NULL,
+ NULL, 0, 'REQ-SETTLE-9100013',
+ 3, 0, '2026-04-02 17:00:00', '2026-04-08 11:30:00'),
+(9000011, 'SETTLE-90000011', 9100015, 'ORDER-91000015', 7000010, 'WK-70010',
+ 198000, 'SETTLE_FAILED', 'CHAIN_PENDING',
+ '2026-05-10 21:00:00', NULL, NULL, NULL,
+ '订单异常关闭，结算前置校验失败：支付状态=PAY_FAILED', 1, 'REQ-SETTLE-9100015',
+ 1, 0, '2026-05-10 21:00:00', '2026-05-10 21:00:18');
 
-  -- 用于逆分账测试（可选）：
-  (9000002, 'SETTLE-9000002',
-   9100002, 'ORDER-9100002',
-   7000001, 'WK-7000001',
-   50000,
-   'SETTLE_SUCCESS', 'CHAIN_SUCCESS',
-   '2026-03-20 11:00:00',
-   NULL,
-   NULL, NULL,
-   NULL,
-   0,
-   'REQ-SETTLE-9000002',
-   0, 0,
-   '2026-03-20 11:00:00', '2026-03-20 11:00:00');
-
+-- 结算明细
 INSERT INTO `settlement_item`
-(
-  `id`, `settle_id`, `settle_no`,
-  `account_id`, `role_type`,
-  `ratio`, `amount`,
-  `status`,
-  `deleted_flag`,
-  `created_at`, `updated_at`
-)
+(`id`, `settle_id`, `settle_no`, `account_id`, `role_type`, `ratio`, `amount`, `status`,
+ `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-  -- SETTLE-9000001：总额=100000，创作者=0.8000 => 80000，平台=0.2000 => 20000
-  (9010001, 9000001, 'SETTLE-9000001',
-   2000001, 'CREATOR',
-   0.8000, 80000,
-   'FAILED',
-   0, '2026-03-20 10:00:00', '2026-03-20 10:00:00'),
-  (9010002, 9000001, 'SETTLE-9000001',
-   0, 'PLATFORM',
-   0.2000, 20000,
-   'FAILED',
-   0, '2026-03-20 10:00:00', '2026-03-20 10:00:00'),
+(9010001, 9000001, 'SETTLE-90000001', 2000001, 'CREATOR', 0.8000, 7920, 'SUCCESS', 0, '2026-02-13 10:30:00', '2026-02-13 10:30:18'),
+(9010002, 9000001, 'SETTLE-90000001', 1000001, 'PLATFORM', 0.2000, 1980, 'SUCCESS', 0, '2026-02-13 10:30:00', '2026-02-13 10:30:18'),
+(9010003, 9000002, 'SETTLE-90000002', 2000001, 'CREATOR', 0.8000, 158400, 'SUCCESS', 0, '2026-02-15 15:00:00', '2026-02-15 15:00:21'),
+(9010004, 9000002, 'SETTLE-90000002', 1000001, 'PLATFORM', 0.2000, 39600, 'SUCCESS', 0, '2026-02-15 15:00:00', '2026-02-15 15:00:21'),
+(9010005, 9000003, 'SETTLE-90000003', 2000002, 'CREATOR', 0.8000, 7920, 'SUCCESS', 0, '2026-02-18 11:30:00', '2026-02-18 11:30:18'),
+(9010006, 9000003, 'SETTLE-90000003', 1000001, 'PLATFORM', 0.2000, 1980, 'SUCCESS', 0, '2026-02-18 11:30:00', '2026-02-18 11:30:18'),
+(9010007, 9000004, 'SETTLE-90000004', 2000003, 'CREATOR', 0.8000, 158400, 'SUCCESS', 0, '2026-03-02 11:00:00', '2026-03-02 11:00:21'),
+(9010008, 9000004, 'SETTLE-90000004', 1000001, 'PLATFORM', 0.2000, 39600, 'SUCCESS', 0, '2026-03-02 11:00:00', '2026-03-02 11:00:21'),
+(9010009, 9000005, 'SETTLE-90000005', 2000004, 'CREATOR', 0.8000, 704000, 'SUCCESS', 0, '2026-03-06 16:00:00', '2026-03-06 16:00:21'),
+(9010010, 9000005, 'SETTLE-90000005', 1000001, 'PLATFORM', 0.2000, 176000, 'SUCCESS', 0, '2026-03-06 16:00:00', '2026-03-06 16:00:21'),
+(9010011, 9000006, 'SETTLE-90000006', 2000005, 'CREATOR', 0.8000, 2144000, 'SUCCESS', 0, '2026-03-09 17:00:00', '2026-03-09 17:00:21'),
+(9010012, 9000006, 'SETTLE-90000006', 1000001, 'PLATFORM', 0.2000, 536000, 'SUCCESS', 0, '2026-03-09 17:00:00', '2026-03-09 17:00:21'),
+(9010013, 9000007, 'SETTLE-90000007', 2000006, 'CREATOR', 0.8000, 3920, 'SUCCESS', 0, '2026-03-11 13:30:00', '2026-03-11 13:30:18'),
+(9010014, 9000007, 'SETTLE-90000007', 1000001, 'PLATFORM', 0.2000, 980, 'SUCCESS', 0, '2026-03-11 13:30:00', '2026-03-11 13:30:18'),
+(9010015, 9000008, 'SETTLE-90000008', 2000013, 'CREATOR', 0.8500, 168300, 'SUCCESS', 0, '2026-03-16 11:00:00', '2026-03-16 11:00:21'),
+(9010016, 9000008, 'SETTLE-90000008', 1000001, 'PLATFORM', 0.1500, 29700, 'SUCCESS', 0, '2026-03-16 11:00:00', '2026-03-16 11:00:21'),
+(9010017, 9000009, 'SETTLE-90000009', 2000001, 'CREATOR', 0.8000, 7920, 'PENDING', 0, '2026-05-16 12:00:00', '2026-05-16 12:00:00'),
+(9010018, 9000009, 'SETTLE-90000009', 1000001, 'PLATFORM', 0.2000, 1980, 'PENDING', 0, '2026-05-16 12:00:00', '2026-05-16 12:00:00'),
+(9010019, 9000010, 'SETTLE-90000010', 2000005, 'CREATOR', 0.8000, 2144000, 'SUCCESS', 0, '2026-04-02 17:00:00', '2026-04-02 17:00:21'),
+(9010020, 9000010, 'SETTLE-90000010', 1000001, 'PLATFORM', 0.2000, 536000, 'SUCCESS', 0, '2026-04-02 17:00:00', '2026-04-02 17:00:21'),
+(9010021, 9000011, 'SETTLE-90000011', 2000013, 'CREATOR', 0.8500, 168300, 'FAILED', 0, '2026-05-10 21:00:00', '2026-05-10 21:00:18'),
+(9010022, 9000011, 'SETTLE-90000011', 1000001, 'PLATFORM', 0.1500, 29700, 'FAILED', 0, '2026-05-10 21:00:00', '2026-05-10 21:00:18');
 
-  -- SETTLE-9000002：总额=50000，创作者=0.8000 => 40000，平台=0.2000 => 10000
-  (9010003, 9000002, 'SETTLE-9000002',
-   2000001, 'CREATOR',
-   0.8000, 40000,
-   'SUCCESS',
-   0, '2026-03-20 11:00:00', '2026-03-20 11:00:00'),
-  (9010004, 9000002, 'SETTLE-9000002',
-   0, 'PLATFORM',
-   0.2000, 10000,
-   'SUCCESS',
-   0, '2026-03-20 11:00:00', '2026-03-20 11:00:00');
+-- 逆分账记录
+INSERT INTO `reverse_settlement_record`
+(`id`, `reverse_no`, `settle_id`, `settle_no`, `order_id`, `order_no`,
+ `reverse_amount`, `status`, `chain_status`,
+ `reason`, `reason_code`, `tx_hash`, `block_height`,
+ `apply_time`, `complete_time`, `fail_reason`, `operator_id`, `request_id`,
+ `version`, `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(9020001, 'RSET-90020001', 9000010, 'SETTLE-90000010', 9100013, 'ORDER-91000013',
+ 2680000, 'REVERSE_SUCCESS', 'CHAIN_PENDING',
+ '订单 ORDER-91000013 退款成功，触发逆分账，原结算金额 26800.00 元全额回收', 'BUYER_REFUND_TRIGGER',
+ NULL, NULL,
+ '2026-04-08 11:00:00', '2026-04-08 11:30:00', NULL, 1000003, 'REQ-RSET-9000010',
+ 2, 0, '2026-04-08 11:00:00', '2026-04-08 11:30:00');
+
+-- =============================================================
+-- 13. 风险事件
+-- =============================================================
+INSERT INTO `risk_event`
+(`id`, `risk_no`, `target_type`, `target_id`, `target_no`,
+ `status`, `risk_level`, `risk_type`, `risk_description`,
+ `reporter_id`, `reporter_role`, `report_time`,
+ `reason_code`, `result_summary`, `resolve_time`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(9700001, 'RISK-97000001', 'WORK', 7000011, 'WK-70011',
+ 'RISK_FROZEN', 'HIGH', 'COPYRIGHT_INFRINGE',
+ '《九霄云外》与已确权作品 WK-70001 PDQ 哈希相似度 0.8923，疑似在相同提示词与种子下二次生成，存在版权侵权风险',
+ 4000001, 'REGULATOR', '2026-04-21 09:30:00',
+ 'COPYRIGHT_INFRINGE_HIGH_SIM', '已冻结作品并启动复核', NULL,
+ 0, '2026-04-21 09:30:00', '2026-04-22 10:00:00'),
+(9700002, 'RISK-97000002', 'ACCOUNT', 2000010, 'CRE-20010',
+ 'RISK_CONFIRMED', 'HIGH', 'BAD_FAITH_REGISTRATION',
+ '账户 CRE-20010 在 7 天内提交 4 件高相似度作品，确权申请均依赖类似提示词与种子，存在恶意申请嫌疑',
+ 1000002, 'PLATFORM', '2026-04-22 10:00:00',
+ 'BAD_FAITH_BATCH', '账户冻结，关联作品下架', '2026-04-25 09:00:00',
+ 0, '2026-04-22 10:00:00', '2026-04-25 09:00:00'),
+(9700003, 'RISK-97000003', 'ACCOUNT', 3000010, 'BUY-30010',
+ 'RISK_FROZEN', 'MEDIUM', 'PAYMENT_ANOMALY',
+ '企业账户 BUY-30010 在 4 月 30 日 30 分钟内连续创建 9 笔大额订单（合计 87.6 万元），均使用同一支付宝来源 IP 段，触发异常支付风控',
+ 1000003, 'PLATFORM', '2026-04-30 13:30:00',
+ 'PAY_ANOMALY_BURST', '账户停用，待人工补充材料后解冻', '2026-04-30 14:00:00',
+ 0, '2026-04-30 13:30:00', '2026-04-30 14:00:00'),
+(9700004, 'RISK-97000004', 'WORK', 7000007, 'WK-70007',
+ 'RISK_REVIEWING', 'MEDIUM', 'AIGC_DISCLOSURE_INSUFFICIENT',
+ '《赛博·上海2089》提交确权时仅声明 AI 生成范围 35%，但相似度引擎检测纹理细节疑似含 80% 以上 Stable Diffusion 直接输出',
+ 1000002, 'PLATFORM', '2026-05-13 09:00:00',
+ 'AIGC_DISCLOSURE_LOW', '已要求创作者补充模型版本与提示词原始记录', NULL,
+ 0, '2026-05-13 09:00:00', '2026-05-13 09:00:00'),
+(9700005, 'RISK-97000005', 'WORK', 7000003, 'WK-70003',
+ 'RISK_RELEASED', 'LOW', 'USER_REPORT_FALSE_POSITIVE',
+ '用户举报《青瓷物语》使用未经授权的宋画素材，经核查所引素材均来自国家文物局开放数字资产计划，已在元数据中声明',
+ 4000002, 'REGULATOR', '2026-04-12 10:00:00',
+ 'USER_REPORT_FALSE_POSITIVE', '风险解除，告知举报方', '2026-04-13 14:00:00',
+ 0, '2026-04-12 10:00:00', '2026-04-13 14:00:00'),
+(9700006, 'RISK-97000006', 'ORDER', 9100015, 'ORDER-91000015',
+ 'RISK_MARKED', 'LOW', 'PAYMENT_CHANNEL_FAULT',
+ '订单 ORDER-91000015 支付失败错误码 ACQ.SYSTEM_ERROR，疑似为支付宝渠道临时故障，需观察是否复发',
+ 1000003, 'PLATFORM', '2026-05-10 20:31:00',
+ 'PAY_CHANNEL_TRANSIENT', '已通知买方重新发起，持续观察', NULL,
+ 0, '2026-05-10 20:31:00', '2026-05-10 20:31:00');
+
+-- =============================================================
+-- 14. 冻结记录
+-- =============================================================
+INSERT INTO `freeze_record`
+(`id`, `freeze_no`, `target_type`, `target_id`, `target_no`,
+ `previous_target_status`, `freeze_status`, `freeze_mode`, `review_status`,
+ `freeze_reason`, `reason_code`,
+ `apply_user_id`, `apply_role`, `apply_time`,
+ `approve_user_id`, `approve_time`, `effective_time`,
+ `unfreeze_reason`, `unfreeze_time`, `urgent_basis_no`,
+ `chain_status`, `tx_hash`, `block_height`,
+ `deleted_flag`, `version`, `created_at`, `updated_at`)
+VALUES
+(9600001, 'FRZ-96000001', 'WORK', 7000011, 'WK-70011',
+ 'LISTED', 'FREEZE_APPROVED', 'REVIEW_REQUIRED', 'APPROVED',
+ '基于风险事件 RISK-97000001，作品 PDQ 相似度 0.8923 已超出阈值 0.85', 'COPYRIGHT_INFRINGE_HIGH_SIM',
+ 4000001, 'REGULATOR', '2026-04-21 10:00:00',
+ 1000001, '2026-04-22 09:30:00', '2026-04-22 10:00:00',
+ NULL, NULL, NULL,
+ 'CHAIN_PENDING', NULL, NULL,
+ 0, 2, '2026-04-21 10:00:00', '2026-04-22 10:00:00'),
+(9600002, 'FRZ-96000002', 'ACCOUNT', 2000010, 'CRE-20010',
+ 'AUTH_APPROVED', 'FREEZE_APPROVED', 'REVIEW_REQUIRED', 'APPROVED',
+ '基于风险事件 RISK-97000002，账户存在恶意确权申请行为，已冻结', 'BAD_FAITH_BATCH',
+ 1000002, 'PLATFORM', '2026-04-22 11:00:00',
+ 1000001, '2026-04-23 09:00:00', '2026-04-25 09:00:00',
+ NULL, NULL, NULL,
+ 'CHAIN_PENDING', NULL, NULL,
+ 0, 2, '2026-04-22 11:00:00', '2026-04-25 09:00:00'),
+(9600003, 'FRZ-96000003', 'ACCOUNT', 3000010, 'BUY-30010',
+ 'AUTH_APPROVED', 'FREEZE_APPROVED', 'REGULATOR_DIRECT', NULL,
+ '风险事件 RISK-97000003，监管直接冻结', 'PAY_ANOMALY_BURST',
+ 4000003, 'REGULATOR', '2026-04-30 13:45:00',
+ 4000003, '2026-04-30 13:45:00', '2026-04-30 14:00:00',
+ NULL, NULL, 'EBASIS-2026-0430-001',
+ 'CHAIN_PENDING', NULL, NULL,
+ 0, 1, '2026-04-30 13:45:00', '2026-04-30 14:00:00'),
+(9600004, 'FRZ-96000004', 'WORK', 7000005, 'WK-70005',
+ 'LISTED', 'UNFREEZE_APPROVED', 'REVIEW_REQUIRED', 'APPROVED',
+ '历史样本：4月初因相似度复核临时冻结', 'TEMP_REVIEW_HOLD',
+ 1000002, 'PLATFORM', '2026-04-01 10:00:00',
+ 1000001, '2026-04-01 14:00:00', '2026-04-01 14:30:00',
+ '复核通过，作品继续保持上架', '2026-04-02 09:00:00', NULL,
+ 'CHAIN_PENDING', NULL, NULL,
+ 0, 3, '2026-04-01 10:00:00', '2026-04-02 09:00:00'),
+(9600005, 'FRZ-96000005', 'ACCOUNT', 2000009, 'CRE-20009',
+ 'AUTH_REJECTED', 'FREEZE_APPLIED', 'REVIEW_REQUIRED', 'PENDING',
+ '账户实名认证失败次数超限，待复核冻结申请', 'AUTH_FAIL_THRESHOLD',
+ 1000002, 'PLATFORM', '2026-05-09 14:00:00',
+ NULL, NULL, NULL,
+ NULL, NULL, NULL,
+ '', NULL, NULL,
+ 0, 0, '2026-05-09 14:00:00', '2026-05-09 14:00:00');
+
+-- =============================================================
+-- 15. 争议案件 / 证据 / 处理记录
+-- =============================================================
+INSERT INTO `dispute_case`
+(`id`, `case_no`, `order_id`, `order_no`, `work_id`, `work_no`,
+ `applicant_account_id`, `respondent_account_id`,
+ `dispute_type`, `status`, `description`,
+ `submit_time`, `accept_time`, `close_time`, `result_summary`, `reason_code`,
+ `chain_status`, `tx_hash`, `block_height`,
+ `deleted_flag`, `version`, `created_at`, `updated_at`)
+VALUES
+(9800001, 'DSP-98000001', 9100013, 'ORDER-91000013', 7000005, 'WK-70005',
+ 3000009, 2000005,
+ 'REFUND_REQUEST', 'DISPUTE_RESOLVED',
+ '《拾光影视》项目终止，恳请创作方同意全额退款。已提交合同终止函与项目暂停内部公告。',
+ '2026-04-03 10:00:00', '2026-04-03 14:00:00', '2026-04-08 11:30:00',
+ '双方达成一致：买方退款全额 26800 元，独家授权终止', 'BUYER_PROJECT_CANCELLED',
+ 'CHAIN_PENDING', NULL, NULL,
+ 0, 3, '2026-04-03 10:00:00', '2026-04-08 11:30:00'),
+(9800002, 'DSP-98000002', NULL, NULL, 7000011, 'WK-70011',
+ 2000001, 2000010,
+ 'COPYRIGHT_DISPUTE', 'DISPUTE_REVIEWING',
+ '本人持有 WK-70001《暮色长安》，发现 CRE-20010 上架的 WK-70011 与本作高度相似，请求平台审核并维护原作权益。',
+ '2026-04-21 11:00:00', '2026-04-22 09:30:00', NULL, NULL, NULL,
+ '', NULL, NULL,
+ 0, 1, '2026-04-21 11:00:00', '2026-04-22 09:30:00'),
+(9800003, 'DSP-98000003', 9100008, 'ORDER-91000008', 7000010, 'WK-70010',
+ 3000008, 2000013,
+ 'LICENSE_SCOPE_DISPUTE', 'DISPUTE_EVIDENCE_PENDING',
+ '广州山岚文化传播认为已购买 COMMERCIAL_USE 应包含线上短视频投放，但创作方主张仅限线下宣传片，请仲裁授权范围解释。',
+ '2026-05-08 11:00:00', '2026-05-09 10:00:00', NULL, NULL, NULL,
+ '', NULL, NULL,
+ 0, 1, '2026-05-08 11:00:00', '2026-05-09 10:00:00'),
+(9800004, 'DSP-98000004', 9100002, 'ORDER-91000002', 7000001, 'WK-70001',
+ 3000007, 2000001,
+ 'WORK_QUALITY_ISSUE', 'DISPUTE_REJECTED',
+ '收到的高清原图存在 5px 偏色且 EXIF 元数据缺失，认为不符合商业素材交付标准。',
+ '2026-02-20 09:00:00', '2026-02-20 11:00:00', '2026-02-22 16:00:00',
+ '经平台技术核查，色彩与元数据符合 sRGB IEC61966-2.1 标准，争议驳回', 'QUALITY_OK',
+ 'CHAIN_PENDING', NULL, NULL,
+ 0, 3, '2026-02-20 09:00:00', '2026-02-22 16:00:00');
+
+-- 争议证据
+INSERT INTO `dispute_evidence`
+(`id`, `case_id`, `case_no`, `submitter_account_id`,
+ `evidence_type`, `evidence_description`, `file_url`, `file_hash`,
+ `submit_time`, `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(9810001, 9800001, 'DSP-98000001', 3000009, 'CONTRACT',
+ '《拾光影视》项目终止合同（盖章扫描件）', 'https://oss.lifechain.cn/dispute/DSP-98000001/contract-terminate.pdf',
+ '7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b',
+ '2026-04-03 10:30:00', 0, '2026-04-03 10:30:00', '2026-04-03 10:30:00'),
+(9810002, 9800001, 'DSP-98000001', 3000009, 'INTERNAL_NOTICE',
+ '公司内部项目暂停公告（4月1日发出）', 'https://oss.lifechain.cn/dispute/DSP-98000001/internal-notice.pdf',
+ '8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c',
+ '2026-04-03 10:35:00', 0, '2026-04-03 10:35:00', '2026-04-03 10:35:00'),
+(9810003, 9800002, 'DSP-98000002', 2000001, 'WORK_REGISTRATION',
+ '原作 WK-70001 确权证书与原始 .psd 工程文件 SHA-256 校验记录', 'https://oss.lifechain.cn/dispute/DSP-98000002/cert-WK-70001.pdf',
+ '9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d',
+ '2026-04-21 11:30:00', 0, '2026-04-21 11:30:00', '2026-04-21 11:30:00'),
+(9810004, 9800002, 'DSP-98000002', 2000001, 'SIMILARITY_REPORT',
+ '平台相似度引擎检测报告（PDQ 0.8923 / Chromaprint N/A）', 'https://oss.lifechain.cn/dispute/DSP-98000002/similarity-report.pdf',
+ '0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e',
+ '2026-04-21 11:35:00', 0, '2026-04-21 11:35:00', '2026-04-21 11:35:00'),
+(9810005, 9800003, 'DSP-98000003', 3000008, 'PURCHASE_ORDER',
+ '订单详情截图与采购协议（COMMERCIAL_USE 范围条款）', 'https://oss.lifechain.cn/dispute/DSP-98000003/po-screenshot.pdf',
+ '1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f',
+ '2026-05-08 11:30:00', 0, '2026-05-08 11:30:00', '2026-05-08 11:30:00'),
+(9810006, 9800004, 'DSP-98000004', 1000002, 'TECH_REVIEW',
+ '平台审核组色彩与元数据复核报告（sRGB IEC61966-2.1 校准结果）', 'https://oss.lifechain.cn/dispute/DSP-98000004/color-review.pdf',
+ '2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a',
+ '2026-02-22 14:00:00', 0, '2026-02-22 14:00:00', '2026-02-22 14:00:00');
+
+-- 争议处理记录
+INSERT INTO `dispute_process_record`
+(`id`, `case_id`, `case_no`, `operator_id`, `action`, `action_result`,
+ `comment`, `reason_code`, `process_time`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(9820001, 9800001, 'DSP-98000001', 1000004, 'ACCEPT', 'ACCEPTED',
+ '客服中心受理争议，已通知双方进入沟通阶段', 'CASE_ACCEPTED',
+ '2026-04-03 14:00:00', 0, '2026-04-03 14:00:00', '2026-04-03 14:00:00'),
+(9820002, 9800001, 'DSP-98000001', 1000003, 'NEGOTIATE', 'AGREED',
+ '财务结算确认双方已达成全额退款方案', 'BILATERAL_AGREEMENT',
+ '2026-04-08 10:30:00', 0, '2026-04-08 10:30:00', '2026-04-08 10:30:00'),
+(9820003, 9800001, 'DSP-98000001', 1000003, 'CLOSE', 'RESOLVED',
+ '已完成退款 26800.00 元 + 逆分账，独家授权终止', 'REFUND_COMPLETED',
+ '2026-04-08 11:30:00', 0, '2026-04-08 11:30:00', '2026-04-08 11:30:00'),
+(9820004, 9800002, 'DSP-98000002', 1000002, 'ACCEPT', 'ACCEPTED',
+ '内容审核组受理争议，与风险事件 RISK-97000001 合并处理', 'CASE_LINK_RISK',
+ '2026-04-22 09:30:00', 0, '2026-04-22 09:30:00', '2026-04-22 09:30:00'),
+(9820005, 9800002, 'DSP-98000002', 4000001, 'INVESTIGATE', 'PENDING',
+ '监管审查中，已要求 CRE-20010 提交原始 SDXL 训练 LoRA 权重与生成日志', 'REQUIRE_TRAINING_PROOF',
+ '2026-04-23 10:00:00', 0, '2026-04-23 10:00:00', '2026-04-23 10:00:00'),
+(9820006, 9800003, 'DSP-98000003', 1000002, 'ACCEPT', 'ACCEPTED',
+ '受理争议，已要求双方在 5 日内补充授权范围解释依据', 'EVIDENCE_REQUEST',
+ '2026-05-09 10:00:00', 0, '2026-05-09 10:00:00', '2026-05-09 10:00:00'),
+(9820007, 9800004, 'DSP-98000004', 1000002, 'TECH_REVIEW', 'REJECTED',
+ '色彩与元数据复核结果显示原图符合 sRGB IEC61966-2.1 标准，无质量问题', 'QUALITY_OK',
+ '2026-02-22 14:00:00', 0, '2026-02-22 14:00:00', '2026-02-22 14:00:00'),
+(9820008, 9800004, 'DSP-98000004', 1000001, 'CLOSE', 'REJECTED',
+ '驳回争议，告知买方复核结果', 'CASE_REJECTED',
+ '2026-02-22 16:00:00', 0, '2026-02-22 16:00:00', '2026-02-22 16:00:00');
+
+-- =============================================================
+-- 16. 监管报告
+-- =============================================================
+INSERT INTO `regulator_report`
+(`id`, `report_no`, `report_type`, `report_title`, `report_content`, `report_file_url`,
+ `generator_id`, `status`, `generate_time`, `summary_hash`,
+ `chain_status`, `tx_hash`, `block_height`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(9900001, 'RPT-99000001', 'MONTHLY_AUDIT',
+ '《2026年4月数字内容版权监督月报》',
+ '本月共处理风险事件 6 起，其中高风险 2 起（COPYRIGHT_INFRINGE、BAD_FAITH_REGISTRATION），中风险 2 起，低风险 2 起。冻结作品 1 件（WK-70011），冻结账户 2 个（CRE-20010、BUY-30010）。处置结果均符合《数字内容版权管理办法（试行）》第 23 条。',
+ 'https://oss.lifechain.cn/regulator/RPT-99000001-2026-04.pdf',
+ 4000001, 'COMPLETED', '2026-05-02 10:00:00',
+ '11ee22ee33ee44ee55ee66ee77ee88ee99ee00ee11ee22ee33ee44ee55ee66ee',
+ 'CHAIN_PENDING', NULL, NULL,
+ 0, '2026-05-02 10:00:00', '2026-05-02 10:00:00'),
+(9900002, 'RPT-99000002', 'INFRINGEMENT_CASE',
+ '《WK-70011 涉嫌侵权事件专项报告》',
+ '作品 WK-70011 PDQ 哈希与 WK-70001 相似度 0.8923，结合训练日志缺失，认定为非原创高相似度作品。已下架并冻结上架记录 LST-620010，冻结授权 LIC-94000010；建议账户 CRE-20010 永久封禁。',
+ 'https://oss.lifechain.cn/regulator/RPT-99000002-WK-70011.pdf',
+ 4000001, 'COMPLETED', '2026-04-28 10:00:00',
+ '22dd33dd44dd55dd66dd77dd88dd99dd00dd11dd22dd33dd44dd55dd66dd77dd',
+ 'CHAIN_PENDING', NULL, NULL,
+ 0, '2026-04-28 10:00:00', '2026-04-28 10:00:00'),
+(9900003, 'RPT-99000003', 'AIGC_DISCLOSURE_AUDIT',
+ '《AIGC 生成披露合规度审计（2026Q1）》',
+ '本季度共检查作品 12 件，其中 11 件 AIGC 元数据完整披露（模型版本、提示词哈希、参数 JSON），合规度 91.7%。WK-70007 披露不充分，已要求创作者补充。',
+ 'https://oss.lifechain.cn/regulator/RPT-99000003-2026Q1.pdf',
+ 4000002, 'COMPLETED', '2026-04-05 09:00:00',
+ '33cc44cc55cc66cc77cc88cc99cc00cc11cc22cc33cc44cc55cc66cc77cc88cc',
+ 'CHAIN_PENDING', NULL, NULL,
+ 0, '2026-04-05 09:00:00', '2026-04-05 09:00:00'),
+(9900004, 'RPT-99000004', 'CHAIN_HEALTH',
+ '《Hyperledger Fabric 通道运行健康度报告 2026年5月上半月》',
+ '通道 lifechain-main 平均出块时延 1.8s，TPS 峰值 142，背书节点全部健康。本期无失败交易。链上交易记录待回填实际 tx_hash 与 block_height。',
+ 'https://oss.lifechain.cn/regulator/RPT-99000004-fabric-2026-05a.pdf',
+ 4000003, 'GENERATING', NULL, NULL,
+ '', NULL, NULL,
+ 0, '2026-05-16 10:00:00', '2026-05-16 10:00:00');
+
+-- =============================================================
+-- 17. 消息通知（采样）
+-- =============================================================
+INSERT INTO `message_notice`
+(`id`, `notice_no`, `account_id`, `title`, `content`,
+ `notice_type`, `biz_type`, `biz_no`,
+ `read_flag`, `read_time`, `send_time`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(9500001, 'NTC-95000001', 2000001, '《暮色长安》确权成功',
+ '您的作品 WK-70001《暮色长安》已通过确权审核，证书编号 CERT-2026-WK-70001。', 'CLAIM', 'WORK', 'WK-70001',
+ 1, '2026-02-12 15:00:00', '2026-02-12 14:00:00',
+ 0, '2026-02-12 14:00:00', '2026-02-12 15:00:00'),
+(9500002, 'NTC-95000002', 2000001, '订单 ORDER-91000001 已完成',
+ '买方 BUY-30001 已完成支付，订单已授权，结算金额 79.20 元已计入您的待结算账户。', 'TRADE', 'TRADE_ORDER', 'ORDER-91000001',
+ 1, '2026-02-13 11:00:00', '2026-02-13 10:14:12',
+ 0, '2026-02-13 10:14:12', '2026-02-13 11:00:00'),
+(9500003, 'NTC-95000003', 3000001, '订单 ORDER-91000001 授权已生效',
+ '您购买的 PERSONAL_USE 授权已生效，授权编号 LIC-94000001，有效期至 2027-02-13。', 'LICENSE', 'LICENSE', 'LIC-94000001',
+ 1, '2026-02-13 11:30:00', '2026-02-13 10:14:12',
+ 0, '2026-02-13 10:14:12', '2026-02-13 11:30:00'),
+(9500004, 'NTC-95000004', 2000010, '账户冻结通知',
+ '您的账户因恶意确权风险已被冻结，原因码 BAD_FAITH_BATCH。如有异议请通过工单系统申诉。', 'RISK', 'ACCOUNT', 'CRE-20010',
+ 0, NULL, '2026-04-25 09:00:00',
+ 0, '2026-04-25 09:00:00', '2026-04-25 09:00:00'),
+(9500005, 'NTC-95000005', 3000009, '订单 ORDER-91000013 退款成功',
+ '退款 26800.00 元已原路退回您的支付宝账户，预计 1-3 个工作日到账。', 'REFUND', 'TRADE_ORDER', 'ORDER-91000013',
+ 1, '2026-04-08 12:00:00', '2026-04-08 11:30:00',
+ 0, '2026-04-08 11:30:00', '2026-04-08 12:00:00'),
+(9500006, 'NTC-95000006', 2000007, '请补充作品 AIGC 披露',
+ '作品 WK-70007 检测到 AIGC 披露与实际内容比例不一致，请于 7 日内补充模型版本、提示词哈希等元数据。', 'CLAIM', 'WORK', 'WK-70007',
+ 0, NULL, '2026-05-13 09:00:00',
+ 0, '2026-05-13 09:00:00', '2026-05-13 09:00:00'),
+(9500007, 'NTC-95000007', 4000001, '风险事件待处理',
+ '风险事件 RISK-97000001 已上报，请及时处理。涉及作品：WK-70011。', 'RISK', 'RISK_EVENT', 'RISK-97000001',
+ 1, '2026-04-21 10:00:00', '2026-04-21 09:30:00',
+ 0, '2026-04-21 09:30:00', '2026-04-21 10:00:00');
+
+-- =============================================================
+-- 18. 系统配置（采样）
+-- =============================================================
+INSERT INTO `sys_config`
+(`id`, `config_key`, `config_value`, `config_type`, `description`, `status`,
+ `deleted_flag`, `created_at`, `updated_at`)
+VALUES
+(9900101, 'similarity.threshold.image.high', '0.85', 'NUMBER',
+ '图像类作品 PDQ 相似度高风险阈值，超过此值自动进入高风险审核', 'ACTIVE',
+ 0, '2025-12-01 09:00:00', '2025-12-01 09:00:00'),
+(9900102, 'similarity.threshold.audio.high', '0.80', 'NUMBER',
+ '音频类作品 Chromaprint 相似度高风险阈值', 'ACTIVE',
+ 0, '2025-12-01 09:00:00', '2025-12-01 09:00:00'),
+(9900103, 'order.expire.minutes', '30', 'NUMBER',
+ '订单创建后未支付的过期分钟数', 'ACTIVE',
+ 0, '2025-12-01 09:00:00', '2025-12-01 09:00:00'),
+(9900104, 'fabric.channel.name', 'lifechain-main', 'STRING',
+ '主链通道名称', 'ACTIVE',
+ 0, '2025-12-01 09:00:00', '2025-12-01 09:00:00'),
+(9900105, 'fabric.chaincode.name', 'lifechain-cc-v2', 'STRING',
+ '主链链码名称（v2 已部署，v1 已弃用）', 'ACTIVE',
+ 0, '2025-12-01 09:00:00', '2025-12-01 09:00:00'),
+(9900106, 'settlement.creator.default.ratio', '0.8000', 'NUMBER',
+ '默认创作者分账比例 80%', 'ACTIVE',
+ 0, '2025-12-01 09:00:00', '2025-12-01 09:00:00'),
+(9900107, 'aigc.disclosure.required', 'true', 'BOOLEAN',
+ '是否强制 AIGC 披露', 'ACTIVE',
+ 0, '2025-12-01 09:00:00', '2025-12-01 09:00:00');
 
 COMMIT;
-

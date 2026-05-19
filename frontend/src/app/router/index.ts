@@ -1,11 +1,16 @@
 /**
  * 路由配置
- * 按 portal / admin / regulator / verify 四个 app 分组
+ * 按 portal / admin / regulator / verify 四个端口分组。
+ * 角色到端口的边界规则：
+ *   1. portal：CREATOR / BUYER 独有；管理员、监管员不进入。
+ *   2. admin：PLATFORM_ADMIN 独有。
+ *   3. regulator：REGULATOR 独有。
+ *   4. verify：完全公开，无需登录态。
+ * 每条登录后路由必须挂 meta.roles，由 authGuard 唯一判定，不在页面里再判一次角色。
  */
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { setupGuards } from '@/app/guards/authGuard'
-import { useUserStore } from '@/app/store/user'
 
 /* ========== 布局组件 ========== */
 import PortalLayout from '@/app/layouts/PortalLayout.vue'
@@ -13,68 +18,72 @@ import AdminLayout from '@/app/layouts/AdminLayout.vue'
 import RegulatorLayout from '@/app/layouts/RegulatorLayout.vue'
 import VerifyLayout from '@/app/layouts/VerifyLayout.vue'
 
+/** portal 端口可访问的角色（同账号可同时为 CREATOR + BUYER） */
+const PORTAL_ROLES = ['CREATOR', 'BUYER'] as const
+/** 仅 CREATOR 可访问 */
+const CREATOR_ONLY = ['CREATOR'] as const
+/** 仅 BUYER 可访问 */
+const BUYER_ONLY = ['BUYER'] as const
+/** 仅 PLATFORM_ADMIN 可访问 */
+const ADMIN_ONLY = ['PLATFORM_ADMIN'] as const
+/** 仅 REGULATOR 可访问 */
+const REGULATOR_ONLY = ['REGULATOR'] as const
+
 /* ========== Portal 路由 ========== */
 const portalRoutes: RouteRecordRaw[] = [
   {
     path: '/',
     component: PortalLayout,
-    redirect: () => {
-      try {
-        const userStore = useUserStore()
-        if (userStore.isAdmin) return '/admin/dashboard'
-        if (userStore.isRegulator) return '/regulator/dashboard'
-      } catch { /* pinia not ready yet */ }
-      return '/creator/dashboard'
-    },
+    meta: { roles: PORTAL_ROLES },
     children: [
       /* 创作者工作台 */
-      { path: 'creator/dashboard', component: () => import('@/apps/portal/pages/CreatorDashboard.vue') },
+      { path: 'creator/dashboard', component: () => import('@/apps/portal/pages/CreatorDashboard.vue'), meta: { roles: CREATOR_ONLY } },
       /* 我的作品 */
-      { path: 'creator/works', component: () => import('@/apps/portal/pages/WorkList.vue') },
+      { path: 'creator/works', component: () => import('@/apps/portal/pages/WorkList.vue'), meta: { roles: CREATOR_ONLY } },
       /* 上传作品 */
-      { path: 'creator/works/create', component: () => import('@/apps/portal/pages/WorkCreate.vue') },
+      { path: 'creator/works/create', component: () => import('@/apps/portal/pages/WorkCreate.vue'), meta: { roles: CREATOR_ONLY } },
       /* 作品详情 */
-      { path: 'creator/works/:workNo', component: () => import('@/apps/portal/pages/WorkDetail.vue'), props: true },
+      { path: 'creator/works/:workNo', component: () => import('@/apps/portal/pages/WorkDetail.vue'), props: true, meta: { roles: CREATOR_ONLY } },
       /* 我的确权 */
-      { path: 'creator/claims', component: () => import('@/apps/portal/pages/ClaimList.vue') },
+      { path: 'creator/claims', component: () => import('@/apps/portal/pages/ClaimList.vue'), meta: { roles: CREATOR_ONLY } },
       /* 确权详情 */
-      { path: 'creator/claims/:claimNo', component: () => import('@/apps/portal/pages/ClaimDetail.vue'), props: true },
+      { path: 'creator/claims/:claimNo', component: () => import('@/apps/portal/pages/ClaimDetail.vue'), props: true, meta: { roles: CREATOR_ONLY } },
       /* 我的上架 */
-      { path: 'creator/listings', component: () => import('@/apps/portal/pages/ListingList.vue') },
+      { path: 'creator/listings', component: () => import('@/apps/portal/pages/ListingList.vue'), meta: { roles: CREATOR_ONLY } },
       /* 上架申请 */
-      { path: 'creator/listings/create', component: () => import('@/apps/portal/pages/ListingCreate.vue') },
+      { path: 'creator/listings/create', component: () => import('@/apps/portal/pages/ListingCreate.vue'), meta: { roles: CREATOR_ONLY } },
       /* 授权模板列表 */
-      { path: 'creator/license-templates', component: () => import('@/apps/portal/pages/LicenseTemplateList.vue') },
+      { path: 'creator/license-templates', component: () => import('@/apps/portal/pages/LicenseTemplateList.vue'), meta: { roles: CREATOR_ONLY } },
       /* 授权模板详情 */
-      { path: 'creator/license-templates/:templateCode', component: () => import('@/apps/portal/pages/LicenseTemplateDetail.vue'), props: true },
+      { path: 'creator/license-templates/:templateCode', component: () => import('@/apps/portal/pages/LicenseTemplateDetail.vue'), props: true, meta: { roles: CREATOR_ONLY } },
       /* 新建授权模板 */
-      { path: 'creator/license-templates/create', component: () => import('@/apps/portal/pages/LicenseTemplateCreate.vue') },
+      { path: 'creator/license-templates/create', component: () => import('@/apps/portal/pages/LicenseTemplateCreate.vue'), meta: { roles: CREATOR_ONLY } },
       /* 创作者订单 */
-      { path: 'creator/orders', component: () => import('@/apps/portal/pages/CreatorOrders.vue') },
+      { path: 'creator/orders', component: () => import('@/apps/portal/pages/CreatorOrders.vue'), meta: { roles: CREATOR_ONLY } },
       /* 收益管理 */
-      { path: 'creator/income', component: () => import('@/apps/portal/pages/IncomePage.vue') },
+      { path: 'creator/income', component: () => import('@/apps/portal/pages/IncomePage.vue'), meta: { roles: CREATOR_ONLY } },
       /* 证书详情 */
-      { path: 'creator/certificates/:certNo', component: () => import('@/apps/portal/pages/CertDetail.vue'), props: true },
+      { path: 'creator/certificates/:certNo', component: () => import('@/apps/portal/pages/CertDetail.vue'), props: true, meta: { roles: CREATOR_ONLY } },
       /* 购买者工作台 */
-      { path: 'buyer/dashboard', component: () => import('@/apps/portal/pages/BuyerDashboard.vue') },
+      { path: 'buyer/dashboard', component: () => import('@/apps/portal/pages/BuyerDashboard.vue'), meta: { roles: BUYER_ONLY } },
       /* 买家订单详情 */
-      { path: 'buyer/orders/:orderNo', component: () => import('@/apps/portal/pages/OrderDetail.vue'), props: true },
+      { path: 'buyer/orders/:orderNo', component: () => import('@/apps/portal/pages/OrderDetail.vue'), props: true, meta: { roles: BUYER_ONLY } },
       /* 我的授权 */
-      { path: 'buyer/licenses', component: () => import('@/apps/portal/pages/LicenseList.vue') },
+      { path: 'buyer/licenses', component: () => import('@/apps/portal/pages/LicenseList.vue'), meta: { roles: BUYER_ONLY } },
       /* 授权详情 */
-      { path: 'buyer/licenses/:licenseNo', component: () => import('@/apps/portal/pages/LicenseDetail.vue'), props: true },
-      /* 内容市场 */
+      { path: 'buyer/licenses/:licenseNo', component: () => import('@/apps/portal/pages/LicenseDetail.vue'), props: true, meta: { roles: BUYER_ONLY } },
+      /* 内容市场（创作者也需调研，故对 portal 全部角色开放） */
       { path: 'market', component: () => import('@/apps/portal/pages/MarketList.vue') },
       /* 市场作品详情 */
       { path: 'market/works/:workNo', component: () => import('@/apps/portal/pages/MarketDetail.vue'), props: true },
-      /* 下单确认 */
-      { path: 'orders/create', component: () => import('@/apps/portal/pages/OrderCreate.vue') },
-      /* 支付 */
-      { path: 'orders/:orderNo/pay', component: () => import('@/apps/portal/pages/PayPage.vue'), props: true },
-      /* 支付结果页 */
-      { path: 'payment/success', component: () => import('@/apps/portal/pages/PaymentSuccess.vue') },
-      { path: 'payment/cancel', component: () => import('@/apps/portal/pages/PaymentCancel.vue') },
-      /* 个人中心 */
+      /* 下单确认（仅 BUYER） */
+      { path: 'orders/create', component: () => import('@/apps/portal/pages/OrderCreate.vue'), meta: { roles: BUYER_ONLY } },
+      /* 支付（仅 BUYER） */
+      { path: 'orders/:orderNo/pay', component: () => import('@/apps/portal/pages/PayPage.vue'), props: true, meta: { roles: BUYER_ONLY } },
+      /* 支付回调结果（仅 BUYER 私域） */
+      { path: 'payment/success', component: () => import('@/apps/portal/pages/PaymentSuccess.vue'), meta: { roles: BUYER_ONLY } },
+      { path: 'payment/cancel', component: () => import('@/apps/portal/pages/PaymentCancel.vue'), meta: { roles: BUYER_ONLY } },
+      /* 个人中心：portal 通用区，CREATOR / BUYER 都可访问 */
       { path: 'profile', component: () => import('@/apps/portal/pages/Profile.vue') },
       /* 实名认证 */
       { path: 'profile/auth', component: () => import('@/apps/portal/pages/AuthSubmit.vue') },
@@ -94,6 +103,7 @@ const adminRoutes: RouteRecordRaw[] = [
     path: '/admin',
     component: AdminLayout,
     redirect: '/admin/dashboard',
+    meta: { roles: ADMIN_ONLY },
     children: [
       { path: 'dashboard', component: () => import('@/apps/admin/pages/AdminDashboard.vue') },
       { path: 'accounts', component: () => import('@/apps/admin/pages/AccountList.vue') },
@@ -132,6 +142,7 @@ const regulatorRoutes: RouteRecordRaw[] = [
     path: '/regulator',
     component: RegulatorLayout,
     redirect: '/regulator/dashboard',
+    meta: { roles: REGULATOR_ONLY },
     children: [
       { path: 'dashboard', component: () => import('@/apps/regulator/pages/RegulatorDashboard.vue') },
       { path: 'search', component: () => import('@/apps/regulator/pages/RegulatorSearch.vue') },
@@ -150,11 +161,12 @@ const regulatorRoutes: RouteRecordRaw[] = [
   }
 ]
 
-/* ========== Verify 路由 ========== */
+/* ========== Verify 路由（公开） ========== */
 const verifyRoutes: RouteRecordRaw[] = [
   {
     path: '/verify',
     component: VerifyLayout,
+    meta: { public: true },
     children: [
       { path: '', component: () => import('@/apps/verify/pages/VerifyHome.vue') },
       { path: 'result', component: () => import('@/apps/verify/pages/VerifyResult.vue') },
@@ -164,10 +176,10 @@ const verifyRoutes: RouteRecordRaw[] = [
   }
 ]
 
-/* ========== 公共路由（无布局） ========== */
+/* ========== 公共路由（无需登录） ========== */
 const publicRoutes: RouteRecordRaw[] = [
-  { path: '/login', component: () => import('@/apps/portal/pages/Login.vue') },
-  { path: '/register', component: () => import('@/apps/portal/pages/Register.vue') },
+  { path: '/login', component: () => import('@/apps/portal/pages/Login.vue'), meta: { public: true } },
+  { path: '/register', component: () => import('@/apps/portal/pages/Register.vue'), meta: { public: true } },
 ]
 
 /* ========== 创建路由 ========== */
@@ -179,7 +191,7 @@ const router = createRouter({
     ...adminRoutes,
     ...regulatorRoutes,
     ...verifyRoutes,
-    /* 404 */
+    /* 404 → 登录页（具体角色分发由 authGuard 接管） */
     { path: '/:pathMatch(.*)*', redirect: '/login' }
   ]
 })

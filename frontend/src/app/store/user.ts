@@ -1,11 +1,26 @@
 /**
  * 用户状态管理
- * 管理登录态、用户资料、角色权限
+ * 单一职责：登录态、用户资料、角色集合，以及由角色派生的默认主页能力。
+ * 所有"角色 → 默认页 / 是否可进入路由"判断必须从此处读取。
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { LoginResponse, AccountProfileVO } from '@/shared/types'
 import { authApi } from '@/shared/api'
+
+/** 系统内全部角色（与后端 RoleCodeEnum 对齐） */
+export type RoleCode = 'CREATOR' | 'BUYER' | 'PLATFORM_ADMIN' | 'REGULATOR'
+
+/** 角色 → 默认主页（唯一映射，登录、根路径、越权回退都从此读取） */
+const ROLE_HOME: Record<RoleCode, string> = {
+  PLATFORM_ADMIN: '/admin/dashboard',
+  REGULATOR: '/regulator/dashboard',
+  CREATOR: '/creator/dashboard',
+  BUYER: '/buyer/dashboard'
+}
+
+/** 默认主页优先级：管理员 > 监管员 > 创作者 > 购买者 */
+const HOME_PRIORITY: RoleCode[] = ['PLATFORM_ADMIN', 'REGULATOR', 'CREATOR', 'BUYER']
 
 export const useUserStore = defineStore('user', () => {
   /* ========== 状态 ========== */
@@ -19,7 +34,7 @@ export const useUserStore = defineStore('user', () => {
   const isLoggedIn = computed(() => !!token.value)
 
   /** 用户角色列表 */
-  const roles = computed(() => profile.value?.roles || [])
+  const roles = computed<RoleCode[]>(() => (profile.value?.roles || []) as RoleCode[])
 
   /** 是否为创作者 */
   const isCreator = computed(() => roles.value.includes('CREATOR'))
@@ -42,6 +57,11 @@ export const useUserStore = defineStore('user', () => {
   /** 认证状态 */
   const authStatus = computed(() => profile.value?.authStatus || '')
 
+  /** 默认主页：登录跳转、根路径分发、越权回退共用 */
+  const defaultHome = computed<string>(
+    () => ROLE_HOME[HOME_PRIORITY.find(r => roles.value.includes(r))!]
+  )
+
   /* ========== 方法 ========== */
 
   /** 设置登录信息 */
@@ -50,20 +70,6 @@ export const useUserStore = defineStore('user', () => {
     refreshToken.value = data.refreshToken
     sessionStorage.setItem('access_token', data.accessToken)
     sessionStorage.setItem('refresh_token', data.refreshToken)
-  }
-
-  /** 用 refreshToken 续期，返回新 accessToken，失败返回 null */
-  async function tryRefreshToken(): Promise<string | null> {
-    const rt = refreshToken.value
-    if (!rt) return null
-    try {
-      const res = await authApi.refreshTokenApi(rt)
-      setLogin(res.data)
-      return res.data.accessToken
-    } catch {
-      logout()
-      return null
-    }
   }
 
   /** 加载用户资料 */
@@ -81,6 +87,14 @@ export const useUserStore = defineStore('user', () => {
     sessionStorage.removeItem('refresh_token')
   }
 
+  /**
+   * 判断当前账号是否拥有指定角色之一。
+   * 路由 meta.roles 通过此方法做唯一判定。
+   */
+  function hasAnyRole(required: RoleCode[]): boolean {
+    return required.some(r => roles.value.includes(r))
+  }
+
   return {
     token,
     refreshToken,
@@ -94,9 +108,10 @@ export const useUserStore = defineStore('user', () => {
     accountStatus,
     didStatus,
     authStatus,
+    defaultHome,
     setLogin,
-    tryRefreshToken,
     loadProfile,
-    logout
+    logout,
+    hasAnyRole
   }
 })

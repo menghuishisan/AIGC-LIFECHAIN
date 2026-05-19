@@ -70,12 +70,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Lock, Phone } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { useUserStore } from '@/app/store/user'
+import { safeRedirect } from '@/app/guards/authGuard'
 import { authApi } from '@/shared/api'
 
 const router = useRouter()
@@ -94,7 +95,14 @@ const rules = {
 
 const flowSteps = ['注册认证', 'DID生效', '作品确权', '证书验真', '授权交易']
 
-/** 登录处理 */
+/** 越权跳回登录的统一提示 */
+onMounted(() => {
+  if (route.query.forbidden === '1') {
+    ElMessage.warning('当前账号无权访问该页面，请使用对应角色登录')
+  }
+})
+
+/** 登录处理：跳到 redirect 或 user store.defaultHome；越权回跳由路由守卫接管 */
 async function handleLogin() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -106,17 +114,8 @@ async function handleLogin() {
     await userStore.loadProfile()
     ElMessage.success('登录成功')
 
-    /* 根据角色跳转 */
-    const redirect = route.query.redirect as string
-    if (redirect) {
-      router.push(redirect)
-    } else if (userStore.isAdmin) {
-      router.push('/admin/dashboard')
-    } else if (userStore.isRegulator) {
-      router.push('/regulator/dashboard')
-    } else {
-      router.push('/creator/dashboard')
-    }
+    const redirect = safeRedirect(route.query.redirect)
+    router.push(redirect ?? userStore.defaultHome)
   } finally {
     loading.value = false
   }
