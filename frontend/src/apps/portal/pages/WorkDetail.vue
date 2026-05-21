@@ -25,9 +25,14 @@
             <el-descriptions :column="1" border size="small">
               <el-descriptions-item label="类型">{{ WorkTypeMap[detail.basicInfo.workType] || detail.basicInfo.workType }}</el-descriptions-item>
               <el-descriptions-item label="描述">{{ detail.basicInfo.description || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="封面">
-                <el-image v-if="detail.basicInfo.coverUrl" :src="detail.basicInfo.coverUrl" style="width: 120px; border-radius: 8px;" fit="cover" :preview-src-list="[detail.basicInfo.coverUrl]" />
-                <span v-else>-</span>
+              <el-descriptions-item label="预览">
+                <WorkPreview
+                  :work-no="detail.basicInfo.workNo"
+                  :work-type="detail.basicInfo.workType"
+                  :files="detail.basicInfo.files"
+                  :cover-url="detail.basicInfo.coverUrl"
+                  access-level="FULL"
+                />
               </el-descriptions-item>
             </el-descriptions>
           </div>
@@ -131,7 +136,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { workApi, appApi } from '@/shared/api'
-import { DetailHeader, StatusTag, ChainInfoCard, TraceTimeline } from '@/shared/components'
+import { DetailHeader, StatusTag, ChainInfoCard, TraceTimeline, WorkPreview } from '@/shared/components'
 import { WorkTypeMap } from '@/shared/constants'
 import { formatTime, generateRequestId } from '@/shared/utils'
 import type { WorkDetailVO, WorkFeatureVO, TraceEventVO } from '@/shared/types'

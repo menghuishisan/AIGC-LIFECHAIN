@@ -7,7 +7,7 @@ import type {
   WorkUploadRequest, WorkMetaUpdateRequest, WorkDetailVO, WorkListVO,
   WorkFeatureVO, ClaimSubmitRequest, ClaimDetailVO, ClaimReviewRequest,
   GenerateCertificateRequest, CertDetailVO, VerifyRequest, VerifyResultVO,
-  VerifyQueryLogVO, PageResult, PageQuery
+  VerifyQueryLogVO, PageResult, PageQuery, PreviewUrlVO
 } from '@/shared/types'
 
 /* ========== 作品接口 ========== */
@@ -37,6 +37,14 @@ export const getMyWorks = (params: PageQuery & { status?: string }) =>
 /** 作品详情 */
 export const getWorkDetail = (workNo: string) =>
   get<WorkDetailVO>(`/api/works/${workNo}`)
+
+/** 获取作品文件预览URL（需登录） */
+export const getPreviewUrl = (workNo: string, fileId: number) =>
+  get<PreviewUrlVO>(`/api/works/${workNo}/preview-url`, { fileId })
+
+/** 获取市场作品文件预览URL（公开） */
+export const getMarketPreviewUrl = (workNo: string, fileId: number) =>
+  get<PreviewUrlVO>(`/api/market/works/${workNo}/preview-url`, { fileId })
 
 /* ========== 市场接口 ========== */
 

@@ -72,4 +72,32 @@ public interface StorageService {
      * @return 带签名的临时上传URL
      */
     String getUploadPresignedUrl(String objectName, int expireMinutes);
+
+    /**
+     * 上传文件到公开桶（封面/缩略图等公开资源）
+     *
+     * @param objectName  对象名称
+     * @param inputStream 文件输入流
+     * @param size        文件字节大小
+     * @param contentType MIME类型
+     * @return 永久公开访问URL
+     */
+    String uploadPublicFile(String objectName, InputStream inputStream, long size, String contentType);
+
+    /**
+     * 获取公开桶的签名上传URL（前端直传到公开桶）
+     *
+     * @param objectName    对象名称
+     * @param expireMinutes 有效期（分钟）
+     * @return 带签名的临时上传URL（指向公开桶）
+     */
+    String getPublicUploadPresignedUrl(String objectName, int expireMinutes);
+
+    /**
+     * 构建公开桶文件的永久访问URL（无签名）
+     *
+     * @param objectName 对象名称
+     * @return 永久公开URL
+     */
+    String buildPublicFileUrl(String objectName);
 }

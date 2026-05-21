@@ -435,7 +435,7 @@ VALUES
  'IMAGE', 'OWNERSHIP_CONFIRMED',
  '7e3a4b1f9c2d5e8a6b1f4c7d2e5a8b3c6d9f2a5b8c1d4e7f0a3b6c9d2e5f8a1b',
  'a1b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
- 'https://oss.lifechain.cn/cover/WK-70001.png',
+ 'https://oss.lifechain.cn/public/cover/WK-70001.png',
  '2026-02-10 09:00:00', 0, 3, '2026-02-09 16:00:00', '2026-02-12 14:00:00'),
 
 (7000002, 'WK-70002', 2000002, 5000012, 6000002,
@@ -444,7 +444,7 @@ VALUES
  'AUDIO', 'OWNERSHIP_CONFIRMED',
  'b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
  'b2a3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
- 'https://oss.lifechain.cn/cover/WK-70002.png',
+ 'https://oss.lifechain.cn/public/cover/WK-70002.png',
  '2026-02-15 09:00:00', 0, 3, '2026-02-14 18:00:00', '2026-02-17 11:00:00'),
 
 (7000003, 'WK-70003', 2000003, 5000013, 6000003,
@@ -453,7 +453,7 @@ VALUES
  'VIDEO', 'LISTED',
  'c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f',
  'c3b4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9',
- 'https://oss.lifechain.cn/cover/WK-70003.png',
+ 'https://oss.lifechain.cn/public/cover/WK-70003.png',
  '2026-02-20 09:00:00', 0, 4, '2026-02-19 20:00:00', '2026-03-01 09:00:00'),
 
 (7000004, 'WK-70004', 2000004, 5000014, 6000004,
@@ -462,7 +462,7 @@ VALUES
  'AUDIO', 'LISTED',
  'd4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90',
  'd4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0',
- 'https://oss.lifechain.cn/cover/WK-70004.png',
+ 'https://oss.lifechain.cn/public/cover/WK-70004.png',
  '2026-02-25 09:00:00', 0, 4, '2026-02-24 22:00:00', '2026-03-05 09:00:00'),
 
 (7000005, 'WK-70005', 2000005, 5000015, 6000005,
@@ -471,7 +471,7 @@ VALUES
  'VIDEO', 'LISTED',
  'e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001',
  'e5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1',
- 'https://oss.lifechain.cn/cover/WK-70005.png',
+ 'https://oss.lifechain.cn/public/cover/WK-70005.png',
  '2026-03-02 09:00:00', 0, 4, '2026-03-01 14:00:00', '2026-03-08 09:00:00'),
 
 (7000006, 'WK-70006', 2000006, 5000016, 6000006,
@@ -480,7 +480,7 @@ VALUES
  'TEXT', 'OWNERSHIP_CONFIRMED',
  'f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112',
  'f6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1e2',
- 'https://oss.lifechain.cn/cover/WK-70006.png',
+ 'https://oss.lifechain.cn/public/cover/WK-70006.png',
  '2026-03-08 09:00:00', 0, 3, '2026-03-07 19:00:00', '2026-03-10 11:00:00'),
 
 (7000007, 'WK-70007', 2000007, 5000017, 6000007,
@@ -489,7 +489,7 @@ VALUES
  'IMAGE', 'CLAIM_REVIEWING',
  '0718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223',
  '0708091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1e2f3',
- 'https://oss.lifechain.cn/cover/WK-70007.png',
+ 'https://oss.lifechain.cn/public/cover/WK-70007.png',
  '2026-05-12 14:00:00', 0, 1, '2026-05-12 13:00:00', '2026-05-13 09:00:00'),
 
 (7000008, 'WK-70008', 2000011, 5000021, 6000011,
@@ -498,7 +498,7 @@ VALUES
  'IMAGE', 'CLAIM_CHAIN_PENDING',
  '18293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334',
  '1819293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223',
- 'https://oss.lifechain.cn/cover/WK-70008.png',
+ 'https://oss.lifechain.cn/public/cover/WK-70008.png',
  '2026-05-15 10:00:00', 0, 2, '2026-05-15 09:00:00', '2026-05-16 18:00:00'),
 
 (7000009, 'WK-70009', 2000012, 5000022, 6000012,
@@ -507,7 +507,7 @@ VALUES
  'VIDEO', 'READY_FOR_CLAIM',
  '293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112233445',
  '29293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334',
- 'https://oss.lifechain.cn/cover/WK-70009.png',
+ 'https://oss.lifechain.cn/public/cover/WK-70009.png',
  '2026-05-16 16:00:00', 0, 1, '2026-05-16 15:00:00', '2026-05-16 16:00:00'),
 
 (7000010, 'WK-70010', 2000013, 5000023, 6000013,
@@ -516,7 +516,7 @@ VALUES
  'AUDIO', 'LISTED',
  '3a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223344556',
  '3a3b4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b',
- 'https://oss.lifechain.cn/cover/WK-70010.png',
+ 'https://oss.lifechain.cn/public/cover/WK-70010.png',
  '2026-03-12 09:00:00', 0, 4, '2026-03-11 19:00:00', '2026-03-15 11:00:00'),
 
 (7000011, 'WK-70011', 2000010, 5000020, 6000010,
@@ -525,7 +525,7 @@ VALUES
  'IMAGE', 'RISK_FROZEN',
  '4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334455667',
  '4b4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c',
- 'https://oss.lifechain.cn/cover/WK-70011.png',
+ 'https://oss.lifechain.cn/public/cover/WK-70011.png',
  '2026-03-20 09:00:00', 0, 5, '2026-03-19 20:00:00', '2026-04-22 10:00:00'),
 
 (7000012, 'WK-70012', 2000009, 5000019, 6000009,
@@ -545,7 +545,7 @@ VALUES
  'https://oss.lifechain.cn/work/WK-70001/origin.png', 'ORIGINAL', 0, '2026-02-09 16:00:00', '2026-02-09 16:00:00'),
 (7100002, 7000001, '暮色长安_封面.png', '/cover/WK-70001.png', 2328983, 'PNG',
  '8f4b5c2a0d3e6f9b7c2a5d8e1f4c7d0a3b6c9d2e5f8a1b4c7d0a3b6c9d2e5f8a',
- 'https://oss.lifechain.cn/cover/WK-70001.png', 'PREVIEW', 0, '2026-02-09 16:00:00', '2026-02-09 16:00:00'),
+ 'https://oss.lifechain.cn/public/cover/WK-70001.png', 'PREVIEW', 0, '2026-02-09 16:00:00', '2026-02-09 16:00:00'),
 (7100003, 7000002, '潮汐回响_master.wav', '/work/WK-70002/master.wav', 35051692, 'WAV',
  'b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
  'https://oss.lifechain.cn/work/WK-70002/master.wav', 'ORIGINAL', 0, '2026-02-14 18:00:00', '2026-02-14 18:00:00'),
@@ -611,7 +611,7 @@ VALUES
  'https://oss.lifechain.cn/work/WK-70008/12_dashu.png', 'ORIGINAL', 0, '2026-05-15 09:11:00', '2026-05-15 09:11:00'),
 (7100024, 7000008, '无界节气_系列封面.png', '/cover/WK-70008.png', 2321040, 'PNG',
  '6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334455667020304050607080a9b0c1d',
- 'https://oss.lifechain.cn/cover/WK-70008.png', 'PREVIEW', 0, '2026-05-15 09:12:00', '2026-05-15 09:12:00');
+ 'https://oss.lifechain.cn/public/cover/WK-70008.png', 'PREVIEW', 0, '2026-05-15 09:12:00', '2026-05-15 09:12:00');
 
 -- 作品 AIGC 元数据
 INSERT INTO `work_aigc_meta`
@@ -797,7 +797,7 @@ VALUES
 (8100004, 8000004, 1000002, 'APPROVE', 'PASS', '审核通过', 'RC-CLM-PASS', '2026-02-25 15:00:00', 0, '2026-02-25 15:00:00', '2026-02-25 15:00:00'),
 (8100005, 8000005, 1000002, 'APPROVE', 'PASS', '自训练LoRA数据集证明已附', 'RC-CLM-PASS', '2026-03-02 15:00:00', 0, '2026-03-02 15:00:00', '2026-03-02 15:00:00'),
 (8100006, 8000006, 1000002, 'APPROVE', 'PASS', '作者亲自完稿证据充分', 'RC-CLM-PASS', '2026-03-08 15:00:00', 0, '2026-03-08 15:00:00', '2026-03-08 15:00:00'),
-(8100007, 8000007, 1000002, 'REVIEWING', NULL, '材料补充中', NULL, '2026-05-13 09:00:00', 0, '2026-05-13 09:00:00', '2026-05-13 09:00:00'),
+(8100007, 8000007, 1000002, 'REVIEWING', 'PENDING', '材料补充中', NULL, '2026-05-13 09:00:00', 0, '2026-05-13 09:00:00', '2026-05-13 09:00:00'),
 (8100008, 8000008, 1000002, 'APPROVE', 'PASS', '24节气海报系列，工作室出品证明完整', 'RC-CLM-PASS', '2026-05-16 17:00:00', 0, '2026-05-16 17:00:00', '2026-05-16 17:00:00'),
 (8100009, 8000009, 1000002, 'APPROVE', 'PASS', '工作室出品证明完整', 'RC-CLM-PASS', '2026-03-12 15:00:00', 0, '2026-03-12 15:00:00', '2026-03-12 15:00:00'),
 (8100010, 8000010, 1000002, 'REJECT', 'FAIL', '与已确权作品WK-70005相似度0.8923超出阈值0.85，疑似使用未授权训练样本', 'RC-CLM-REJECT-SIMILARITY', '2026-03-21 10:00:00', 0, '2026-03-21 10:00:00', '2026-03-21 10:00:00');

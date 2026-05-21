@@ -50,6 +50,26 @@ export interface WorkFeatureVO {
   extractTime?: string
 }
 
+/** 作品文件信息 */
+export interface WorkFileVO {
+  fileId: number
+  fileName: string
+  fileUrl?: string
+  fileType: string
+  fileSize: number
+  purpose: string
+}
+
+/** 预览URL响应 */
+export interface PreviewUrlVO {
+  previewUrl: string | null
+  accessLevel: 'FULL' | 'LIMITED'
+  fileType: string
+  fileName: string
+  fileSize: number
+  previewDurationSeconds?: number
+}
+
 /** 作品详情——基础信息 */
 export interface WorkBasicInfo {
   workNo: string
@@ -57,7 +77,7 @@ export interface WorkBasicInfo {
   description?: string
   workType: string
   coverUrl?: string
-  files?: string[]
+  files?: WorkFileVO[]
   aigcMeta?: AigcMetaDTO
   feature?: WorkFeatureVO
 }

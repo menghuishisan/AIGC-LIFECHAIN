@@ -35,7 +35,9 @@ public final class WorkVoAssembler {
 
         WorkDetailVO.BasicInfo basic = vo.getBasicInfo();
         if (role == ViewerRole.PUBLIC) {
-            basic.setFiles(null);
+            if (basic.getFiles() != null) {
+                basic.getFiles().forEach(f -> f.setFileUrl(null));
+            }
             basic.setAigcMeta(null);
             basic.setFeature(null);
             vo.setChainInfo(null);

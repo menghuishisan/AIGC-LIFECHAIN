@@ -15,6 +15,9 @@ import java.io.Serializable;
 @Data
 public class WorkFileVO implements Serializable {
 
+    /** 文件ID */
+    private Long fileId;
+
     /** 文件名 */
     private String fileName;
 

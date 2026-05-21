@@ -665,6 +665,7 @@ public class WorkServiceImpl implements WorkService {
      */
     private WorkFileVO toWorkFileVO(WorkFileEntity entity) {
         WorkFileVO vo = new WorkFileVO();
+        vo.setFileId(entity.getId());
         vo.setFileName(entity.getFileName());
         vo.setFileUrl(entity.getFileUrl());
         vo.setFileType(entity.getFileType());

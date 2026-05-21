@@ -26,8 +26,11 @@ public class MinioConfig {
     /** 秘密密钥 */
     private String secretKey;
 
-    /** 默认桶名 */
+    /** 默认桶名（私有） */
     private String bucketName;
+
+    /** 公开桶名（public-read，用于封面/缩略图） */
+    private String publicBucketName = "lifechain-public";
 
     /**
      * 创建MinIO客户端实例

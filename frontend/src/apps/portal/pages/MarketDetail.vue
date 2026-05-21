@@ -6,19 +6,14 @@
         <!-- 左侧：作品预览 -->
         <el-col :span="14">
           <div class="lc-card">
-            <el-image
-              :src="detail.basicInfo.coverUrl"
-              fit="contain"
-              style="width: 100%; max-height: 480px; border-radius: 8px;"
-              :preview-src-list="detail.basicInfo.coverUrl ? [detail.basicInfo.coverUrl] : []"
-            >
-              <template #error>
-                <div class="cover-placeholder">
-                  <el-icon size="64"><Picture /></el-icon>
-                  <p>暂无封面</p>
-                </div>
-              </template>
-            </el-image>
+            <WorkPreview
+              :work-no="detail.basicInfo.workNo"
+              :work-type="detail.basicInfo.workType"
+              :files="detail.basicInfo.files"
+              :cover-url="detail.basicInfo.coverUrl"
+              access-level="LIMITED"
+              :is-market="true"
+            />
           </div>
         </el-col>
 
@@ -76,6 +71,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Picture } from '@element-plus/icons-vue'
 import { workApi, tradeApi } from '@/shared/api'
+import { WorkPreview } from '@/shared/components'
 import { WorkTypeMap, LicenseTypeMap } from '@/shared/constants'
 import { formatCurrency } from '@/shared/utils'
 import type { WorkDetailVO, ListingDetailVO } from '@/shared/types'

@@ -195,19 +195,91 @@ public class MinioStorageService implements StorageService {
         }
     }
 
+    @Override
+    public String uploadPublicFile(String objectName, InputStream inputStream, long size, String contentType) {
+        try {
+            ensureBucketExists();
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(minioConfig.getPublicBucketName())
+                    .object(objectName)
+                    .stream(inputStream, size, -1)
+                    .contentType(contentType)
+                    .build());
+            String url = buildPublicFileUrl(objectName);
+            log.info("公开文件上传成功, 对象名: {}, URL: {}", objectName, url);
+            return url;
+        } catch (Exception e) {
+            log.error("公开文件上传失败, 对象名: {}, 错误: {}", objectName, e.getMessage(), e);
+            throw new BizException(ErrorCodeEnum.STORAGE_UPLOAD_FAILED,
+                    "公开文件上传失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String getPublicUploadPresignedUrl(String objectName, int expireMinutes) {
+        try {
+            ensureBucketExists();
+            String url = minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .method(Method.PUT)
+                    .bucket(minioConfig.getPublicBucketName())
+                    .object(objectName)
+                    .expiry(expireMinutes, TimeUnit.MINUTES)
+                    .build());
+            log.debug("生成公开桶签名上传URL, 对象名: {}, 有效期: {}分钟", objectName, expireMinutes);
+            return url;
+        } catch (Exception e) {
+            log.error("生成公开桶签名上传URL失败, 对象名: {}, 错误: {}", objectName, e.getMessage(), e);
+            throw new BizException(ErrorCodeEnum.STORAGE_UPLOAD_FAILED,
+                    "生成公开桶签名上传URL失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String buildPublicFileUrl(String objectName) {
+        String endpoint = minioConfig.getEndpoint();
+        if (endpoint.endsWith("/")) {
+            endpoint = endpoint.substring(0, endpoint.length() - 1);
+        }
+        return endpoint + "/" + minioConfig.getPublicBucketName() + "/" + objectName;
+    }
+
     /**
-     * 确保桶存在，不存在则创建
+     * 确保私有桶和公开桶都存在
      */
     private void ensureBucketExists() throws Exception {
+        ensureBucket(minioConfig.getBucketName());
+        ensurePublicBucket(minioConfig.getPublicBucketName());
+    }
+
+    private void ensureBucket(String bucket) throws Exception {
         boolean exists = minioClient.bucketExists(BucketExistsArgs.builder()
-                .bucket(minioConfig.getBucketName())
+                .bucket(bucket)
                 .build());
         if (!exists) {
             minioClient.makeBucket(MakeBucketArgs.builder()
-                    .bucket(minioConfig.getBucketName())
+                    .bucket(bucket)
                     .build());
-            log.info("创建MinIO桶: {}", minioConfig.getBucketName());
+            log.info("创建MinIO桶: {}", bucket);
         }
+    }
+
+    private void ensurePublicBucket(String bucket) throws Exception {
+        ensureBucket(bucket);
+        String policy = """
+                {
+                  "Version": "2012-10-17",
+                  "Statement": [{
+                    "Effect": "Allow",
+                    "Principal": {"AWS": ["*"]},
+                    "Action": ["s3:GetObject"],
+                    "Resource": ["arn:aws:s3:::%s/*"]
+                  }]
+                }
+                """.formatted(bucket);
+        minioClient.setBucketPolicy(SetBucketPolicyArgs.builder()
+                .bucket(bucket)
+                .config(policy)
+                .build());
     }
 
     /**

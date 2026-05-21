@@ -55,4 +55,12 @@ public interface LicenseRecordMapper extends BaseMapper<LicenseRecordEntity> {
                 .orderByDesc(LicenseRecordEntity::getCreatedAt);
         return selectPage(page, wrapper);
     }
+
+    default boolean existsActiveLicense(@Param("workId") Long workId,
+                                        @Param("licenseeAccountId") Long licenseeAccountId) {
+        return selectCount(new LambdaQueryWrapper<LicenseRecordEntity>()
+                .eq(LicenseRecordEntity::getWorkId, workId)
+                .eq(LicenseRecordEntity::getLicenseeAccountId, licenseeAccountId)
+                .eq(LicenseRecordEntity::getLicenseStatus, "LICENSE_ACTIVE")) > 0;
+    }
 }

@@ -103,6 +103,8 @@ minio:
   secretKey: ${MINIO_SECRET_KEY}
   # 默认使用的桶名称，必须通过环境变量 MINIO_BUCKET 注入
   bucketName: ${MINIO_BUCKET}
+  # 公开桶名称（封面/缩略图），public-read 策略
+  publicBucketName: ${MINIO_PUBLIC_BUCKET}
 
 # 平台业务配置：JWT、支付、区块链、雪花 ID 等
 lifechain:

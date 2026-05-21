@@ -60,8 +60,10 @@ public class FileController {
     );
 
     private static final Set<String> ALLOWED_STORAGE_BIZ_TYPES = Set.of(
-            "work", "avatar", "cert", "general"
+            "work", "cover", "avatar", "cert", "general"
     );
+
+    private static final Set<String> PUBLIC_BIZ_TYPES = Set.of("cover");
 
     private final StorageService storageService;
     private final AttachmentService attachmentService;
@@ -88,8 +90,17 @@ public class FileController {
                 .replaceAll("[^a-zA-Z0-9.\\-_]", "_");
         String storageBizType = normalizeStorageBizType(bizType);
         String objectName = storageBizType + "/" + BizNoUtil.generate("FILE") + "/" + safeFileName;
-        String uploadUrl = storageService.getUploadPresignedUrl(objectName, uploadPolicyExpireMinutes);
-        String accessUrl = storageService.getPresignedUrl(objectName, 60);
+
+        boolean isPublic = PUBLIC_BIZ_TYPES.contains(storageBizType);
+        String uploadUrl;
+        String accessUrl;
+        if (isPublic) {
+            uploadUrl = storageService.getPublicUploadPresignedUrl(objectName, uploadPolicyExpireMinutes);
+            accessUrl = storageService.buildPublicFileUrl(objectName);
+        } else {
+            uploadUrl = storageService.getUploadPresignedUrl(objectName, uploadPolicyExpireMinutes);
+            accessUrl = storageService.getPresignedUrl(objectName, 60);
+        }
 
         String uploadToken = UUID.randomUUID().toString().replace("-", "");
         UploadPolicyCache cache = new UploadPolicyCache();
@@ -208,6 +219,7 @@ public class FileController {
     private String normalizeAttachmentBizType(String storageBizType) {
         return switch (storageBizType) {
             case "work" -> "WORK";
+            case "cover" -> "WORK";
             case "avatar" -> "ACCOUNT";
             case "cert" -> "CERTIFICATE";
             case "general" -> "GENERAL";

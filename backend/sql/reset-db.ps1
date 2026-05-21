@@ -69,6 +69,33 @@ if (-not $NoSeed) {
         Write-Host "  种子文件不存在: $seedFile" -ForegroundColor Red
         exit 1
     }
+
+    # MinIO 初始化：创建桶 + 上传 seed-assets
+    $MC = if ($env:MC_PATH) { $env:MC_PATH } else { "mc" }
+    $MINIO_ENDPOINT = if ($env:MINIO_ENDPOINT) { $env:MINIO_ENDPOINT } else { "http://localhost:9020" }
+    $MINIO_AK = if ($env:MINIO_ACCESS_KEY) { $env:MINIO_ACCESS_KEY } else { "minioadmin" }
+    $MINIO_SK = if ($env:MINIO_SECRET_KEY) { $env:MINIO_SECRET_KEY } else { "minioadmin" }
+    $BUCKET = if ($env:MINIO_BUCKET) { $env:MINIO_BUCKET } else { "lifechain" }
+    $PUBLIC_BUCKET = if ($env:MINIO_PUBLIC_BUCKET) { $env:MINIO_PUBLIC_BUCKET } else { "lifechain-public" }
+    $SEED_ASSETS = Join-Path $ScriptDir "..\seed-assets"
+
+    Write-Host "[reset-db] 初始化 MinIO 桶" -ForegroundColor Cyan
+    & $MC alias set lifelocal $MINIO_ENDPOINT $MINIO_AK $MINIO_SK 2>$null
+    & $MC rb --force "lifelocal/$BUCKET" 2>$null
+    & $MC rb --force "lifelocal/$PUBLIC_BUCKET" 2>$null
+    & $MC mb "lifelocal/$BUCKET" 2>$null
+    & $MC mb "lifelocal/$PUBLIC_BUCKET" 2>$null
+    & $MC anonymous set download "lifelocal/$PUBLIC_BUCKET" 2>$null
+    Write-Host "  OK 桶创建完成 ($BUCKET + $PUBLIC_BUCKET)" -ForegroundColor Green
+
+    if (Test-Path $SEED_ASSETS) {
+        Write-Host "[reset-db] 上传 seed-assets 到 MinIO" -ForegroundColor Cyan
+        & $MC cp --recursive "$SEED_ASSETS\work\" "lifelocal/$BUCKET/work/" 2>$null
+        & $MC cp --recursive "$SEED_ASSETS\cover\" "lifelocal/$PUBLIC_BUCKET/cover/" 2>$null
+        Write-Host "  OK seed-assets 上传完成" -ForegroundColor Green
+    } else {
+        Write-Host "  seed-assets 目录不存在，跳过上传: $SEED_ASSETS" -ForegroundColor Yellow
+    }
 }
 
 Write-Host "`n[reset-db] 完成" -ForegroundColor Green

@@ -45,6 +45,13 @@ backend/runtime-config/fabric/org2/connection-org2.json
 # === Docs (design documents, not for public repo) ===
 docs/
 测试报告.md
+草稿.md
+副作用.md
+国风五曲.md
+凌晨三点.md
+七千张.md
+再短一点.md
+네가 모르는 나.md
 
 # === Environment & Secrets ===
 .env
