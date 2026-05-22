@@ -24,7 +24,11 @@
         </dependency>
         <dependency>
             <groupId>org.hyperledger.fabric</groupId>
-            <artifactId>fabric-gateway-java</artifactId>
+            <artifactId>fabric-gateway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-netty-shaded</artifactId>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

@@ -1,5 +1,6 @@
 package com.lifechain.chain.service;
 
+import com.lifechain.chain.config.FabricGatewayHolder;
 import com.lifechain.chain.model.ChainQueryResult;
 import com.lifechain.chain.model.ChainSubmitRequest;
 import com.lifechain.chain.model.ChainSubmitResult;
@@ -12,21 +13,25 @@ import com.lifechain.common.enums.ErrorCodeEnum;
 import com.lifechain.common.exception.BizException;
 import com.lifechain.common.util.DateTimeUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.hyperledger.fabric.gateway.Contract;
-import org.hyperledger.fabric.gateway.ContractException;
-import org.hyperledger.fabric.gateway.Network;
-import org.hyperledger.fabric.gateway.Transaction;
+import org.hyperledger.fabric.client.CommitStatusException;
+import org.hyperledger.fabric.client.Contract;
+import org.hyperledger.fabric.client.EndorseException;
+import org.hyperledger.fabric.client.GatewayException;
+import org.hyperledger.fabric.client.Network;
+import org.hyperledger.fabric.client.Proposal;
+import org.hyperledger.fabric.client.Status;
+import org.hyperledger.fabric.client.SubmitException;
+import org.hyperledger.fabric.client.SubmittedTransaction;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Fabric 链核心服务实现
  * <p>
- * 通过 Fabric Gateway Java SDK 完成交易提交和查询操作。
+ * 通过新版 fabric-gateway SDK（基于 gRPC 直连 peer）完成交易提交和查询操作。
  * 每次交易提交均自动持久化 {@code chain_tx_record} 记录，确保链上交互可追溯。
  * 所有 Fabric SDK 异常均被捕获并转换为带有标准错误码的业务异常或失败结果。
  * </p>
@@ -37,16 +42,16 @@ import java.util.concurrent.TimeoutException;
 @Service
 public class FabricChainServiceImpl implements FabricChainService {
 
-    private final Network network;
+    private final FabricGatewayHolder gatewayHolder;
     private final ChainTxRecordService chainTxRecordService;
     private final ChainTxRecordMapper chainTxRecordMapper;
     private final ChainReceiptProcessor chainReceiptProcessor;
 
-    public FabricChainServiceImpl(Network network,
+    public FabricChainServiceImpl(FabricGatewayHolder gatewayHolder,
                                   ChainTxRecordService chainTxRecordService,
                                   ChainTxRecordMapper chainTxRecordMapper,
                                   @Lazy ChainReceiptProcessor chainReceiptProcessor) {
-        this.network = network;
+        this.gatewayHolder = gatewayHolder;
         this.chainTxRecordService = chainTxRecordService;
         this.chainTxRecordMapper = chainTxRecordMapper;
         this.chainReceiptProcessor = chainReceiptProcessor;
@@ -62,49 +67,77 @@ public class FabricChainServiceImpl implements FabricChainService {
                 request.getChaincodeName(), request.getFunctionName());
 
         LocalDateTime submitTime = DateTimeUtil.nowUtc();
+        Network network = gatewayHolder.getNetwork();
         ChainSubmitResult result = new ChainSubmitResult();
         result.setSubmitTime(submitTime);
-        result.setChannelName(network.getChannel().getName());
+        result.setChannelName(network.getName());
         result.setChaincodeName(request.getChaincodeName());
 
         try {
             Contract contract = network.getContract(request.getChaincodeName());
-            Transaction transaction = contract.createTransaction(request.getFunctionName());
-
             String[] args = request.getArgs() != null ? request.getArgs() : new String[0];
-            byte[] response = transaction.submit(args);
 
-            String txId = transaction.getTransactionId();
-            String responsePayload = new String(response, StandardCharsets.UTF_8);
+            // 新 SDK 推荐显式构造 Proposal → endorse → submit，便于在每个阶段精确捕获异常
+            Proposal proposal = contract.newProposal(request.getFunctionName())
+                    .addArguments(args)
+                    .build();
+            SubmittedTransaction submitted = proposal.endorse().submitAsync();
 
-            result.setSuccess(true);
-            result.setTxHash(txId);
-            result.setResponsePayload(responsePayload);
-            result.setConfirmTime(DateTimeUtil.nowUtc());
-            result.setEndorsementSummary(buildEndorsementSummary(request.getChaincodeName(), txId));
+            // 阻塞等待 orderer 出块；getStatus() 内部会一直拉取 commit 状态直到可用
+            byte[] response = submitted.getResult();
+            String txId = submitted.getTransactionId();
+            Status commitStatus = submitted.getStatus();
 
-            log.info("链上交易提交成功，bizType={}, bizNo={}, txHash={}",
-                    request.getBizType(), request.getBizNo(), txId);
+            if (!commitStatus.isSuccessful()) {
+                // 背书通过但出块时被 VSCC 拒绝（双花、读写集冲突等），按业务失败处理
+                log.error("链上交易未通过验证，bizType={}, bizNo={}, txId={}, code={}",
+                        request.getBizType(), request.getBizNo(), txId, commitStatus.getCode());
+                result.setSuccess(false);
+                result.setTxHash(txId);
+                result.setBlockHeight(commitStatus.getBlockNumber());
+                result.setFailReason("链上交易被拒绝: " + commitStatus.getCode());
+                result.setReasonCode(ErrorCodeEnum.CHAIN_RECEIPT_FAILED.getCode());
+                result.setConfirmTime(DateTimeUtil.nowUtc());
+            } else {
+                String responsePayload = new String(response, StandardCharsets.UTF_8);
+                result.setSuccess(true);
+                result.setTxHash(txId);
+                result.setResponsePayload(responsePayload);
+                result.setBlockHeight(commitStatus.getBlockNumber());
+                result.setConfirmTime(DateTimeUtil.nowUtc());
+                result.setEndorsementSummary(buildEndorsementSummary(request.getChaincodeName(), txId));
 
-        } catch (ContractException e) {
-            log.error("链码执行异常，bizType={}, bizNo={}, 原因={}",
-                    request.getBizType(), request.getBizNo(), e.getMessage(), e);
+                log.info("链上交易提交成功，bizType={}, bizNo={}, txHash={}, block={}",
+                        request.getBizType(), request.getBizNo(), txId, commitStatus.getBlockNumber());
+            }
+
+        } catch (EndorseException e) {
+            log.error("链码背书失败，bizType={}, bizNo={}, txId={}, 原因={}",
+                    request.getBizType(), request.getBizNo(), e.getTransactionId(), e.getMessage(), e);
             result.setSuccess(false);
-            result.setFailReason("链码执行异常: " + e.getMessage());
+            result.setFailReason("链码背书失败: " + e.getMessage());
             result.setReasonCode(ErrorCodeEnum.CHAIN_SUBMIT_FAILED.getCode());
             result.setConfirmTime(DateTimeUtil.nowUtc());
 
-        } catch (TimeoutException e) {
-            log.error("链上交易超时，bizType={}, bizNo={}", request.getBizType(), request.getBizNo(), e);
+        } catch (CommitStatusException e) {
+            log.error("链上提交状态查询失败（可能未上链），bizType={}, bizNo={}, txId={}",
+                    request.getBizType(), request.getBizNo(), e.getTransactionId(), e);
             result.setSuccess(false);
-            result.setFailReason("链上交易提交超时: " + e.getMessage());
+            result.setFailReason("链上提交状态查询失败: " + e.getMessage());
             result.setReasonCode(ErrorCodeEnum.CHAIN_RECEIPT_TIMEOUT.getCode());
 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.error("链上交易被中断，bizType={}, bizNo={}", request.getBizType(), request.getBizNo(), e);
+        } catch (SubmitException e) {
+            log.error("链上交易提交到 orderer 失败，bizType={}, bizNo={}, txId={}",
+                    request.getBizType(), request.getBizNo(), e.getTransactionId(), e);
             result.setSuccess(false);
-            result.setFailReason("链上交易被中断");
+            result.setFailReason("链上提交到 orderer 失败: " + e.getMessage());
+            result.setReasonCode(ErrorCodeEnum.CHAIN_SUBMIT_FAILED.getCode());
+
+        } catch (GatewayException e) {
+            log.error("Gateway 通用错误，bizType={}, bizNo={}, 原因={}",
+                    request.getBizType(), request.getBizNo(), e.getMessage(), e);
+            result.setSuccess(false);
+            result.setFailReason("Gateway 错误: " + e.getMessage());
             result.setReasonCode(ErrorCodeEnum.CHAIN_SUBMIT_FAILED.getCode());
 
         } catch (Exception e) {
@@ -126,7 +159,7 @@ public class FabricChainServiceImpl implements FabricChainService {
         log.info("开始查询链上数据，chaincode={}, function={}", chaincodeName, functionName);
 
         try {
-            Contract contract = network.getContract(chaincodeName);
+            Contract contract = gatewayHolder.getNetwork().getContract(chaincodeName);
             byte[] response = contract.evaluateTransaction(functionName, args);
             String payload = new String(response, StandardCharsets.UTF_8);
 
@@ -134,7 +167,7 @@ public class FabricChainServiceImpl implements FabricChainService {
                     chaincodeName, functionName, response.length);
             return ChainQueryResult.success(payload);
 
-        } catch (ContractException e) {
+        } catch (GatewayException e) {
             log.error("链上查询失败，chaincode={}, function={}, 原因={}",
                     chaincodeName, functionName, e.getMessage(), e);
             return ChainQueryResult.fail("链码查询异常: " + e.getMessage());
@@ -191,11 +224,11 @@ public class FabricChainServiceImpl implements FabricChainService {
      * </p>
      *
      * @param record 链上交易记录
-     * @return 验证结果
+     * @return       验证结果
      */
     private ChainSubmitResult verifyTransactionOnChain(ChainTxRecordEntity record) {
         try {
-            Contract qscc = network.getContract("qscc");
+            Contract qscc = gatewayHolder.getNetwork().getContract("qscc");
             byte[] txData = qscc.evaluateTransaction("GetTransactionByID",
                     record.getChannelName(), record.getTxHash());
 
@@ -212,7 +245,7 @@ public class FabricChainServiceImpl implements FabricChainService {
 
             return buildResultFromRecord(record);
 
-        } catch (ContractException e) {
+        } catch (GatewayException e) {
             log.warn("链上交易验证失败（交易未找到），txHash={}, 原因={}", record.getTxHash(), e.getMessage());
 
             record.setChainStatus(ChainStatusEnum.CHAIN_FAILED.getCode());
@@ -231,7 +264,7 @@ public class FabricChainServiceImpl implements FabricChainService {
      * 根据交易记录实体构建提交结果对象
      *
      * @param record 链上交易记录实体
-     * @return 提交结果
+     * @return       提交结果
      */
     private ChainSubmitResult buildResultFromRecord(ChainTxRecordEntity record) {
         ChainSubmitResult result = new ChainSubmitResult();
@@ -254,10 +287,10 @@ public class FabricChainServiceImpl implements FabricChainService {
      *
      * @param chaincodeName 链码名称
      * @param txId          交易ID
-     * @return 背书摘要字符串
+     * @return              背书摘要字符串
      */
     private String buildEndorsementSummary(String chaincodeName, String txId) {
         return String.format("chaincode=%s, txId=%s, channel=%s",
-                chaincodeName, txId, network.getChannel().getName());
+                chaincodeName, txId, gatewayHolder.getNetwork().getName());
     }
 }

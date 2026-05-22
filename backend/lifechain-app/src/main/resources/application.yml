@@ -179,26 +179,30 @@ lifechain:
     # 仅开发联调时开启，开启后验证码会写入日志，生产环境必须保持关闭
     dev-mode: ${SMS_DEV_MODE}
 
-  # Hyperledger Fabric 区块链配置
+  # Hyperledger Fabric 区块链配置（基于新版 fabric-gateway SDK，gRPC 直连 peer + mTLS）
   fabric:
-    # Fabric 网络连接配置文件路径
-    networkConfigPath: ${FABRIC_NETWORK_CONFIG}
     # 使用的通道名称
     channelName: ${FABRIC_CHANNEL}
-    # 默认使用的链码调用用户 ID
-    userId: ${FABRIC_USER}
     # 组织 MSP 标识
     mspId: ${FABRIC_MSP}
     # 用户 X509 证书 PEM 文件路径
     certPath: ${FABRIC_CERT_PATH}
     # 用户私钥 PEM 文件路径
     keyPath: ${FABRIC_KEY_PATH}
-    # Peer 节点地址
-    peerEndpoint: ${FABRIC_PEER}
-    # TLS CA 证书路径（如启用 TLS，否则留空）
+    # Peer 节点 gRPC 端点列表（逗号分隔，自动 round_robin LB）
+    peerEndpoints: ${FABRIC_PEERS}
+    # Peer TLS CA 证书 PEM 路径（校验 peer 服务端证书）
     tlsCertPath: ${FABRIC_TLS_CERT}
-    # TLS 主机名覆盖（开发/测试环境使用）
+    # mTLS 客户端证书 / 私钥（peer 启用 CLIENTAUTHREQUIRED 时必填）
+    tlsClientCertPath: ${FABRIC_TLS_CLIENT_CERT}
+    tlsClientKeyPath: ${FABRIC_TLS_CLIENT_KEY}
+    # TLS SNI / authority 覆盖（开发/测试环境匹配 peer 证书 CN）
     overrideAuth: ${FABRIC_OVERRIDE_AUTH}
+    # 各阶段 RPC 超时（秒）
+    timeoutEvaluate: ${FABRIC_TIMEOUT_EVALUATE:5}
+    timeoutEndorse: ${FABRIC_TIMEOUT_ENDORSE:15}
+    timeoutSubmit: ${FABRIC_TIMEOUT_SUBMIT:5}
+    timeoutCommit: ${FABRIC_TIMEOUT_COMMIT:60}
 
   # 雪花ID配置
   snowflake:

@@ -39,7 +39,16 @@
         <jjwt.version>0.12.5</jjwt.version>
         <minio.version>8.5.9</minio.version>
         <milvus-sdk.version>2.4.1</milvus-sdk.version>
-        <fabric-gateway.version>2.2.9</fabric-gateway.version>
+        <!-- 新版 Hyperledger Fabric Gateway SDK（基于 gRPC 直连 peer，无 fabric-sdk-java/log4j2/老 protobuf 历史包袱） -->
+        <fabric-gateway.version>1.7.1</fabric-gateway.version>
+        <grpc-netty.version>1.65.1</grpc-netty.version>
+        <!--
+            覆盖 Spring Boot BOM（3.2.5）默认的 protobuf-java=3.24.0：
+            fabric-gateway:1.7.1 的 vendored protos gencode 由 protobuf-compiler 4.28.2 生成，
+            运行时校验 RuntimeVersion，要求 protobuf-java runtime ≥ 4.28.2，否则抛
+            ProtobufRuntimeVersionException。
+        -->
+        <protobuf-java.version>4.28.2</protobuf-java.version>
         <wechatpay.version>0.2.14</wechatpay.version>
         <alipay-sdk.version>4.39.79.ALL</alipay-sdk.version>
         <hutool.version>5.8.27</hutool.version>
@@ -51,6 +60,18 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- 显式覆盖 Spring Boot BOM 的 protobuf-java，使其生效（BOM 直接写死版本号，property 不会被替换） -->
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>${protobuf-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java-util</artifactId>
+                <version>${protobuf-java.version}</version>
+            </dependency>
+
             <!-- 内部模块 -->
             <dependency>
                 <groupId>com.lifechain</groupId>
@@ -124,11 +145,17 @@
                 <version>${minio.version}</version>
             </dependency>
 
-            <!-- Fabric Gateway -->
+            <!-- Hyperledger Fabric Gateway（新版 1.x，基于 gRPC 直连 peer） -->
             <dependency>
                 <groupId>org.hyperledger.fabric</groupId>
-                <artifactId>fabric-gateway-java</artifactId>
+                <artifactId>fabric-gateway</artifactId>
                 <version>${fabric-gateway.version}</version>
+            </dependency>
+            <!-- gRPC 通道实现（fabric-gateway 仅依赖 grpc-api，运行期需要 netty 实现） -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-netty-shaded</artifactId>
+                <version>${grpc-netty.version}</version>
             </dependency>
 
             <!-- 微信支付 -->
@@ -197,6 +224,49 @@
                 <groupId>io.milvus</groupId>
                 <artifactId>milvus-sdk-java</artifactId>
                 <version>${milvus-sdk.version}</version>
+                <exclusions>
+                    <!--
+                        milvus-sdk-java:2.4.x 出于历史原因把整套 hadoop-client 拖进来（仅为了 hadoop-common
+                        的 Configuration 类），同时还自带 log4j2 + slf4j-reload4j 两个 SLF4J provider，
+                        与 Spring Boot 默认的 Logback 强冲突，启动时会触发 SLF4J 多 provider 选择和
+                        Reload4j 在 ConcurrentHashMap 上的 "Recursive update" 异常。
+                        生产做法：在父 pom 集中剔除这些传递依赖，确保整个项目只保留 Logback 一个日志后端，
+                        同时去掉 hadoop-client 拖来的 60+ MB 老依赖（protobuf-2.5/netty-3/jersey-1.x 等），
+                        减少 jar 体积与 CVE 暴露面。
+                    -->
+                    <exclusion>
+                        <groupId>org.apache.hadoop</groupId>
+                        <artifactId>hadoop-client</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.apache.logging.log4j</groupId>
+                        <artifactId>log4j-slf4j-impl</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.apache.logging.log4j</groupId>
+                        <artifactId>log4j-core</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.apache.logging.log4j</groupId>
+                        <artifactId>log4j-1.2-api</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-reload4j</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-log4j12</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>log4j</groupId>
+                        <artifactId>log4j</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>ch.qos.reload4j</groupId>
+                        <artifactId>reload4j</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -222,6 +292,54 @@
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
+            </plugin>
+
+            <!--
+                maven-enforcer-plugin: 在编译期硬性约束依赖卫生
+                - bannedDependencies：禁止任何模块再次引入 Logback 之外的 SLF4J provider 或老 log4j 实现，
+                  防止未来升级 milvus / 引入新 SDK 时又把 Reload4j / log4j2 / log4j-1.x 拖回来。
+                - dependencyConvergence：禁止同一 artifact 出现多个版本（避免运行期类加载顺序决定行为）。
+                - requireMavenVersion / requireJavaVersion：固定构建环境最低要求。
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-dependency-hygiene</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[21,)</version>
+                                </requireJavaVersion>
+                                <requireMavenVersion>
+                                    <version>[3.9,)</version>
+                                </requireMavenVersion>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <!-- 多 SLF4J provider 会导致启动期 ConcurrentHashMap 递归更新异常 -->
+                                        <exclude>org.slf4j:slf4j-reload4j</exclude>
+                                        <exclude>org.slf4j:slf4j-log4j12</exclude>
+                                        <exclude>org.slf4j:slf4j-simple</exclude>
+                                        <exclude>org.slf4j:slf4j-jdk14</exclude>
+                                        <!-- log4j2 作为 SLF4J 后端会与 Logback 双绑定 -->
+                                        <exclude>org.apache.logging.log4j:log4j-slf4j-impl</exclude>
+                                        <exclude>org.apache.logging.log4j:log4j-slf4j2-impl</exclude>
+                                        <!-- 老 log4j 1.x 与其重打包（CVE 面积大且无人维护） -->
+                                        <exclude>log4j:log4j</exclude>
+                                        <exclude>ch.qos.reload4j:reload4j</exclude>
+                                        <!-- 整套 hadoop 客户端不是 milvus 真正需要的，避免误引回来 -->
+                                        <exclude>org.apache.hadoop:hadoop-client</exclude>
+                                    </excludes>
+                                </bannedDependencies>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

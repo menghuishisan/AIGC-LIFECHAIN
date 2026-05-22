@@ -83,13 +83,20 @@ use_org() {
       export CORE_PEER_MSPCONFIGPATH=$NET_DIR/crypto-config/peerOrganizations/org1.lifechain.com/users/Admin@org1.lifechain.com/msp
       export CORE_PEER_ADDRESS=$ORG1_PEER
       export CORE_PEER_TLS_ENABLED=true
-      export CORE_PEER_TLS_ROOTCERT_FILE=$ORG1_TLS_CA ;;
+      export CORE_PEER_TLS_ROOTCERT_FILE=$ORG1_TLS_CA
+      # peer 启用 mTLS（CLIENTAUTHREQUIRED=true），CLI 必须带客户端证书+私钥
+      export CORE_PEER_TLS_CLIENTAUTHREQUIRED=true
+      export CORE_PEER_TLS_CLIENTCERT_FILE=$NET_DIR/crypto-config/peerOrganizations/org1.lifechain.com/users/Admin@org1.lifechain.com/tls/client.crt
+      export CORE_PEER_TLS_CLIENTKEY_FILE=$NET_DIR/crypto-config/peerOrganizations/org1.lifechain.com/users/Admin@org1.lifechain.com/tls/client.key ;;
     2)
       export CORE_PEER_LOCALMSPID=Org2MSP
       export CORE_PEER_MSPCONFIGPATH=$NET_DIR/crypto-config/peerOrganizations/org2.lifechain.com/users/Admin@org2.lifechain.com/msp
       export CORE_PEER_ADDRESS=$ORG2_PEER
       export CORE_PEER_TLS_ENABLED=true
-      export CORE_PEER_TLS_ROOTCERT_FILE=$ORG2_TLS_CA ;;
+      export CORE_PEER_TLS_ROOTCERT_FILE=$ORG2_TLS_CA
+      export CORE_PEER_TLS_CLIENTAUTHREQUIRED=true
+      export CORE_PEER_TLS_CLIENTCERT_FILE=$NET_DIR/crypto-config/peerOrganizations/org2.lifechain.com/users/Admin@org2.lifechain.com/tls/client.crt
+      export CORE_PEER_TLS_CLIENTKEY_FILE=$NET_DIR/crypto-config/peerOrganizations/org2.lifechain.com/users/Admin@org2.lifechain.com/tls/client.key ;;
   esac
 }
 

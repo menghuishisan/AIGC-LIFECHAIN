@@ -34,10 +34,11 @@ AIGC-LifeChain 围绕 AI 生成内容（文本、图像、音视频等）构建�
 | 前端 | Vue 3.4 + TypeScript 5 + Element Plus 2.6 + Vite 5 + Pinia + ECharts |
 | 后端 | Java 21 + Spring Boot 3.2 + MyBatis Plus 3.5 + SpringDoc OpenAPI |
 | 消息队列 | RabbitMQ 3.13（统一异步消息驱动） |
-| AI 特征服务 | Python 3.11 + FastAPI（PDQ Hash / Chromaprint / SimHash） |
-| 向量数据库 | Milvus 2.4（ANN 相似度检索） |
-| 区块链 | Hyperledger Fabric 2.5 + Go 1.21 链码 + fabric-contract-api-go |
+| AI 特征服务 | Python 3.11 + FastAPI（PDQ / MinHash / D2 形状描述符，统一 256-bit 二进制指纹） |
+| 向量数据库 | Milvus 2.4（5 个 BinaryVector(256) collection + BIN_IVF_FLAT + HAMMING） |
+| 区块链 | Hyperledger Fabric 2.5 + Go 1.21 链码 + fabric-gateway 1.7（gRPC 直连，TLS） |
 | 存储 | MySQL 8.0 + Redis 7 + MinIO（双桶：私有 + 公开） |
+| 可观测性 | OpenTelemetry Collector + Jaeger + Prometheus（trace 走 OTel，metric 走 actuator） |
 | 支付 | 微信支付 V3 + 支付宝 |
 
 ## 目录结构
@@ -79,7 +80,7 @@ AIGC-LifeChain/
 │   ├── regulatory-chaincode/  # 监管链码
 │   └── scripts/               # 链码部署脚本（bash + PowerShell）
 └── infra/                     # 本地开发基础设施
-    └── docker-compose.yml     # MySQL + Redis + MinIO 容器编排
+    └── docker-compose.yml     # 统一编排：MySQL/Redis/MinIO/RabbitMQ/Milvus/Etcd/Fabric/可观测性
 ```
 
 ## 快速开始
@@ -104,6 +105,8 @@ cd infra
 docker compose --env-file ../backend/.env up -d
 ```
 
+`infra/docker-compose.yml` 一次性拉起全部依赖（MySQL/Redis/MinIO/RabbitMQ/Milvus/Etcd/Fabric/可观测性），无需另起 WSL fabric 网络。
+
 容器启动后的访问地址：
 
 | 服务 | 地址 | 默认账号 |
@@ -115,7 +118,15 @@ docker compose --env-file ../backend/.env up -d
 | RabbitMQ Management | http://localhost:15672 | lifechain / lifechain123 |
 | RabbitMQ AMQP | localhost:5672 | - |
 | Milvus gRPC | localhost:19530 | - |
-| 特征提取服务 | http://localhost:8090 | - |
+| Milvus health | http://localhost:9091/healthz | - |
+| 特征提取服务 | http://localhost:8090/health | - |
+| Fabric Orderer | localhost:7050 | TLS, MSP=OrdererMSP |
+| Fabric Peer Org1 | localhost:7051 | TLS, MSP=Org1MSP |
+| Fabric Peer Org2 | localhost:9051 | TLS, MSP=Org2MSP |
+| Fabric CA Org1 | http://localhost:7054 | admin / adminpw |
+| Fabric CA Org2 | http://localhost:9054 | admin / adminpw |
+| Jaeger UI | http://localhost:16686 | - |
+| Prometheus | http://localhost:9090 | - |
 
 ### 2. 初始化数据库
 
@@ -154,34 +165,44 @@ cp .env.example .env
 使用 `infra/docker-compose.yml` 时的关键配置：
 
 ```properties
-DB_PASSWORD=123456
+DB_PASSWORD=<your-db-password>
 REDIS_PORT=6380
 MINIO_ENDPOINT=http://localhost:9020
 MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
+MINIO_SECRET_KEY=<your-minio-password>
+# Fabric（gRPC 直连，TLS）
+FABRIC_CHANNEL=lifechainchannel
+FABRIC_MSP=Org1MSP
+FABRIC_PEER=localhost:7051
+FABRIC_TLS_CERT=./runtime-config/fabric/org1/tls-ca.pem
+FABRIC_OVERRIDE_AUTH=peer0.org1.lifechain.com
 ```
 
-### 4. 启动区块链网络（可选）
+### 4. 部署区块链链码
 
-不对接区块链时后端仍可启动，链上操作会报错但不影响其他功能。
+`infra/docker-compose.yml` 已经把 Orderer / 2 个 Peer / 2 个 CA 全部拉起（TLS 启用）。链码部署一次到位（自动建 channel + peer join + 安装/批准/提交 5 个链码）：
 
 ```bash
-# WSL 中执行
-cd ~/fabric/lifechain-network/docker
-docker compose up -d
-
-# 首次部署链码
-cd /mnt/e/code/AIGC-LifeChain/contracts/scripts
-bash fabric-deploy.sh --init
+# 在 WSL 中执行（需要 peer / go / jq 已装）
+bash /mnt/e/code/AIGC-LifeChain/contracts/scripts/fabric-deploy.sh --init
 ```
+
+脚本会按需：
+- 创建 `lifechainchannel` channel（已存在则跳过）
+- 让 org1/org2 peer join channel + 更新 anchor peers
+- 依次部署 5 个链码（did / claim / license / settlement / regulatory），版本号按当前提交数自动递增
 
 后续链码升级（修改源码后）：
 
-```powershell
-# Windows PowerShell
-.\contracts\scripts\deploy.ps1 did claim    # 指定链码
-.\contracts\scripts\deploy.ps1              # 全部
+```bash
+# WSL：升级全部 5 个链码（sequence 自动 +1）
+bash /mnt/e/code/AIGC-LifeChain/contracts/scripts/fabric-deploy.sh
+
+# 升级指定链码
+bash /mnt/e/code/AIGC-LifeChain/contracts/scripts/fabric-deploy.sh did claim
 ```
+
+> 后端使用 `fabric-gateway` 1.7 SDK 通过 gRPC + TLS 直连 peer，证书与私钥放在 `backend/runtime-config/fabric/org1/`（cert/key/tls-ca），不入 git。
 
 ### 5. 启动后端
 
@@ -222,7 +243,24 @@ pnpm dev
 - `/regulator` — 监管端
 - `/verify` — 公开验证页
 
-## 智能合约
+## AI 内容查重
+
+`services/feature-extract/` 是独立的 Python FastAPI 服务，统一输出 **256-bit 二进制感知指纹**（hex 编码 64 字符），由 Java 后端通过 RabbitMQ Consumer 异步调用。算法选型：
+
+| 作品类型 | 算法 | Milvus collection |
+|---------|------|------------------|
+| IMAGE | PDQ Hash | `feat_image_pdq` |
+| VIDEO | 关键帧 PDQ + 多数表决聚合 | `feat_video_pdq` |
+| AUDIO | Chromaprint subfingerprints + MinHash | `feat_audio_minhash` |
+| TEXT | PDF/DOCX/MD/TXT 抽文本 + jieba 5-gram + MinHash | `feat_text_minhash` |
+| MODEL | trimesh 表面采样 + D2 形状描述符 | `feat_model_d2` |
+
+5 个 collection 全部使用 `BinaryVector(256)` + `BIN_IVF_FLAT` + `HAMMING` 距离，相似度分数 `score = 1 - hamming_distance / 256`，阈值：
+- HIGH_RISK：score ≥ 0.88（汉明距离 ≤ 30）
+- MANUAL_REVIEW：0.80 ≤ score < 0.88
+- 同源 AIGC（双方 `generation_fingerprint` = sha256(model+prompt+seed) 一致）强制 PASS
+
+
 
 5 个 Go 链码部署在 Hyperledger Fabric `lifechainchannel` 通道上：
 
@@ -269,8 +307,9 @@ pnpm dev
 
 - **开发**：修改 `contracts/` 下 Go 源码
 - **编译检查**：`cd contracts && make build`
-- **部署**：`.\contracts\scripts\deploy.ps1 <chaincode-name>`（自动 vendor → package → install → approve → commit）
+- **首次部署 / 升级**：`bash contracts/scripts/fabric-deploy.sh`（在 WSL 中运行；脚本自动 channel 引导 → vendor → package → install → approve → commit）
 - **升级机制**：脚本自动检测当前 sequence 并 +1，无需手动管理版本号
+- **TLS**：所有 peer/orderer 都启用 TLS，CA 证书在 `infra/fabric/crypto-config/`，Java 端通过 `runtime-config/fabric/org1/tls-ca.pem` 校验
 
 ## License
 
