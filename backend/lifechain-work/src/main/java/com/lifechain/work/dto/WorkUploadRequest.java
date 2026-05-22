@@ -21,7 +21,7 @@ public class WorkUploadRequest implements Serializable {
     @NotBlank(message = "作品标题不能为空")
     private String title;
 
-    /** 作品类型（TEXT/IMAGE/AUDIO/VIDEO/MODEL/OTHER） */
+    /** 作品类型（TEXT/IMAGE/AUDIO/VIDEO/MODEL） */
     @NotBlank(message = "作品类型不能为空")
     private String workType;
 

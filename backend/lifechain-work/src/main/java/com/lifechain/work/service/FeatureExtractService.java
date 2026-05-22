@@ -3,8 +3,8 @@ package com.lifechain.work.service;
 /**
  * 特征提取服务接口
  * <p>
- * 负责从作品文件中提取内容特征（感知哈希、特征向量等），
- * 用于重复检测和版权保护。
+ * 调用 Python 特征服务，按作品类型从文件中提取 256-bit 二进制感知指纹。
+ * 算法：IMAGE/VIDEO=PDQ，AUDIO/TEXT=MinHash，MODEL=D2 形状描述符。
  * </p>
  *
  * @author LifeChain
@@ -13,17 +13,27 @@ public interface FeatureExtractService {
 
     /**
      * 特征提取结果
+     *
+     * @param workType        作品类型（IMAGE/VIDEO/AUDIO/TEXT/MODEL）
+     * @param algo            算法名称（PDQ/MINHASH/D2）
+     * @param algoVersion     算法版本
+     * @param perceptualHash  256-bit 指纹的 hex 编码（64 字符）
+     * @param extra           算法专属辅助信息（JSON 字符串）
      */
-    record FeatureResult(String featureType, String featureValue, String perceptualHash) {}
+    record FeatureResult(
+            String workType,
+            String algo,
+            String algoVersion,
+            String perceptualHash,
+            String extra
+    ) {}
 
     /**
-     * 从作品文件提取内容特征
+     * 从作品文件提取 256-bit 感知指纹
      *
-     * @param fileHash    文件哈希值
-     * @param fileType    文件类型（image/audio/video/text等）
-     * @param filePath    文件存储路径
+     * @param workType 作品类型
+     * @param filePath 文件在 MinIO 中的存储路径
      * @return 提取结果
-     * @throws com.lifechain.common.exception.BizException 提取失败时抛出
      */
-    FeatureResult extract(String fileHash, String fileType, String filePath);
+    FeatureResult extract(String workType, String filePath);
 }

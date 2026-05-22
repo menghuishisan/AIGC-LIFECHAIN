@@ -11,7 +11,7 @@
 
     <artifactId>lifechain-infra</artifactId>
     <name>LifeChain Infrastructure</name>
-    <description>基础设施层：MinIO、Redis、支付适配、通知服务</description>
+    <description>基础设施层：MinIO、Redis、RabbitMQ、Milvus、支付适配、通知服务</description>
 
     <dependencies>
         <dependency>
@@ -27,8 +27,16 @@
             <artifactId>redisson-spring-boot-starter</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.milvus</groupId>
+            <artifactId>milvus-sdk-java</artifactId>
         </dependency>
         <dependency>
             <groupId>com.github.wechatpay-apiv3</groupId>

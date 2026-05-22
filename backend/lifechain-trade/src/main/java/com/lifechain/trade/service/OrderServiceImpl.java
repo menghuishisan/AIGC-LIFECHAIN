@@ -14,11 +14,14 @@ import com.lifechain.common.enums.*;
 import com.lifechain.common.exception.BizException;
 import com.lifechain.common.model.PageQuery;
 import com.lifechain.common.model.PageResult;
+import com.lifechain.common.mq.OrderExpireMessage;
 import com.lifechain.common.util.BizNoUtil;
 import com.lifechain.common.util.DateTimeUtil;
 import com.lifechain.common.util.FieldVisibilityUtil;
 import com.lifechain.common.util.HashUtil;
 import com.lifechain.infra.notification.NotificationService;
+import com.lifechain.infra.mq.MessagePublisher;
+import com.lifechain.infra.mq.RabbitMQConfig;
 import com.lifechain.infra.payment.*;
 import com.lifechain.infra.redis.RedisService;
 import com.lifechain.settlement.entity.WorkSettleRuleEntity;
@@ -76,6 +79,7 @@ public class OrderServiceImpl implements OrderService {
     private final SettlementService settlementService;
     private final NotificationService notificationService;
     private final RedisService redisService;
+    private final MessagePublisher messagePublisher;
 
     @Value("${lifechain.pay.wechat.notifyUrl:}")
     private String wechatNotifyUrl;
@@ -193,6 +197,10 @@ public class OrderServiceImpl implements OrderService {
 
         traceEventService.writeTraceEvent(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
                 "ORDER_CREATED", "订单创建成功", buyerAccountId, null, null);
+
+        messagePublisher.sendDelayed(RabbitMQConfig.RK_ORDER_EXPIRE_DELAY,
+                new OrderExpireMessage(order.getId(), order.getOrderNo()),
+                30 * 60 * 1000L);
 
         log.info("订单创建成功: orderNo={}, workNo={}, buyerAccountId={}",
                 order.getOrderNo(), order.getWorkNo(), buyerAccountId);

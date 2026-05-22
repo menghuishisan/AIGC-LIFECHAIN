@@ -10,13 +10,16 @@
 #   MySQL    -> 3307
 #   Redis    -> 6380
 #   MinIO    -> 9020 (API) / 9021 (Console)
+#   RabbitMQ -> 5672 (AMQP) / 15672 (Management UI)
+#   Milvus   -> 19530 (gRPC) / 9091 (health)
+#   Feature  -> 8090 (Python 特征提取服务)
 #   Orderer  -> 7050
 #   Peer Org1 -> 7051 / 7052
 #   Peer Org2 -> 9051 / 9052
 #   CA Org1  -> 7054
 #   CA Org2  -> 9054
 #   OTel Collector -> 4319 (OTLP gRPC) / 4320 (OTLP HTTP) / 13133 (health)
-#   Jaeger   -> 16686 (UI)（OTLP 端口不对宿主暴露，仅 collector 容器内访问）
+#   Jaeger   -> 16686 (UI)
 #   Prometheus -> 9090
 #
 # 所有环境变量统一从 backend/.env 读取
@@ -30,6 +33,9 @@ volumes:
   lifechain-mysql-data:
   lifechain-redis-data:
   lifechain-minio-data:
+  lifechain-rabbitmq-data:
+  lifechain-milvus-data:
+  lifechain-etcd-data:
   lifechain-orderer-data:
   lifechain-peer0-org1-data:
   lifechain-peer0-org2-data:
@@ -91,6 +97,99 @@ services:
       - lifechain-net
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  lifechain-rabbitmq:
+    container_name: lifechain-rabbitmq
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-lifechain}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-lifechain123}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "15672:15672"
+    volumes:
+      - lifechain-rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - lifechain-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  lifechain-etcd:
+    container_name: lifechain-etcd
+    image: quay.io/coreos/etcd:v3.5.14
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    command: etcd --advertise-client-urls=http://127.0.0.1:2379 --listen-client-urls=http://0.0.0.0:2379 --data-dir=/etcd
+    volumes:
+      - lifechain-etcd-data:/etcd
+    networks:
+      - lifechain-net
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  lifechain-milvus:
+    container_name: lifechain-milvus
+    image: milvusdb/milvus:v2.4.4
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: lifechain-etcd:2379
+      MINIO_ADDRESS: lifechain-minio:9000
+      MINIO_ACCESSKEYID: ${MINIO_ACCESS_KEY}
+      MINIO_SECRETACCESSKEY: ${MINIO_SECRET_KEY}
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+      - "9091:9091"
+    volumes:
+      - lifechain-milvus-data:/var/lib/milvus
+    networks:
+      - lifechain-net
+    depends_on:
+      lifechain-etcd:
+        condition: service_healthy
+      lifechain-minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped
+
+  lifechain-feature-extract:
+    container_name: lifechain-feature-extract
+    build:
+      context: ../services/feature-extract
+      dockerfile: Dockerfile
+    ports:
+      - "${FEATURE_SERVICE_PORT:-8090}:8090"
+    environment:
+      MINIO_ENDPOINT: http://lifechain-minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-lifechain}
+    networks:
+      - lifechain-net
+    depends_on:
+      lifechain-minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8090/health',timeout=3).status==200 else 1)"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -7,6 +7,7 @@ import com.lifechain.auth.audit.TraceEventService;
 import com.lifechain.auth.entity.DidRecordEntity;
 import com.lifechain.auth.mapper.DidRecordMapper;
 import com.lifechain.common.enums.*;
+import com.lifechain.common.mq.FeatureExtractMessage;
 import com.lifechain.common.exception.BizException;
 import com.lifechain.common.model.PageQuery;
 import com.lifechain.common.model.PageResult;
@@ -14,6 +15,8 @@ import com.lifechain.common.util.BizNoUtil;
 import com.lifechain.common.util.DateTimeUtil;
 import com.lifechain.common.util.FieldVisibilityUtil;
 import com.lifechain.common.util.HashUtil;
+import com.lifechain.infra.mq.MessagePublisher;
+import com.lifechain.infra.mq.RabbitMQConfig;
 import com.lifechain.infra.storage.StorageService;
 import com.lifechain.work.assembler.WorkVoAssembler;
 import com.lifechain.work.dto.*;
@@ -26,7 +29,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,13 +50,21 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class WorkServiceImpl implements WorkService {
 
-    /** 允许上传的 MIME 类型白名单 */
+    /** 允许上传的 MIME 类型白名单（覆盖 IMAGE/VIDEO/AUDIO/TEXT/MODEL 五类作品） */
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
+            // IMAGE
             "image/jpeg", "image/png", "image/gif", "image/webp",
+            // VIDEO
             "video/mp4", "video/quicktime", "video/x-msvideo",
-            "audio/mpeg", "audio/wav", "audio/ogg",
+            // AUDIO
+            "audio/mpeg", "audio/wav", "audio/ogg", "audio/flac", "audio/x-wav",
+            // TEXT（含富文档：PDF/Word/Markdown/纯文本）
             "application/pdf",
-            "model/gltf-binary", "model/gltf+json"
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "text/plain", "text/markdown",
+            // MODEL（3D 模型）
+            "model/gltf-binary", "model/gltf+json", "model/obj", "application/octet-stream"
     );
 
     /** 单文件最大大小：500 MB */
@@ -64,14 +74,13 @@ public class WorkServiceImpl implements WorkService {
     private final WorkFileMapper workFileMapper;
     private final WorkAigcMetaMapper workAigcMetaMapper;
     private final WorkFeatureMapper workFeatureMapper;
-    private final WorkSimilarityCheckMapper workSimilarityCheckMapper;
     private final ClaimApplicationMapper claimApplicationMapper;
     private final CertificateMapper certificateMapper;
     private final DidRecordMapper didRecordMapper;
     private final StorageService storageService;
+    private final MessagePublisher messagePublisher;
     private final AuditService auditService;
     private final TraceEventService traceEventService;
-    private final FeatureExtractService featureExtractService;
 
     /**
      * {@inheritDoc}
@@ -316,10 +325,7 @@ public class WorkServiceImpl implements WorkService {
                     "仅已上传状态的作品可触发特征提取", null, work.getStatus());
         }
 
-        LocalDateTime now = DateTimeUtil.nowUtc();
         String oldStatus = work.getStatus();
-
-        // 设置为特征提取中
         work.setStatus(WorkStatusEnum.FEATURE_PENDING.getCode());
         workMapper.updateById(work);
 
@@ -328,49 +334,16 @@ public class WorkServiceImpl implements WorkService {
                 oldStatus, WorkStatusEnum.FEATURE_PENDING.getCode(),
                 "触发特征提取", null, accountId);
 
-        // 调用特征提取服务
-        String fileHash = work.getFileHash() != null ? work.getFileHash() : work.getWorkNo();
-        FeatureExtractService.FeatureResult extractResult =
-                featureExtractService.extract(fileHash, work.getWorkType(), null);
+        WorkFileEntity primaryFile = workFileMapper.selectByWorkId(work.getId()).stream()
+                .filter(f -> "ORIGINAL".equals(f.getPurpose()))
+                .findFirst().orElse(null);
+        String filePath = primaryFile != null ? primaryFile.getFilePath() : null;
 
-        WorkFeatureEntity feature = new WorkFeatureEntity();
-        feature.setWorkId(work.getId());
-        feature.setFeatureType(extractResult.featureType());
-        feature.setFeatureValue(extractResult.featureValue());
-        feature.setPerceptualHash(extractResult.perceptualHash());
-        feature.setExtractStatus("SUCCESS");
-        feature.setExtractTime(now);
-        workFeatureMapper.insert(feature);
+        messagePublisher.send(RabbitMQConfig.RK_FEATURE_EXTRACT,
+                new FeatureExtractMessage(work.getId(), work.getWorkNo(), work.getWorkType(),
+                        work.getFileHash(), filePath, accountId));
 
-        // 执行相似度检测：与已有作品特征进行比对
-        boolean highRisk = runSimilarityCheck(work, extractResult.perceptualHash(), now);
-
-        // 高风险作品进入人工复核态，不允许直接确权
-        String newStatus;
-        if (highRisk) {
-            newStatus = WorkStatusEnum.SIMILARITY_HIGH_RISK.getCode();
-            log.warn("作品相似度高风险，进入人工复核态，workNo={}", workNo);
-        } else {
-            newStatus = WorkStatusEnum.READY_FOR_CLAIM.getCode();
-        }
-
-        work.setStatus(newStatus);
-        workMapper.updateById(work);
-
-        auditService.writeStatusHistory(
-                BizTypeEnum.WORK.getCode(), work.getId(), work.getWorkNo(),
-                WorkStatusEnum.FEATURE_PENDING.getCode(), newStatus,
-                highRisk ? "特征提取完成，检测到高相似度" : "特征提取完成", null, accountId);
-
-        auditService.writeAuditLog(
-                BizTypeEnum.WORK.getCode(), work.getId(), work.getWorkNo(),
-                "FEATURE_EXTRACT", "特征提取完成，感知哈希=" + extractResult.perceptualHash(),
-                accountId, null, null, "SUCCESS", null);
-
-        traceEventService.writeTraceEvent(BizTypeEnum.WORK.getCode(), work.getId(), work.getWorkNo(),
-                "WORK_FEATURE_EXTRACTED", "特征提取完成", accountId, null, null);
-
-        log.info("特征提取完成，workNo={}, perceptualHash={}", workNo, extractResult.perceptualHash());
+        log.info("特征提取消息已发送，workNo={}", workNo);
     }
 
     /**
@@ -555,81 +528,6 @@ public class WorkServiceImpl implements WorkService {
     }
 
     /**
-     * 执行相似度检测
-     * <p>
-     * 将当前作品的感知哈希与所有已提取特征的作品进行比对，
-     * 计算汉明距离确定性相似度分数，保存检测结果。
-     * </p>
-     *
-     * @param work           当前作品
-     * @param perceptualHash 当前作品感知哈希
-     * @param now            当前时间
-     */
-    private boolean runSimilarityCheck(WorkEntity work, String perceptualHash, LocalDateTime now) {
-        LambdaQueryWrapper<WorkFeatureEntity> wrapper = new LambdaQueryWrapper<>();
-        wrapper.ne(WorkFeatureEntity::getWorkId, work.getId())
-                .eq(WorkFeatureEntity::getExtractStatus, "SUCCESS")
-                .isNotNull(WorkFeatureEntity::getPerceptualHash);
-
-        boolean hasHighRisk = false;
-        List<WorkFeatureEntity> existingFeatures = workFeatureMapper.selectList(wrapper);
-        for (WorkFeatureEntity existing : existingFeatures) {
-            BigDecimal score = calculateSimilarity(perceptualHash, existing.getPerceptualHash());
-            String checkResult;
-            if (score.compareTo(new BigDecimal("0.9000")) >= 0) {
-                checkResult = "HIGH_RISK";
-            } else if (score.compareTo(new BigDecimal("0.7000")) >= 0) {
-                checkResult = "MANUAL_REVIEW";
-            } else {
-                checkResult = "PASS";
-            }
-
-            WorkSimilarityCheckEntity check = new WorkSimilarityCheckEntity();
-            check.setWorkId(work.getId());
-            check.setComparedWorkId(existing.getWorkId());
-            check.setSimilarityScore(score);
-            check.setCheckResult(checkResult);
-            check.setCheckTime(now);
-            workSimilarityCheckMapper.insert(check);
-
-            if ("HIGH_RISK".equals(checkResult)) {
-                hasHighRisk = true;
-                log.warn("检测到高相似度作品，workNo={}, comparedWorkId={}, score={}",
-                        work.getWorkNo(), existing.getWorkId(), score);
-            }
-        }
-        return hasHighRisk;
-    }
-
-    /**
-     * 计算两个感知哈希之间的相似度
-     * <p>
-     * 通过计算哈希字符串的字符差异得出确定性相似度分数（0-1之间）。
-     * </p>
-     *
-     * @param hash1 感知哈希1
-     * @param hash2 感知哈希2
-     * @return 相似度分数
-     */
-    private BigDecimal calculateSimilarity(String hash1, String hash2) {
-        if (hash1 == null || hash2 == null) {
-            return BigDecimal.ZERO;
-        }
-        int maxLen = Math.max(hash1.length(), hash2.length());
-        if (maxLen == 0) {
-            return BigDecimal.ONE;
-        }
-        int minLen = Math.min(hash1.length(), hash2.length());
-        int matchCount = 0;
-        for (int i = 0; i < minLen; i++) {
-            if (hash1.charAt(i) == hash2.charAt(i)) {
-                matchCount++;
-            }
-        }
-        return BigDecimal.valueOf(matchCount).divide(BigDecimal.valueOf(maxLen), 4, java.math.RoundingMode.HALF_UP);
-    }
-
-    /**
      * 根据作品状态计算允许的操作列表
      *
      * @param work            作品实体
@@ -695,8 +593,11 @@ public class WorkServiceImpl implements WorkService {
      */
     private WorkFeatureVO toWorkFeatureVO(WorkFeatureEntity entity) {
         WorkFeatureVO vo = new WorkFeatureVO();
-        vo.setFeatureType(entity.getFeatureType());
+        vo.setWorkType(entity.getWorkType());
+        vo.setAlgo(entity.getAlgo());
+        vo.setAlgoVersion(entity.getAlgoVersion());
         vo.setPerceptualHash(entity.getPerceptualHash());
+        vo.setGenerationFingerprint(entity.getGenerationFingerprint());
         vo.setExtractStatus(entity.getExtractStatus());
         vo.setExtractTime(entity.getExtractTime());
         return vo;

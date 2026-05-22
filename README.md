@@ -33,8 +33,11 @@ AIGC-LifeChain 围绕 AI 生成内容（文本、图像、音视频等）构建�
 |------|--------|
 | 前端 | Vue 3.4 + TypeScript 5 + Element Plus 2.6 + Vite 5 + Pinia + ECharts |
 | 后端 | Java 21 + Spring Boot 3.2 + MyBatis Plus 3.5 + SpringDoc OpenAPI |
+| 消息队列 | RabbitMQ 3.13（统一异步消息驱动） |
+| AI 特征服务 | Python 3.11 + FastAPI（PDQ Hash / Chromaprint / SimHash） |
+| 向量数据库 | Milvus 2.4（ANN 相似度检索） |
 | 区块链 | Hyperledger Fabric 2.5 + Go 1.21 链码 + fabric-contract-api-go |
-| 存储 | MySQL 8.0 + Redis 7 + MinIO |
+| 存储 | MySQL 8.0 + Redis 7 + MinIO（双桶：私有 + 公开） |
 | 支付 | 微信支付 V3 + 支付宝 |
 
 ## 目录结构
@@ -61,11 +64,13 @@ AIGC-LifeChain/
 │   ├── lifechain-regulator/   # 监管模块（冻结、争议、报告）
 │   ├── lifechain-chain/       # 区块链对接层（Fabric Gateway）
 │   ├── lifechain-common/      # 公共组件（枚举、异常、工具）
-│   ├── lifechain-infra/       # 基础设施（MinIO、Redis、短信）
+│   ├── lifechain-infra/       # 基础设施（MinIO、Redis、RabbitMQ、Milvus）
 │   ├── runtime-config/        # Fabric 运行时配置（证书，不入库）
 │   ├── sql/                   # 数据库迁移 & 重置脚本
-│   ├── start.sh / start.ps1   # 启动脚本（加载 .env → java -jar）
+│   ├── start.sh / start.ps1   # 启动脚本（加载 .env → 编译打包 → java -jar）
 │   └── .env.example           # 后端环境变量模板
+├── services/                  # 独立微服务
+│   └── feature-extract/       # AI 特征提取服务（Python FastAPI）
 ├── contracts/                 # Hyperledger Fabric 智能合约（Go）
 │   ├── did-chaincode/         # DID 身份链码
 │   ├── claim-chaincode/       # 确权链码
@@ -92,21 +97,25 @@ AIGC-LifeChain/
 | Docker Compose | v2 | 容器编排 |
 | WSL 2 | - | Windows 用户运行 Fabric |
 
-### 1. 启动基础设施（MySQL / Redis / MinIO）
+### 1. 启动基础设施
 
 ```bash
 cd infra
-docker compose up -d
+docker compose --env-file ../backend/.env up -d
 ```
 
 容器启动后的访问地址：
 
 | 服务 | 地址 | 默认账号 |
 |------|------|----------|
-| MySQL | localhost:3307 | root / 123456 |
+| MySQL | localhost:3307 | root / (见 .env DB_PASSWORD) |
 | Redis | localhost:6380 | 无密码 |
-| MinIO Console | http://localhost:9021 | minioadmin / minioadmin |
+| MinIO Console | http://localhost:9021 | (见 .env MINIO_ACCESS_KEY) |
 | MinIO API | http://localhost:9020 | - |
+| RabbitMQ Management | http://localhost:15672 | lifechain / lifechain123 |
+| RabbitMQ AMQP | localhost:5672 | - |
+| Milvus gRPC | localhost:19530 | - |
+| 特征提取服务 | http://localhost:8090 | - |
 
 ### 2. 初始化数据库
 
@@ -176,18 +185,20 @@ bash fabric-deploy.sh --init
 
 ### 5. 启动后端
 
-启动脚本会读取 `backend/.env` 注入到进程环境变量后启动 jar，应用本身不感知 .env 文件（12-factor 风格）。
+启动脚本会读取 `backend/.env` 注入环境变量，编译打包后以 `java -jar` 启动。
 
 ```powershell
-# Windows PowerShell（项目根目录）
-.\backend\start.ps1 -Build     # 首次或源码变更时
-.\backend\start.ps1            # 已打包后直接启动
+# Windows PowerShell（在 backend 目录下）
+cd backend
+.\start.ps1              # 编译打包并启动（默认，日常开发用这个）
+.\start.ps1 -SkipBuild   # 跳过编译，直接运行已有 JAR（代码未改动时）
 ```
 
 ```bash
 # bash / WSL / Linux
-bash backend/start.sh --build
-bash backend/start.sh
+cd backend
+bash start.sh            # 编译打包并启动
+bash start.sh --skip-build  # 跳过编译，直接运行已有 JAR
 ```
 
 后端启动后：
@@ -203,7 +214,7 @@ pnpm install
 pnpm dev
 ```
 
-前端开发服务器：http://localhost:3000（自动代理 `/api` 到后端 8080）
+前端开发服务器：http://localhost:5173（自动代理 `/api` 到后端 8080）
 
 四个子应用通过路由区分：
 - `/portal` — 创作者门户
@@ -240,7 +251,7 @@ pnpm dev
 ### 后端
 
 - **配置**：所有可配置项通过环境变量注入，模板见 `backend/.env.example`
-- **启动**：`backend/start.sh` 或 `start.ps1`，脚本负责加载 `.env`，应用零感知
+- **启动**：`cd backend && .\start.ps1`（编译打包并启动）或 `.\start.ps1 -SkipBuild`（跳过编译）
 - **API 文档**：`SWAGGER_ENABLED=true` 后访问 `/swagger-ui.html`
 - **数据库迁移**：`backend/sql/V*__*.sql` 按版本号顺序执行
 - **数据库重置**：`backend/sql/reset-db.ps1`（PowerShell）或 `reset-db.sh`（bash）

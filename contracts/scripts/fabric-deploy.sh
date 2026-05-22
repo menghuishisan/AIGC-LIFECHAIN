@@ -11,14 +11,19 @@
 set -euo pipefail
 
 # ---------- 路径与常量 ----------
-NET_DIR="${NET_DIR:-$HOME/fabric/lifechain-network}"
+NET_DIR="${NET_DIR:-/mnt/e/code/AIGC-LifeChain/infra/fabric}"
 CONTRACTS_DIR="${CONTRACTS_DIR:-/mnt/e/code/AIGC-LifeChain/contracts}"
+CC_PKG_DIR="${CC_PKG_DIR:-/tmp/lifechain-cc-packages}"
 CHANNEL="${CHANNEL:-lifechainchannel}"
 ORDERER="${ORDERER:-localhost:7050}"
 ORG1_PEER="${ORG1_PEER:-localhost:7051}"
 ORG2_PEER="${ORG2_PEER:-localhost:9051}"
 
 ALL_CCS=(did claim license settlement regulatory)
+
+ORDERER_CA="$NET_DIR/crypto-config/ordererOrganizations/lifechain.com/orderers/orderer.lifechain.com/msp/tlscacerts/tlsca.lifechain.com-cert.pem"
+ORG1_TLS_CA="$NET_DIR/crypto-config/peerOrganizations/org1.lifechain.com/peers/peer0.org1.lifechain.com/tls/ca.crt"
+ORG2_TLS_CA="$NET_DIR/crypto-config/peerOrganizations/org2.lifechain.com/peers/peer0.org2.lifechain.com/tls/ca.crt"
 
 export FABRIC_CFG_PATH=/usr/local/config
 export PATH=/usr/local/go/bin:$PATH
@@ -68,18 +73,65 @@ for c in orderer.lifechain.com peer0.org1.lifechain.com peer0.org2.lifechain.com
 done
 ok "前置依赖通过"
 
+mkdir -p "$CC_PKG_DIR"
+
 # ---------- 切换组织环境 ----------
 use_org() {
   case "$1" in
     1)
       export CORE_PEER_LOCALMSPID=Org1MSP
       export CORE_PEER_MSPCONFIGPATH=$NET_DIR/crypto-config/peerOrganizations/org1.lifechain.com/users/Admin@org1.lifechain.com/msp
-      export CORE_PEER_ADDRESS=$ORG1_PEER ;;
+      export CORE_PEER_ADDRESS=$ORG1_PEER
+      export CORE_PEER_TLS_ENABLED=true
+      export CORE_PEER_TLS_ROOTCERT_FILE=$ORG1_TLS_CA ;;
     2)
       export CORE_PEER_LOCALMSPID=Org2MSP
       export CORE_PEER_MSPCONFIGPATH=$NET_DIR/crypto-config/peerOrganizations/org2.lifechain.com/users/Admin@org2.lifechain.com/msp
-      export CORE_PEER_ADDRESS=$ORG2_PEER ;;
+      export CORE_PEER_ADDRESS=$ORG2_PEER
+      export CORE_PEER_TLS_ENABLED=true
+      export CORE_PEER_TLS_ROOTCERT_FILE=$ORG2_TLS_CA ;;
   esac
+}
+
+# ---------- Channel 引导（幂等：已存在自动跳过）----------
+ensure_channel() {
+  local channel_block="$CC_PKG_DIR/${CHANNEL}.block"
+  use_org 1
+  if peer channel list 2>/dev/null | grep -q "^${CHANNEL}\$"; then
+    ok "channel ${CHANNEL} 已存在，跳过引导"
+    return 0
+  fi
+
+  log "create channel $CHANNEL"
+  peer channel create -o "$ORDERER" -c "$CHANNEL" \
+    -f "$NET_DIR/channel-artifacts/${CHANNEL}.tx" \
+    --outputBlock "$channel_block" \
+    --tls --cafile "$ORDERER_CA" --ordererTLSHostnameOverride orderer.lifechain.com >/dev/null
+  ok "channel 已创建"
+
+  log "org1 join channel"
+  use_org 1
+  peer channel join -b "$channel_block" >/dev/null
+  ok "org1 joined"
+
+  log "org2 join channel"
+  use_org 2
+  peer channel join -b "$channel_block" >/dev/null
+  ok "org2 joined"
+
+  log "update org1 anchor peers"
+  use_org 1
+  peer channel update -o "$ORDERER" -c "$CHANNEL" \
+    -f "$NET_DIR/channel-artifacts/Org1MSPanchors.tx" \
+    --tls --cafile "$ORDERER_CA" --ordererTLSHostnameOverride orderer.lifechain.com >/dev/null
+  ok "org1 anchor 已更新"
+
+  log "update org2 anchor peers"
+  use_org 2
+  peer channel update -o "$ORDERER" -c "$CHANNEL" \
+    -f "$NET_DIR/channel-artifacts/Org2MSPanchors.tx" \
+    --tls --cafile "$ORDERER_CA" --ordererTLSHostnameOverride orderer.lifechain.com >/dev/null
+  ok "org2 anchor 已更新"
 }
 
 # ---------- 单个链码部署 ----------
@@ -87,7 +139,7 @@ deploy_one() {
   local cc="$1"
   local name="${cc}_chaincode"
   local src_dir="$CONTRACTS_DIR/${cc}-chaincode"
-  local pkg_path="$NET_DIR/cc-packages/${cc}-chaincode.tar.gz"
+  local pkg_path="$CC_PKG_DIR/${cc}-chaincode.tar.gz"
 
   [[ -d "$src_dir" ]] || fail "源码目录不存在: $src_dir"
 
@@ -140,6 +192,7 @@ deploy_one() {
   log "[${name}] approve org1"
   use_org 1
   peer lifecycle chaincode approveformyorg -o "$ORDERER" \
+    --tls --cafile "$ORDERER_CA" --ordererTLSHostnameOverride orderer.lifechain.com \
     --channelID "$CHANNEL" --name "$name" --version "$new_ver" \
     --package-id "$pkg_id" --sequence "$new_seq" >/dev/null
   ok "org1 approved"
@@ -147,6 +200,7 @@ deploy_one() {
   log "[${name}] approve org2"
   use_org 2
   peer lifecycle chaincode approveformyorg -o "$ORDERER" \
+    --tls --cafile "$ORDERER_CA" --ordererTLSHostnameOverride orderer.lifechain.com \
     --channelID "$CHANNEL" --name "$name" --version "$new_ver" \
     --package-id "$pkg_id" --sequence "$new_seq" >/dev/null
   ok "org2 approved"
@@ -154,9 +208,10 @@ deploy_one() {
   log "[${name}] commit"
   use_org 1
   peer lifecycle chaincode commit -o "$ORDERER" \
+    --tls --cafile "$ORDERER_CA" --ordererTLSHostnameOverride orderer.lifechain.com \
     --channelID "$CHANNEL" --name "$name" --version "$new_ver" --sequence "$new_seq" \
-    --peerAddresses "$ORG1_PEER" \
-    --peerAddresses "$ORG2_PEER" >/dev/null
+    --peerAddresses "$ORG1_PEER" --tlsRootCertFiles "$ORG1_TLS_CA" \
+    --peerAddresses "$ORG2_PEER" --tlsRootCertFiles "$ORG2_TLS_CA" >/dev/null
   ok "commit 完成"
 
   log "[${name}] 验证"
@@ -165,6 +220,8 @@ deploy_one() {
 }
 
 # ---------- 主流程 ----------
+ensure_channel
+
 for cc in "${TARGETS[@]}"; do
   # 接受 did 或 did_chaincode 或 did-chaincode
   cc="${cc%_chaincode}"; cc="${cc%-chaincode}"

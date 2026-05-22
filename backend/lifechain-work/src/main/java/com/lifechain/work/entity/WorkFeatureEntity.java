@@ -11,9 +11,9 @@ import java.time.LocalDateTime;
 /**
  * 作品特征实体
  * <p>
- * 对应数据库表 {@code work_feature}，存储作品的特征提取结果，
- * 包括感知哈希、指纹、向量等特征类型，以及提取状态和失败原因。
- * 特征数据用于作品查重和相似度检测。
+ * 对应数据库表 {@code work_feature}。所有作品类型统一输出 256-bit 二进制指纹（hex 编码 64 字符），
+ * 算法分为 PDQ（图像/视频）、MINHASH（音频/文本）、D2（3D 模型）。
+ * generation_fingerprint 用于识别同源 AIGC 生成（model+prompt+seed 的 sha256），避免误判。
  * </p>
  *
  * @author LifeChain
@@ -27,17 +27,29 @@ public class WorkFeatureEntity extends BaseEntity {
     @TableField("work_id")
     private Long workId;
 
-    /** 特征类型（PERCEPTUAL_HASH/FINGERPRINT/VECTOR） */
-    @TableField("feature_type")
-    private String featureType;
+    /** 作品类型（IMAGE/VIDEO/AUDIO/TEXT/MODEL） */
+    @TableField("work_type")
+    private String workType;
 
-    /** 特征值 */
-    @TableField("feature_value")
-    private String featureValue;
+    /** 算法（PDQ/MINHASH/D2） */
+    @TableField("algo")
+    private String algo;
 
-    /** 感知哈希 */
+    /** 算法版本 */
+    @TableField("algo_version")
+    private String algoVersion;
+
+    /** 向量维度（统一 256 bit） */
+    @TableField("vector_dim")
+    private Integer vectorDim;
+
+    /** 256-bit 二进制指纹（hex 编码 64 字符） */
     @TableField("perceptual_hash")
     private String perceptualHash;
+
+    /** AIGC 来源指纹（model+prompt+seed 的 sha256） */
+    @TableField("generation_fingerprint")
+    private String generationFingerprint;
 
     /** 提取状态（PENDING/SUCCESS/FAILED） */
     @TableField("extract_status")
@@ -50,4 +62,8 @@ public class WorkFeatureEntity extends BaseEntity {
     /** 失败原因 */
     @TableField("fail_reason")
     private String failReason;
+
+    /** 算法专属辅助信息（JSON 字符串，如 PDQ quality、视频帧数、文本字数） */
+    @TableField("extra")
+    private String extra;
 }

@@ -38,6 +38,7 @@
         <lombok.version>1.18.32</lombok.version>
         <jjwt.version>0.12.5</jjwt.version>
         <minio.version>8.5.9</minio.version>
+        <milvus-sdk.version>2.4.1</milvus-sdk.version>
         <fabric-gateway.version>2.2.9</fabric-gateway.version>
         <wechatpay.version>0.2.14</wechatpay.version>
         <alipay-sdk.version>4.39.79.ALL</alipay-sdk.version>
@@ -189,6 +190,13 @@
                 <groupId>com.github.librepdf</groupId>
                 <artifactId>openpdf</artifactId>
                 <version>${openpdf.version}</version>
+            </dependency>
+
+            <!-- Milvus -->
+            <dependency>
+                <groupId>io.milvus</groupId>
+                <artifactId>milvus-sdk-java</artifactId>
+                <version>${milvus-sdk.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

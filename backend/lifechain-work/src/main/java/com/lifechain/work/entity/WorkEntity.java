@@ -53,7 +53,7 @@ public class WorkEntity extends BaseEntity {
     @TableField("description")
     private String description;
 
-    /** 作品类型（TEXT/IMAGE/AUDIO/VIDEO/MODEL/OTHER） */
+    /** 作品类型（TEXT/IMAGE/AUDIO/VIDEO/MODEL） */
     @TableField("work_type")
     private String workType;
 

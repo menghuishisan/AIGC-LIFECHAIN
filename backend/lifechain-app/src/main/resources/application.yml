@@ -56,6 +56,21 @@ spring:
           # 连接池最小空闲连接数
           min-idle: 2
 
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 10
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 2000
+          multiplier: 2
+
   jackson:
     # 全局日期时间序列化格式
     date-format: yyyy-MM-dd HH:mm:ss
@@ -105,6 +120,15 @@ minio:
   bucketName: ${MINIO_BUCKET}
   # 公开桶名称（封面/缩略图），public-read 策略
   publicBucketName: ${MINIO_PUBLIC_BUCKET}
+
+# Milvus 向量数据库配置
+milvus:
+  host: ${MILVUS_HOST}
+  port: ${MILVUS_PORT}
+
+# AI 特征提取服务配置
+feature-service:
+  url: ${FEATURE_SERVICE_URL}
 
 # 平台业务配置：JWT、支付、区块链、雪花 ID 等
 lifechain:

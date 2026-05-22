@@ -1,16 +1,11 @@
 # AIGC-LifeChain 后端启动脚本 (PowerShell)
 #
-# 用法 (在 backend 目录或项目根目录均可):
-#   .\backend\start.ps1            # 加载 backend\.env 并启动 lifechain-app
-#   .\backend\start.ps1 -Build     # 启动前先 mvn 重新打包
-#
-# 设计原则 (12-factor):
-#   - 应用本身只读环境变量, 不感知 .env 文件
-#   - 本脚本读取 .env 后通过 SetEnvironmentVariable 注入进程环境
-#   - 生产部署时改用 systemd EnvironmentFile= / docker-compose env_file 即可, 应用零改动
+# 用法 (在 backend 目录下):
+#   .\start.ps1            # 编译打包并启动（默认）
+#   .\start.ps1 -SkipBuild # 跳过编译，直接运行已有 JAR
 
 param(
-    [switch]$Build
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,21 +32,18 @@ Get-Content $EnvFile | ForEach-Object {
     }
 }
 
-if ($Build) {
-    Write-Host "[start] mvn 打包中..."
-    Push-Location $ScriptDir
-    try {
-        mvn -pl lifechain-app -am clean package -DskipTests -q
-        if ($LASTEXITCODE -ne 0) { throw "Maven 打包失败" }
-    } finally {
-        Pop-Location
-    }
+Set-Location $ScriptDir
+
+if (-not $SkipBuild) {
+    Write-Host "[start] mvn 编译打包中..." -ForegroundColor Cyan
+    mvn -pl lifechain-app -am clean package -DskipTests -q
+    if ($LASTEXITCODE -ne 0) { throw "Maven 打包失败" }
 }
 
 if (-not (Test-Path $JarFile)) {
-    Write-Error "未找到 $JarFile, 请先执行: .\backend\start.ps1 -Build"
+    Write-Error "未找到 $JarFile, 请先不带 -SkipBuild 执行"
     exit 1
 }
 
-Set-Location $ScriptDir
+Write-Host "[start] 启动后端服务" -ForegroundColor Green
 & java -jar $JarFile

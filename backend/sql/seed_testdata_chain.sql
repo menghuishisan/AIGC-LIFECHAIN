@@ -435,7 +435,7 @@ VALUES
  'IMAGE', 'OWNERSHIP_CONFIRMED',
  '7e3a4b1f9c2d5e8a6b1f4c7d2e5a8b3c6d9f2a5b8c1d4e7f0a3b6c9d2e5f8a1b',
  'a1b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
- 'https://oss.lifechain.cn/public/cover/WK-70001.png',
+ 'http://localhost:9020/lifechain-public/cover/WK-70001.png',
  '2026-02-10 09:00:00', 0, 3, '2026-02-09 16:00:00', '2026-02-12 14:00:00'),
 
 (7000002, 'WK-70002', 2000002, 5000012, 6000002,
@@ -444,7 +444,7 @@ VALUES
  'AUDIO', 'OWNERSHIP_CONFIRMED',
  'b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
  'b2a3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
- 'https://oss.lifechain.cn/public/cover/WK-70002.png',
+ 'http://localhost:9020/lifechain-public/cover/WK-70002.png',
  '2026-02-15 09:00:00', 0, 3, '2026-02-14 18:00:00', '2026-02-17 11:00:00'),
 
 (7000003, 'WK-70003', 2000003, 5000013, 6000003,
@@ -453,7 +453,7 @@ VALUES
  'VIDEO', 'LISTED',
  'c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f',
  'c3b4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9',
- 'https://oss.lifechain.cn/public/cover/WK-70003.png',
+ 'http://localhost:9020/lifechain-public/cover/WK-70003.png',
  '2026-02-20 09:00:00', 0, 4, '2026-02-19 20:00:00', '2026-03-01 09:00:00'),
 
 (7000004, 'WK-70004', 2000004, 5000014, 6000004,
@@ -462,7 +462,7 @@ VALUES
  'AUDIO', 'LISTED',
  'd4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90',
  'd4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0',
- 'https://oss.lifechain.cn/public/cover/WK-70004.png',
+ 'http://localhost:9020/lifechain-public/cover/WK-70004.png',
  '2026-02-25 09:00:00', 0, 4, '2026-02-24 22:00:00', '2026-03-05 09:00:00'),
 
 (7000005, 'WK-70005', 2000005, 5000015, 6000005,
@@ -471,7 +471,7 @@ VALUES
  'VIDEO', 'LISTED',
  'e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001',
  'e5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1',
- 'https://oss.lifechain.cn/public/cover/WK-70005.png',
+ 'http://localhost:9020/lifechain-public/cover/WK-70005.png',
  '2026-03-02 09:00:00', 0, 4, '2026-03-01 14:00:00', '2026-03-08 09:00:00'),
 
 (7000006, 'WK-70006', 2000006, 5000016, 6000006,
@@ -480,7 +480,7 @@ VALUES
  'TEXT', 'OWNERSHIP_CONFIRMED',
  'f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112',
  'f6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1e2',
- 'https://oss.lifechain.cn/public/cover/WK-70006.png',
+ 'http://localhost:9020/lifechain-public/cover/WK-70006.png',
  '2026-03-08 09:00:00', 0, 3, '2026-03-07 19:00:00', '2026-03-10 11:00:00'),
 
 (7000007, 'WK-70007', 2000007, 5000017, 6000007,
@@ -489,7 +489,7 @@ VALUES
  'IMAGE', 'CLAIM_REVIEWING',
  '0718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223',
  '0708091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c0d1e2f3',
- 'https://oss.lifechain.cn/public/cover/WK-70007.png',
+ 'http://localhost:9020/lifechain-public/cover/WK-70007.png',
  '2026-05-12 14:00:00', 0, 1, '2026-05-12 13:00:00', '2026-05-13 09:00:00'),
 
 (7000008, 'WK-70008', 2000011, 5000021, 6000011,
@@ -498,7 +498,7 @@ VALUES
  'IMAGE', 'CLAIM_CHAIN_PENDING',
  '18293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334',
  '1819293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223',
- 'https://oss.lifechain.cn/public/cover/WK-70008.png',
+ 'http://localhost:9020/lifechain-public/cover/WK-70008.png',
  '2026-05-15 10:00:00', 0, 2, '2026-05-15 09:00:00', '2026-05-16 18:00:00'),
 
 (7000009, 'WK-70009', 2000012, 5000022, 6000012,
@@ -507,7 +507,7 @@ VALUES
  'VIDEO', 'READY_FOR_CLAIM',
  '293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f900112233445',
  '29293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334',
- 'https://oss.lifechain.cn/public/cover/WK-70009.png',
+ 'http://localhost:9020/lifechain-public/cover/WK-70009.png',
  '2026-05-16 16:00:00', 0, 1, '2026-05-16 15:00:00', '2026-05-16 16:00:00'),
 
 (7000010, 'WK-70010', 2000013, 5000023, 6000013,
@@ -516,7 +516,7 @@ VALUES
  'AUDIO', 'LISTED',
  '3a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90011223344556',
  '3a3b4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b',
- 'https://oss.lifechain.cn/public/cover/WK-70010.png',
+ 'http://localhost:9020/lifechain-public/cover/WK-70010.png',
  '2026-03-12 09:00:00', 0, 4, '2026-03-11 19:00:00', '2026-03-15 11:00:00'),
 
 (7000011, 'WK-70011', 2000010, 5000020, 6000010,
@@ -525,7 +525,7 @@ VALUES
  'IMAGE', 'RISK_FROZEN',
  '4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334455667',
  '4b4c5d6e7f8091a2b3c4d5e6f7081929a3b4c5d6e7f8091a2b3c4d5e6f7a8b9c',
- 'https://oss.lifechain.cn/public/cover/WK-70011.png',
+ 'http://localhost:9020/lifechain-public/cover/WK-70011.png',
  '2026-03-20 09:00:00', 0, 5, '2026-03-19 20:00:00', '2026-04-22 10:00:00'),
 
 (7000012, 'WK-70012', 2000009, 5000019, 6000009,
@@ -545,7 +545,7 @@ VALUES
  'https://oss.lifechain.cn/work/WK-70001/origin.png', 'ORIGINAL', 0, '2026-02-09 16:00:00', '2026-02-09 16:00:00'),
 (7100002, 7000001, '暮色长安_封面.png', '/cover/WK-70001.png', 2328983, 'PNG',
  '8f4b5c2a0d3e6f9b7c2a5d8e1f4c7d0a3b6c9d2e5f8a1b4c7d0a3b6c9d2e5f8a',
- 'https://oss.lifechain.cn/public/cover/WK-70001.png', 'PREVIEW', 0, '2026-02-09 16:00:00', '2026-02-09 16:00:00'),
+ 'http://localhost:9020/lifechain-public/cover/WK-70001.png', 'PREVIEW', 0, '2026-02-09 16:00:00', '2026-02-09 16:00:00'),
 (7100003, 7000002, '潮汐回响_master.wav', '/work/WK-70002/master.wav', 35051692, 'WAV',
  'b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e',
  'https://oss.lifechain.cn/work/WK-70002/master.wav', 'ORIGINAL', 0, '2026-02-14 18:00:00', '2026-02-14 18:00:00'),
@@ -611,7 +611,7 @@ VALUES
  'https://oss.lifechain.cn/work/WK-70008/12_dashu.png', 'ORIGINAL', 0, '2026-05-15 09:11:00', '2026-05-15 09:11:00'),
 (7100024, 7000008, '无界节气_系列封面.png', '/cover/WK-70008.png', 2321040, 'PNG',
  '6f7a8b9c0d1e2f3a4b5c6d7e8f9001122334455667020304050607080a9b0c1d',
- 'https://oss.lifechain.cn/public/cover/WK-70008.png', 'PREVIEW', 0, '2026-05-15 09:12:00', '2026-05-15 09:12:00');
+ 'http://localhost:9020/lifechain-public/cover/WK-70008.png', 'PREVIEW', 0, '2026-05-15 09:12:00', '2026-05-15 09:12:00');
 
 -- 作品 AIGC 元数据
 INSERT INTO `work_aigc_meta`
@@ -664,34 +664,56 @@ VALUES
  '{"sampler":"Euler a","steps":35,"cfg_scale":8,"width":1024,"height":1024,"seed":4592018,"negative":"low quality, blurry"}',
  '2026-03-19 18:00:00', 0, '2026-03-19 20:00:00', '2026-03-19 20:00:00');
 
--- 作品特征（感知哈希）
+-- 作品特征（256-bit 二进制指纹，hex 编码 64 字符；algo: PDQ=图/视频, MINHASH=音频/文本, D2=3D 模型）
 INSERT INTO `work_feature`
-(`id`, `work_id`, `feature_type`, `feature_value`, `perceptual_hash`,
- `extract_status`, `extract_time`, `fail_reason`,
- `deleted_flag`, `created_at`, `updated_at`)
+(`id`, `work_id`, `work_type`, `algo`, `algo_version`, `vector_dim`,
+ `perceptual_hash`, `generation_fingerprint`, `extract_status`, `extract_time`, `fail_reason`,
+ `extra`, `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-(7300001, 7000001, 'PERCEPTUAL_HASH', NULL, 'pdq:f8e1c2a4b6d8f0e2', 'SUCCESS', '2026-02-09 16:30:00', NULL, 0, '2026-02-09 16:30:00', '2026-02-09 16:30:00'),
-(7300002, 7000002, 'FINGERPRINT', NULL, 'chromaprint:AQADtMmSREkOJUmQJUmSJEmSJUmSJEmSJEmS', 'SUCCESS', '2026-02-14 18:30:00', NULL, 0, '2026-02-14 18:30:00', '2026-02-14 18:30:00'),
-(7300003, 7000003, 'PERCEPTUAL_HASH', NULL, 'videohash:8c4e2f1a9b3d7c5e', 'SUCCESS', '2026-02-19 20:30:00', NULL, 0, '2026-02-19 20:30:00', '2026-02-19 20:30:00'),
-(7300004, 7000004, 'FINGERPRINT', NULL, 'chromaprint:AQADtMmSREkOJUkSJEmSJEmSJEmSJEmSJUmS', 'SUCCESS', '2026-02-24 22:30:00', NULL, 0, '2026-02-24 22:30:00', '2026-02-24 22:30:00'),
-(7300005, 7000005, 'PERCEPTUAL_HASH', NULL, 'videohash:7d3f1e0a8b2c6d4f', 'SUCCESS', '2026-03-01 14:30:00', NULL, 0, '2026-03-01 14:30:00', '2026-03-01 14:30:00'),
-(7300006, 7000006, 'VECTOR', '[0.0231,-0.1842,0.0593,0.2741,-0.0817,0.1124,0.0398,-0.2015]', NULL, 'SUCCESS', '2026-03-07 19:30:00', NULL, 0, '2026-03-07 19:30:00', '2026-03-07 19:30:00'),
-(7300007, 7000007, 'PERCEPTUAL_HASH', NULL, 'pdq:e2d3f4a1b5c6d7e8', 'SUCCESS', '2026-05-12 13:30:00', NULL, 0, '2026-05-12 13:30:00', '2026-05-12 13:30:00'),
-(7300008, 7000008, 'PERCEPTUAL_HASH', NULL, 'pdq:b1c2d3e4f5a6b7c8', 'SUCCESS', '2026-05-15 09:30:00', NULL, 0, '2026-05-15 09:30:00', '2026-05-15 09:30:00'),
-(7300009, 7000009, 'PERCEPTUAL_HASH', NULL, 'videohash:5e4d3c2b1a098f76', 'PENDING', NULL, NULL, 0, '2026-05-16 15:00:00', '2026-05-16 15:00:00'),
-(7300010, 7000010, 'FINGERPRINT', NULL, 'chromaprint:AQADtMmSREkOJUkSJEkSJEmSJEmSJEmSJEkS', 'SUCCESS', '2026-03-11 19:30:00', NULL, 0, '2026-03-11 19:30:00', '2026-03-11 19:30:00'),
-(7300011, 7000011, 'PERCEPTUAL_HASH', NULL, 'pdq:c3d4e5f6a7b8c9d0', 'SUCCESS', '2026-03-19 20:30:00', NULL, 0, '2026-03-19 20:30:00', '2026-03-19 20:30:00');
+(7300001, 7000001, 'IMAGE', 'PDQ', '1.0', 256,
+ 'f8e1c2a4b6d8f0e2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80819', '7a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f50617283940a1b2c3d4e5',
+ 'SUCCESS', '2026-02-09 16:30:00', NULL, '{"quality":91}', 0, '2026-02-09 16:30:00', '2026-02-09 16:30:00'),
+(7300002, 7000002, 'AUDIO', 'MINHASH', '1.0', 256,
+ 'a4b5c6d7e8f9081a2b3c4d5e6f70819a2b3c4d5e6f7081920a1b2c3d4e5f6071', NULL,
+ 'SUCCESS', '2026-02-14 18:30:00', NULL, '{"duration_sec":182}', 0, '2026-02-14 18:30:00', '2026-02-14 18:30:00'),
+(7300003, 7000003, 'VIDEO', 'PDQ', '1.0', 256,
+ '8c4e2f1a9b3d7c5e4d3c2b1a0987f6e5d4c3b2a1908172635a4b5c6d7e8f9012', NULL,
+ 'SUCCESS', '2026-02-19 20:30:00', NULL, '{"frame_count":10}', 0, '2026-02-19 20:30:00', '2026-02-19 20:30:00'),
+(7300004, 7000004, 'AUDIO', 'MINHASH', '1.0', 256,
+ 'b2c3d4e5f6071829304a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f506', NULL,
+ 'SUCCESS', '2026-02-24 22:30:00', NULL, '{"duration_sec":215}', 0, '2026-02-24 22:30:00', '2026-02-24 22:30:00'),
+(7300005, 7000005, 'VIDEO', 'PDQ', '1.0', 256,
+ '7d3f1e0a8b2c6d4fe5d4c3b2a190817263a4b5c6d7e8f9012b3c4d5e6f708192', NULL,
+ 'SUCCESS', '2026-03-01 14:30:00', NULL, '{"frame_count":10}', 0, '2026-03-01 14:30:00', '2026-03-01 14:30:00'),
+(7300006, 7000006, 'TEXT', 'MINHASH', '1.0', 256,
+ 'c3d4e5f607182930a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f506172', '8b9c0d1e2f30415263748a9bacbdcedfe0f1023456789abcdef0123456789abc',
+ 'SUCCESS', '2026-03-07 19:30:00', NULL, '{"word_count":1284}', 0, '2026-03-07 19:30:00', '2026-03-07 19:30:00'),
+(7300007, 7000007, 'IMAGE', 'PDQ', '1.0', 256,
+ 'e2d3f4a1b5c6d7e8f9a0b1c2d3e4f50617283940a1b2c3d4e5f6071829304152', '9a0b1c2d3e4f50617283940a1b2c3d4e5f6071829304152637485a9babcdcedf',
+ 'SUCCESS', '2026-05-12 13:30:00', NULL, '{"quality":88}', 0, '2026-05-12 13:30:00', '2026-05-12 13:30:00'),
+(7300008, 7000008, 'IMAGE', 'PDQ', '1.0', 256,
+ 'b1c2d3e4f5a6b7c8d9e0f10212131415161718191a1b1c1d1e1f202122232425', '0a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f50617283940a1b2c3d4e5',
+ 'SUCCESS', '2026-05-15 09:30:00', NULL, '{"quality":94}', 0, '2026-05-15 09:30:00', '2026-05-15 09:30:00'),
+(7300009, 7000009, 'VIDEO', 'PDQ', '1.0', 256,
+ '5e4d3c2b1a098f76e5d4c3b2a19081726354a3b4c5d6e7f8091a2b3c4d5e6f70', NULL,
+ 'PENDING', NULL, NULL, NULL, 0, '2026-05-16 15:00:00', '2026-05-16 15:00:00'),
+(7300010, 7000010, 'AUDIO', 'MINHASH', '1.0', 256,
+ 'd5e6f7081929304a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5061728', NULL,
+ 'SUCCESS', '2026-03-11 19:30:00', NULL, '{"duration_sec":198}', 0, '2026-03-11 19:30:00', '2026-03-11 19:30:00'),
+(7300011, 7000011, 'IMAGE', 'PDQ', '1.0', 256,
+ 'c3d4e5f6a7b8c9d0e1f203041516272839a4b5c6d7e8f9a0b1c2d3e4f5061728', '1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f50617283940a1b2c3d4e5f6',
+ 'SUCCESS', '2026-03-19 20:30:00', NULL, '{"quality":86}', 0, '2026-03-19 20:30:00', '2026-03-19 20:30:00');
 
--- 相似度检测（含一条 HIGH_RISK 用于风控展示）
+-- 相似度检测（含一条 HIGH_RISK 用于风控展示；hamming_distance = (1-score)*256）
 INSERT INTO `work_similarity_check`
-(`id`, `work_id`, `compared_work_id`, `similarity_score`, `check_result`, `check_time`,
- `deleted_flag`, `created_at`, `updated_at`)
+(`id`, `work_id`, `compared_work_id`, `algo`, `hamming_distance`, `similarity_score`,
+ `check_result`, `check_time`, `deleted_flag`, `created_at`, `updated_at`)
 VALUES
-(7400001, 7000001, 7000007, 0.1842, 'PASS', '2026-02-09 16:35:00', 0, '2026-02-09 16:35:00', '2026-02-09 16:35:00'),
-(7400002, 7000003, 7000005, 0.2417, 'PASS', '2026-02-19 20:35:00', 0, '2026-02-19 20:35:00', '2026-02-19 20:35:00'),
-(7400003, 7000011, 7000005, 0.8923, 'HIGH_RISK', '2026-03-19 20:40:00', 0, '2026-03-19 20:40:00', '2026-03-19 20:40:00'),
-(7400004, 7000007, 7000001, 0.1842, 'PASS', '2026-05-12 13:35:00', 0, '2026-05-12 13:35:00', '2026-05-12 13:35:00'),
-(7400005, 7000008, 7000001, 0.3127, 'PASS', '2026-05-15 09:35:00', 0, '2026-05-15 09:35:00', '2026-05-15 09:35:00');
+(7400001, 7000001, 7000007, 'PDQ',     209, 0.1842, 'PASS',      '2026-02-09 16:35:00', 0, '2026-02-09 16:35:00', '2026-02-09 16:35:00'),
+(7400002, 7000003, 7000005, 'PDQ',     194, 0.2417, 'PASS',      '2026-02-19 20:35:00', 0, '2026-02-19 20:35:00', '2026-02-19 20:35:00'),
+(7400003, 7000011, 7000005, 'PDQ',      28, 0.8923, 'HIGH_RISK', '2026-03-19 20:40:00', 0, '2026-03-19 20:40:00', '2026-03-19 20:40:00'),
+(7400004, 7000007, 7000001, 'PDQ',     209, 0.1842, 'PASS',      '2026-05-12 13:35:00', 0, '2026-05-12 13:35:00', '2026-05-12 13:35:00'),
+(7400005, 7000008, 7000001, 'PDQ',     176, 0.3127, 'PASS',      '2026-05-15 09:35:00', 0, '2026-05-15 09:35:00', '2026-05-15 09:35:00');
 
 -- -----------------------------
 -- 5) 确权申请（覆盖 SUBMITTED / REVIEWING / APPROVED_PENDING_CHAIN /

@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lifechain.chain.model.ChainSubmitRequest;
 import com.lifechain.chain.model.ChainSubmitResult;
 import com.lifechain.common.enums.ChainStatusEnum;
+import com.lifechain.common.mq.ChainCompensationMessage;
+import com.lifechain.infra.mq.MessagePublisher;
+import com.lifechain.infra.mq.RabbitMQConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,7 @@ import java.util.List;
 public class ChainTxRecordServiceImpl implements ChainTxRecordService {
 
     private final ChainTxRecordMapper chainTxRecordMapper;
+    private final MessagePublisher messagePublisher;
 
     /**
      * {@inheritDoc}
@@ -57,6 +61,12 @@ public class ChainTxRecordServiceImpl implements ChainTxRecordService {
         chainTxRecordMapper.insert(entity);
         log.info("链上交易记录已保存，bizType={}, bizNo={}, txHash={}, chainStatus={}",
                 entity.getBizType(), entity.getBizNo(), entity.getTxHash(), entity.getChainStatus());
+
+        if (ChainStatusEnum.CHAIN_SUBMITTED.getCode().equals(entity.getChainStatus())) {
+            messagePublisher.sendDelayed(RabbitMQConfig.RK_CHAIN_COMPENSATION_DELAY,
+                    new ChainCompensationMessage(entity.getId(), entity.getBizType(), entity.getBizNo()),
+                    5 * 60 * 1000L);
+        }
     }
 
     /**

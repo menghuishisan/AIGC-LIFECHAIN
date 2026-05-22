@@ -7,15 +7,25 @@ import com.lifechain.chain.record.ChainTxRecordEntity;
 import com.lifechain.common.enums.BizTypeEnum;
 import com.lifechain.common.enums.ChainStatusEnum;
 import com.lifechain.common.enums.SettlementStatusEnum;
-import com.lifechain.common.event.SettlementCompletedEvent;
+import com.lifechain.common.mq.SettlementCompletedMessage;
 import com.lifechain.common.util.DateTimeUtil;
+import com.lifechain.infra.mq.MessagePublisher;
+import com.lifechain.infra.mq.RabbitMQConfig;
 import com.lifechain.settlement.entity.SettlementRecordEntity;
 import com.lifechain.settlement.mapper.SettlementRecordMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
+/**
+ * 结算链上回执处理器
+ * <p>
+ * 处理结算交易的链上回执，成功时更新结算状态为 SETTLE_SUCCESS 并发送 MQ 消息通知订单完成，
+ * 失败时更新为 SETTLE_FAILED 并记录失败原因。
+ * </p>
+ *
+ * @author LifeChain
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -24,7 +34,7 @@ public class SettlementChainReceiptHandler implements ChainReceiptHandler {
     private final SettlementRecordMapper settlementRecordMapper;
     private final AuditService auditService;
     private final TraceEventService traceEventService;
-    private final ApplicationEventPublisher eventPublisher;
+    private final MessagePublisher messagePublisher;
 
     @Override
     public String getBizType() {
@@ -64,9 +74,9 @@ public class SettlementChainReceiptHandler implements ChainReceiptHandler {
 
         log.info("结算回执处理完成，settleNo={} -> SETTLE_SUCCESS", settlement.getSettleNo());
 
-        // 发布结算成功事件，通知订单模块更新订单状态
-        eventPublisher.publishEvent(new SettlementCompletedEvent(
-                this, settlement.getOrderNo(), settlement.getOrderId(), settlement.getSettleNo()));
+        // 发送结算成功消息，通知订单模块更新订单状态
+        messagePublisher.send(RabbitMQConfig.RK_SETTLEMENT_COMPLETED,
+                new SettlementCompletedMessage(settlement.getOrderNo(), settlement.getOrderId(), settlement.getSettleNo()));
     }
 
     @Override
