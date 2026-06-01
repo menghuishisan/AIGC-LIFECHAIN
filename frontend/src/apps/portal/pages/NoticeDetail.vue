@@ -74,7 +74,7 @@ function goBiz() {
     WORK: `/creator/works/${bizNo}`,
     CLAIM: `/creator/claims/${bizNo}`,
     CERTIFICATE: `/creator/certificates/${bizNo}`,
-    ORDER: `/buyer/orders/${bizNo}`,
+    ORDER: `/orders/${bizNo}`,
     LICENSE: `/buyer/licenses/${bizNo}`
   }
   const path = routeMap[bizType || '']

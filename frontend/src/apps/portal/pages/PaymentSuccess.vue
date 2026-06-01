@@ -22,7 +22,7 @@ const route = useRoute()
 function goOrder() {
   const orderNo = route.query.order_no as string
   if (orderNo) {
-    router.push(`/buyer/orders/${orderNo}`)
+    router.push(`/orders/${orderNo}`)
   } else {
     router.push('/buyer/dashboard')
   }

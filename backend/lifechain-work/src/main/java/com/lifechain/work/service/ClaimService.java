@@ -3,6 +3,7 @@ package com.lifechain.work.service;
 import com.lifechain.common.model.PageQuery;
 import com.lifechain.common.model.PageResult;
 import com.lifechain.work.dto.ClaimDetailVO;
+import com.lifechain.work.dto.ClaimListVO;
 import com.lifechain.work.dto.ClaimReviewRequest;
 import com.lifechain.work.dto.ClaimSubmitRequest;
 
@@ -72,7 +73,7 @@ public interface ClaimService {
      * @param query     分页参数
      * @return 分页结果
      */
-    PageResult<ClaimDetailVO> listClaims(Long accountId, String status, PageQuery query);
+    PageResult<ClaimListVO> listClaims(Long accountId, String status, PageQuery query);
 
     /**
      * 管理员查询全部确权申请列表（分页）
@@ -81,5 +82,5 @@ public interface ClaimService {
      * @param query  分页参数
      * @return 分页结果
      */
-    PageResult<ClaimDetailVO> listAllClaims(String status, PageQuery query);
+    PageResult<ClaimListVO> listAllClaims(String status, PageQuery query);
 }

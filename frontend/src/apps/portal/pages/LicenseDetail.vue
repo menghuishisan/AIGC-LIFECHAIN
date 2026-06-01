@@ -42,7 +42,7 @@
         <div class="lc-card__title">关联信息</div>
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="关联订单">
-            <el-button link type="primary" @click="router.push(`/buyer/orders/${detail.relationInfo.orderNo}`)">
+            <el-button link type="primary" @click="router.push(`/orders/${detail.relationInfo.orderNo}`)">
               {{ detail.relationInfo.orderNo }}
             </el-button>
           </el-descriptions-item>

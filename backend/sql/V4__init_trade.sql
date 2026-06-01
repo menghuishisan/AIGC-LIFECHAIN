@@ -193,6 +193,7 @@ CREATE TABLE IF NOT EXISTS `refund_record` (
     `fail_reason`     VARCHAR(512)          DEFAULT NULL  COMMENT '失败原因',
     `operator_id`     BIGINT                DEFAULT NULL  COMMENT '操作人ID',
     `request_id`      VARCHAR(64)           DEFAULT NULL  COMMENT '幂等ID',
+    `pre_refund_order_status` VARCHAR(20)   DEFAULT NULL  COMMENT '退款前订单状态（拒绝退款时用于恢复）',
     `deleted_flag`    TINYINT      NOT NULL DEFAULT 0     COMMENT '删除标记 0-未删除 1-已删除',
     `created_at`      DATETIME     NOT NULL               COMMENT '创建时间(UTC)',
     `updated_at`      DATETIME     NOT NULL               COMMENT '更新时间(UTC)',

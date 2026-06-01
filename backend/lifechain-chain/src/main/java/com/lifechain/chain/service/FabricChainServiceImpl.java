@@ -133,14 +133,9 @@ public class FabricChainServiceImpl implements FabricChainService {
             result.setFailReason("链上提交到 orderer 失败: " + e.getMessage());
             result.setReasonCode(ErrorCodeEnum.CHAIN_SUBMIT_FAILED.getCode());
 
-        } catch (GatewayException e) {
-            log.error("Gateway 通用错误，bizType={}, bizNo={}, 原因={}",
-                    request.getBizType(), request.getBizNo(), e.getMessage(), e);
-            result.setSuccess(false);
-            result.setFailReason("Gateway 错误: " + e.getMessage());
-            result.setReasonCode(ErrorCodeEnum.CHAIN_SUBMIT_FAILED.getCode());
-
         } catch (Exception e) {
+            // EndorseException / CommitStatusException / SubmitException 是 GatewayException 仅有的具体子类，
+            // 已分别捕获；这里兜底所有未预期的运行时异常（如 IllegalState、空指针、网络层未封装的错误等）
             log.error("链上交易未知异常，bizType={}, bizNo={}", request.getBizType(), request.getBizNo(), e);
             result.setSuccess(false);
             result.setFailReason("链上交易未知异常: " + e.getMessage());

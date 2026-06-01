@@ -6,6 +6,7 @@ import com.lifechain.common.model.ApiResponse;
 import com.lifechain.common.model.PageQuery;
 import com.lifechain.common.model.PageResult;
 import com.lifechain.work.dto.ClaimDetailVO;
+import com.lifechain.work.dto.ClaimListVO;
 import com.lifechain.work.dto.ClaimSubmitRequest;
 import com.lifechain.work.service.ClaimService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -84,10 +85,10 @@ public class ClaimController {
      */
     @GetMapping
     @Operation(summary = "我的确权列表", description = "查询当前登录用户的确权申请列表")
-    public ApiResponse<PageResult<ClaimDetailVO>> listClaims(@RequestParam(required = false) String status,
+    public ApiResponse<PageResult<ClaimListVO>> listClaims(@RequestParam(required = false) String status,
                                                              @Valid PageQuery query) {
         Long accountId = UserContext.getUserId();
-        PageResult<ClaimDetailVO> result = claimService.listClaims(accountId, status, query);
+        PageResult<ClaimListVO> result = claimService.listClaims(accountId, status, query);
         return ApiResponse.success(result);
     }
 }

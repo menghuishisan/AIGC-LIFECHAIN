@@ -16,7 +16,7 @@
     <el-table :data="list" v-loading="loading" stripe>
       <el-table-column prop="orderNo" label="订单编号" min-width="180">
         <template #default="{ row }">
-          <el-button link type="primary" @click="router.push(`/buyer/orders/${row.orderNo}`)">{{ row.orderNo }}</el-button>
+          <el-button link type="primary" @click="router.push(`/orders/${row.orderNo}`)">{{ row.orderNo }}</el-button>
         </template>
       </el-table-column>
       <el-table-column prop="workTitle" label="作品名称" min-width="160" show-overflow-tooltip />

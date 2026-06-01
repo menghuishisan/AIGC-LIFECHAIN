@@ -13,14 +13,20 @@
 #   RabbitMQ -> 5672 (AMQP) / 15672 (Management UI)
 #   Milvus   -> 19530 (gRPC) / 9091 (health)
 #   Feature  -> 8090 (Python 特征提取服务)
-#   Orderer  -> 7050
-#   Peer Org1 -> 7051 / 7052
-#   Peer Org2 -> 9051 / 9052
-#   CA Org1  -> 7054
-#   CA Org2  -> 9054
+#   Orderer  -> 27050           (容器内 7050；避开 fabric-samples test-network 默认 7050)
+#   Peer Org1 -> 27051 / 27052  (容器内 7051 / 7052；避开官方 7051 / 7052)
+#   Peer Org2 -> 29051 / 29052  (容器内 9051 / 9052；避开官方 9051 / 9052)
+#   Peer Ops  -> 17051 / 19051  (官方 test-network 不暴露 operations 端口，无冲突)
+#   CA Org1  -> 27054           (容器内 7054；避开官方 7054)
+#   CA Org2  -> 29054           (容器内 9054；官方默认 ca.org2 在 8054，错位即可)
 #   OTel Collector -> 4319 (OTLP gRPC) / 4320 (OTLP HTTP) / 13133 (health)
 #   Jaeger   -> 16686 (UI)
 #   Prometheus -> 9090
+#
+# 容器之间走 fabric 内部 DNS（peer0.org1.lifechain.com:7051 等），所以
+# 容器内监听端口必须保持 7050 / 7051 / 7052 / 9051 / 9052 / 7054 / 9054 不变，
+# 只把宿主端口映射避开官方 test-network。这样 channel 配置、TLS SAN、链码
+# build 出的容器都不需要重做。
 #
 # 所有环境变量统一从 backend/.env 读取
 # 启动时必须加 --env-file ../backend/.env
@@ -219,7 +225,7 @@ services:
       - ./fabric/crypto-config/ordererOrganizations/lifechain.com/orderers/orderer.lifechain.com/tls:/var/hyperledger/orderer/tls
       - lifechain-orderer-data:/var/hyperledger/production/orderer
     ports:
-      - "7050:7050"
+      - "27050:7050"
     networks:
       - lifechain-net
     restart: unless-stopped
@@ -254,9 +260,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - lifechain-peer0-org1-data:/var/hyperledger/production
     ports:
-      - "7051:7051"
+      - "27051:7051"
       - "17051:17051"
-      - "7052:7052"
+      - "27052:7052"
     networks:
       - lifechain-net
     depends_on:
@@ -293,9 +299,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - lifechain-peer0-org2-data:/var/hyperledger/production
     ports:
-      - "9051:9051"
+      - "29051:9051"
       - "19051:19051"
-      - "9052:9052"
+      - "29052:9052"
     networks:
       - lifechain-net
     depends_on:
@@ -312,7 +318,7 @@ services:
       - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/priv_sk
       - FABRIC_CA_SERVER_TLS_ENABLED=false
     ports:
-      - "7054:7054"
+      - "27054:7054"
     command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
     volumes:
       - ./fabric/crypto-config/peerOrganizations/org1.lifechain.com/ca/:/etc/hyperledger/fabric-ca-server-config
@@ -330,7 +336,7 @@ services:
       - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/priv_sk
       - FABRIC_CA_SERVER_TLS_ENABLED=false
     ports:
-      - "9054:9054"
+      - "29054:9054"
     command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
     volumes:
       - ./fabric/crypto-config/peerOrganizations/org2.lifechain.com/ca/:/etc/hyperledger/fabric-ca-server-config

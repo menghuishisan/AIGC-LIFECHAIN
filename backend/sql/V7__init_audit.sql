@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `trace_event` (
 CREATE TABLE IF NOT EXISTS `audit_log` (
     `id`            BIGINT       NOT NULL               COMMENT '主键（雪花ID）',
     `target_type`   VARCHAR(30)  NOT NULL               COMMENT '目标类型',
-    `target_id`     BIGINT       NOT NULL               COMMENT '目标ID',
+    `target_id`     BIGINT                DEFAULT NULL  COMMENT '目标ID（搜索/验真等无具体目标的动作可空）',
     `target_no`     VARCHAR(64)           DEFAULT NULL  COMMENT '目标编号',
     `action`        VARCHAR(64)  NOT NULL               COMMENT '操作动作',
     `action_detail` TEXT                  DEFAULT NULL  COMMENT '操作详情',
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS `status_history` (
     `biz_type`      VARCHAR(30)  NOT NULL               COMMENT '业务类型',
     `biz_id`        BIGINT       NOT NULL               COMMENT '业务ID',
     `biz_no`        VARCHAR(64)           DEFAULT NULL  COMMENT '业务编号',
-    `from_status`   VARCHAR(30)  NOT NULL               COMMENT '原状态',
+    `from_status`   VARCHAR(30)           DEFAULT NULL  COMMENT '原状态（初次创建时为空）',
     `to_status`     VARCHAR(30)  NOT NULL               COMMENT '目标状态',
     `change_reason` VARCHAR(512)          DEFAULT NULL  COMMENT '变更原因',
     `reason_code`   VARCHAR(64)           DEFAULT NULL  COMMENT '原因码',

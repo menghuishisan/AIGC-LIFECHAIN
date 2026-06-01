@@ -18,8 +18,7 @@ import java.io.Serializable;
 @Data
 public class CreateListingRequest implements Serializable {
 
-    /** 作品编号 */
-    @NotBlank(message = "作品编号不能为空")
+    /** 作品编号（由 controller 从路径变量注入，非请求体字段） */
     private String workNo;
 
     /** 授权模板编码（可选，传入后将自动填充授权参数） */

@@ -12,17 +12,20 @@
     <el-table :data="list" v-loading="loading" stripe>
       <el-table-column label="确权编号" min-width="180">
         <template #default="{ row }">
-          <el-button link type="primary" @click="router.push(`/admin/claims/${row.basicInfo.claimNo}`)">{{ row.basicInfo.claimNo }}</el-button>
+          <el-button link type="primary" @click="router.push(`/admin/claims/${row.claimNo}`)">{{ row.claimNo }}</el-button>
         </template>
       </el-table-column>
+      <el-table-column label="作品名称" min-width="160" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.workTitle || '-' }}</template>
+      </el-table-column>
       <el-table-column label="关联作品" min-width="160">
-        <template #default="{ row }"><span class="font-mono">{{ row.relationInfo.workNo }}</span></template>
+        <template #default="{ row }"><span class="font-mono">{{ row.workNo }}</span></template>
       </el-table-column>
       <el-table-column label="状态" width="140">
-        <template #default="{ row }"><StatusTag :status="row.statusInfo.status" type="claim" /></template>
+        <template #default="{ row }"><StatusTag :status="row.status" type="claim" /></template>
       </el-table-column>
       <el-table-column label="提交时间" width="180">
-        <template #default="{ row }">{{ formatTime(row.timeInfo.submitTime || row.timeInfo.createdAt) }}</template>
+        <template #default="{ row }">{{ formatTime(row.submitTime || row.createdAt) }}</template>
       </el-table-column>
     </el-table>
 
@@ -40,11 +43,11 @@ import { workApi } from '@/shared/api'
 import { StatusTag } from '@/shared/components'
 import { ClaimStatusMap } from '@/shared/constants'
 import { formatTime } from '@/shared/utils'
-import type { ClaimDetailVO } from '@/shared/types'
+import type { ClaimListVO } from '@/shared/types'
 
 const router = useRouter()
 const loading = ref(false)
-const list = ref<ClaimDetailVO[]>([])
+const list = ref<ClaimListVO[]>([])
 const total = ref(0)
 const query = reactive({ status: '', pageNo: 1, pageSize: 10 })
 

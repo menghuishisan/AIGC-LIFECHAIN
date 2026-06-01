@@ -75,6 +75,52 @@ if [[ "$NO_SEED" == false ]]; then
     echo "  种子文件不存在: $SEED_FILE"
     exit 1
   fi
+
+  # MinIO 初始化：建桶 + 上传 seed-assets（封面 → public 桶；作品原件 → 私有桶）
+  # 通过 lifechain-minio 容器内置的 mc 执行，不依赖宿主机 mc
+  MINIO_AK="${MINIO_ACCESS_KEY:-minioadmin}"
+  MINIO_SK="${MINIO_SECRET_KEY:-minioadmin}"
+  BUCKET="${MINIO_BUCKET:-lifechain}"
+  PUBLIC_BUCKET="${MINIO_PUBLIC_BUCKET:-lifechain-public}"
+  SEED_ASSETS_HOST="$SCRIPT_DIR/../seed-assets"
+  MINIO_CONTAINER="${MINIO_CONTAINER:-lifechain-minio}"
+
+  if docker ps --format '{{.Names}}' | grep -q "^${MINIO_CONTAINER}$"; then
+    log "初始化 MinIO 桶"
+    # MSYS_NO_PATHCONV=1 防止 git bash 把容器内 / 路径错误转成 Windows 路径
+    MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" mc alias set lifelocal http://localhost:9000 "$MINIO_AK" "$MINIO_SK" >/dev/null 2>&1
+    MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" mc rm --recursive --force "lifelocal/${BUCKET}/work/" >/dev/null 2>&1 || true
+    MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" mc rm --recursive --force "lifelocal/${PUBLIC_BUCKET}/cover/" >/dev/null 2>&1 || true
+    MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" mc mb --ignore-existing "lifelocal/${BUCKET}" >/dev/null 2>&1
+    MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" mc mb --ignore-existing "lifelocal/${PUBLIC_BUCKET}" >/dev/null 2>&1
+    MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" mc anonymous set download "lifelocal/${PUBLIC_BUCKET}" >/dev/null 2>&1
+    ok "桶就绪 ($BUCKET + $PUBLIC_BUCKET，public 桶已开匿名读)"
+
+    if [[ -d "$SEED_ASSETS_HOST" ]]; then
+      log "上传 seed-assets 到 MinIO"
+      MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" rm -rf /tmp/seed-assets >/dev/null 2>&1 || true
+      MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" mkdir -p /tmp/seed-assets >/dev/null 2>&1
+      # 在 git bash / MSYS 下 docker cp 的 Linux 风格路径会被 MSYS 转换；用 cygpath 转 Windows 路径再传
+      ABS_SEED=$(cd "$SEED_ASSETS_HOST" && pwd)
+      if command -v cygpath >/dev/null 2>&1; then
+        ABS_SEED_NATIVE=$(cygpath -w "$ABS_SEED")
+      else
+        ABS_SEED_NATIVE="$ABS_SEED"
+      fi
+      [[ -d "$ABS_SEED/work"  ]] && docker cp "${ABS_SEED_NATIVE}\\work"  "${MINIO_CONTAINER}:/tmp/seed-assets/work"  >/dev/null
+      [[ -d "$ABS_SEED/cover" ]] && docker cp "${ABS_SEED_NATIVE}\\cover" "${MINIO_CONTAINER}:/tmp/seed-assets/cover" >/dev/null
+      [[ -d "$ABS_SEED/work"  ]] && MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" mc cp --recursive /tmp/seed-assets/work/  "lifelocal/${BUCKET}/work/"  >/dev/null 2>&1
+      [[ -d "$ABS_SEED/cover" ]] && MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" mc cp --recursive /tmp/seed-assets/cover/ "lifelocal/${PUBLIC_BUCKET}/cover/" >/dev/null 2>&1
+      MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" rm -rf /tmp/seed-assets >/dev/null 2>&1 || true
+      WORK_FILES=$(find "$SEED_ASSETS_HOST/work"  -type f 2>/dev/null | wc -l | tr -d ' ')
+      COVER_FILES=$(find "$SEED_ASSETS_HOST/cover" -type f 2>/dev/null | wc -l | tr -d ' ')
+      ok "seed-assets 上传完成（work=$WORK_FILES, cover=$COVER_FILES）"
+    else
+      echo "  seed-assets 目录不存在，跳过上传: $SEED_ASSETS_HOST"
+    fi
+  else
+    echo "  容器 $MINIO_CONTAINER 未运行，跳过 MinIO 初始化"
+  fi
 fi
 
 log "完成"

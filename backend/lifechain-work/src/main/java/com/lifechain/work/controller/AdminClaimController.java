@@ -5,7 +5,7 @@ import com.lifechain.common.context.UserContext;
 import com.lifechain.common.model.ApiResponse;
 import com.lifechain.common.model.PageQuery;
 import com.lifechain.common.model.PageResult;
-import com.lifechain.work.dto.ClaimDetailVO;
+import com.lifechain.work.dto.ClaimListVO;
 import com.lifechain.work.dto.ClaimReviewRequest;
 import com.lifechain.work.service.ClaimService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,12 +42,12 @@ public class AdminClaimController {
      */
     @GetMapping
     @Operation(summary = "确权审核列表", description = "管理员分页查询全部确权申请，可按状态筛选")
-    public ApiResponse<PageResult<ClaimDetailVO>> listClaims(
+    public ApiResponse<PageResult<ClaimListVO>> listClaims(
             @RequestParam(required = false) String status,
             @Valid PageQuery query) {
         log.info("管理员查询确权列表，status={}, pageNo={}, pageSize={}",
                 status, query.getPageNo(), query.getPageSize());
-        PageResult<ClaimDetailVO> result = claimService.listAllClaims(status, query);
+        PageResult<ClaimListVO> result = claimService.listAllClaims(status, query);
         return ApiResponse.success(result);
     }
 

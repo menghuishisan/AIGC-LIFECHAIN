@@ -54,9 +54,13 @@
               </el-descriptions-item>
             </el-descriptions>
           </div>
+        </el-col>
+      </el-row>
 
-          <!-- DID 信息 -->
-          <div class="lc-card" style="margin-top: 16px;">
+      <el-row :gutter="20" style="margin-top: 20px;">
+        <!-- DID 信息 -->
+        <el-col :span="12">
+          <div class="lc-card">
             <div class="lc-card__title">DID 信息</div>
             <template v-if="profile.didInfo">
               <el-descriptions :column="1" border size="small">
@@ -76,16 +80,27 @@
               </el-empty>
             </template>
           </div>
+        </el-col>
 
-          <!-- 认证主体信息 -->
-          <div class="lc-card" style="margin-top: 16px;" v-if="profile.subjectInfo">
+        <!-- 认证主体信息 -->
+        <el-col :span="12">
+          <div class="lc-card">
             <div class="lc-card__title">认证主体</div>
-            <el-descriptions :column="1" border size="small">
-              <el-descriptions-item label="主体类型">{{ profile.subjectInfo.subjectType === 'PERSONAL' ? '个人' : '企业' }}</el-descriptions-item>
-              <el-descriptions-item label="真实姓名">{{ profile.subjectInfo.realName }}</el-descriptions-item>
-              <el-descriptions-item label="证件类型">{{ profile.subjectInfo.idCardType }}</el-descriptions-item>
-              <el-descriptions-item label="证件号码">{{ maskIdCard(profile.subjectInfo.idCardNo) }}</el-descriptions-item>
-            </el-descriptions>
+            <template v-if="profile.subjectInfo">
+              <el-descriptions :column="1" border size="small">
+                <el-descriptions-item label="主体类型">{{ profile.subjectInfo.subjectType === 'PERSONAL' ? '个人' : '企业' }}</el-descriptions-item>
+                <el-descriptions-item label="真实姓名">{{ profile.subjectInfo.realName }}</el-descriptions-item>
+                <el-descriptions-item label="证件类型">{{ profile.subjectInfo.idCardType }}</el-descriptions-item>
+                <el-descriptions-item label="证件号码">{{ maskIdCard(profile.subjectInfo.idCardNo) }}</el-descriptions-item>
+              </el-descriptions>
+            </template>
+            <template v-else>
+              <el-empty description="尚未完成实名认证" :image-size="80">
+                <el-button v-if="['NOT_AUTH', 'AUTH_REJECTED'].includes(profile.authStatus)" type="primary" @click="router.push('/profile/auth')">
+                  去认证
+                </el-button>
+              </el-empty>
+            </template>
           </div>
         </el-col>
       </el-row>

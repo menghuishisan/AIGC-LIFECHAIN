@@ -8,6 +8,19 @@
 #   ./fabric-deploy.sh --version 1.2 did     # 指定版本号升级 did
 #
 # 仅在 WSL 中运行。
+#
+# ⚠️  与 fabric-samples test-network 共存注意事项：
+#   官方 ./network.sh down 内部不带 compose project 过滤地执行
+#       docker rm -f $(docker ps -aq --filter name='dev-peer*')
+#       docker image rm -f $(docker images -aq --filter reference='dev-peer*')
+#   会把本项目 peer 编译出的 dev-peer*.lifechain.com-* 容器与镜像一并清掉。
+#   peer 容器卷里 install 过的 chaincode package + ledger 不会丢。
+#   恢复方式按代价从轻到重：
+#     1) 什么都不做：下一次 invoke 时 peer 自动 lazy rebuild
+#     2) docker restart peer0.org1.lifechain.com peer0.org2.lifechain.com
+#        然后 query 一次任意链码，避免业务首次调用冷启动
+#     3) 实在乱了：重跑本脚本（不带 --init 即升 sequence）
+#   如要保留 dev-peer 镜像，跑 test-network 时用 ./network.sh stop 取代 down。
 set -euo pipefail
 
 # ---------- 路径与常量 ----------
@@ -15,9 +28,10 @@ NET_DIR="${NET_DIR:-/mnt/e/code/AIGC-LifeChain/infra/fabric}"
 CONTRACTS_DIR="${CONTRACTS_DIR:-/mnt/e/code/AIGC-LifeChain/contracts}"
 CC_PKG_DIR="${CC_PKG_DIR:-/tmp/lifechain-cc-packages}"
 CHANNEL="${CHANNEL:-lifechainchannel}"
-ORDERER="${ORDERER:-localhost:7050}"
-ORG1_PEER="${ORG1_PEER:-localhost:7051}"
-ORG2_PEER="${ORG2_PEER:-localhost:9051}"
+# 宿主端口避开 fabric-samples test-network 默认 7050/7051/9051，统一 27xxx/29xxx
+ORDERER="${ORDERER:-localhost:27050}"
+ORG1_PEER="${ORG1_PEER:-localhost:27051}"
+ORG2_PEER="${ORG2_PEER:-localhost:29051}"
 
 ALL_CCS=(did claim license settlement regulatory)
 

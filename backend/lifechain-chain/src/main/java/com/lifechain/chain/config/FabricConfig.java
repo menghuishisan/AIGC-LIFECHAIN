@@ -8,9 +8,7 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.hyperledger.fabric.client.CallOption;
 import org.hyperledger.fabric.client.Gateway;
-import org.hyperledger.fabric.client.Network;
 import org.hyperledger.fabric.client.identity.Identities;
 import org.hyperledger.fabric.client.identity.Identity;
 import org.hyperledger.fabric.client.identity.Signer;
@@ -180,10 +178,11 @@ public class FabricConfig {
                 .identity(identity)
                 .signer(signer)
                 .connection(channel)
-                .evaluateOptions(CallOption.deadlineAfter(timeoutEvaluate, TimeUnit.SECONDS))
-                .endorseOptions(CallOption.deadlineAfter(timeoutEndorse, TimeUnit.SECONDS))
-                .submitOptions(CallOption.deadlineAfter(timeoutSubmit, TimeUnit.SECONDS))
-                .commitStatusOptions(CallOption.deadlineAfter(timeoutCommit, TimeUnit.SECONDS))
+                // 新版 SDK 用 UnaryOperator<CallOptions> 替代 deprecated 的 CallOption... 数组
+                .evaluateOptions(opts -> opts.withDeadlineAfter(timeoutEvaluate, TimeUnit.SECONDS))
+                .endorseOptions(opts -> opts.withDeadlineAfter(timeoutEndorse, TimeUnit.SECONDS))
+                .submitOptions(opts -> opts.withDeadlineAfter(timeoutSubmit, TimeUnit.SECONDS))
+                .commitStatusOptions(opts -> opts.withDeadlineAfter(timeoutCommit, TimeUnit.SECONDS))
                 .connect();
         log.info("Fabric Gateway 连接成功");
         return gateway;

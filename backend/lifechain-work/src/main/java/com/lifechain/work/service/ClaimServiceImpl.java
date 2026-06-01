@@ -18,6 +18,7 @@ import com.lifechain.common.util.FieldVisibilityUtil;
 import com.lifechain.common.util.HashUtil;
 import com.lifechain.work.assembler.WorkVoAssembler;
 import com.lifechain.work.dto.ClaimDetailVO;
+import com.lifechain.work.dto.ClaimListVO;
 import com.lifechain.work.dto.ClaimReviewRequest;
 import com.lifechain.work.dto.ClaimSubmitRequest;
 import com.lifechain.work.entity.ClaimApplicationEntity;
@@ -34,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -226,7 +228,7 @@ public class ClaimServiceImpl implements ClaimService {
      * {@inheritDoc}
      */
     @Override
-    public PageResult<ClaimDetailVO> listClaims(Long accountId, String status, PageQuery query) {
+    public PageResult<ClaimListVO> listClaims(Long accountId, String status, PageQuery query) {
         LambdaQueryWrapper<ClaimApplicationEntity> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ClaimApplicationEntity::getApplicantAccountId, accountId)
                 .eq(status != null && !status.isBlank(), ClaimApplicationEntity::getStatus, status)
@@ -235,10 +237,7 @@ public class ClaimServiceImpl implements ClaimService {
         Page<ClaimApplicationEntity> page = new Page<>(query.getPageNo(), query.getPageSize());
         Page<ClaimApplicationEntity> result = claimApplicationMapper.selectPage(page, wrapper);
 
-        List<ClaimDetailVO> records = result.getRecords().stream()
-                .map(this::toClaimDetailVO)
-                .collect(Collectors.toList());
-
+        List<ClaimListVO> records = toClaimListVOs(result.getRecords());
         return PageResult.of(records, result.getTotal(), query.getPageNo(), query.getPageSize());
     }
 
@@ -246,7 +245,7 @@ public class ClaimServiceImpl implements ClaimService {
      * {@inheritDoc}
      */
     @Override
-    public PageResult<ClaimDetailVO> listAllClaims(String status, PageQuery query) {
+    public PageResult<ClaimListVO> listAllClaims(String status, PageQuery query) {
         LambdaQueryWrapper<ClaimApplicationEntity> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(status != null && !status.isBlank(), ClaimApplicationEntity::getStatus, status)
                 .orderByDesc(ClaimApplicationEntity::getCreatedAt);
@@ -254,11 +253,37 @@ public class ClaimServiceImpl implements ClaimService {
         Page<ClaimApplicationEntity> page = new Page<>(query.getPageNo(), query.getPageSize());
         Page<ClaimApplicationEntity> result = claimApplicationMapper.selectPage(page, wrapper);
 
-        List<ClaimDetailVO> records = result.getRecords().stream()
-                .map(this::toClaimDetailVO)
-                .collect(Collectors.toList());
-
+        List<ClaimListVO> records = toClaimListVOs(result.getRecords());
         return PageResult.of(records, result.getTotal(), query.getPageNo(), query.getPageSize());
+    }
+
+    /**
+     * 批量装配确权列表 VO，一次性查 work 标题避免 N+1。
+     */
+    private List<ClaimListVO> toClaimListVOs(List<ClaimApplicationEntity> entities) {
+        if (entities == null || entities.isEmpty()) {
+            return List.of();
+        }
+        List<Long> workIds = entities.stream()
+                .map(ClaimApplicationEntity::getWorkId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, String> workTitleMap = workIds.isEmpty()
+                ? Map.of()
+                : workMapper.selectBatchIds(workIds).stream()
+                        .collect(Collectors.toMap(WorkEntity::getId, WorkEntity::getTitle));
+
+        return entities.stream().map(e -> {
+            ClaimListVO vo = new ClaimListVO();
+            vo.setClaimNo(e.getClaimNo());
+            vo.setWorkNo(e.getWorkNo());
+            vo.setWorkTitle(workTitleMap.get(e.getWorkId()));
+            vo.setStatus(e.getStatus());
+            vo.setSubmitTime(e.getSubmitTime());
+            vo.setCreatedAt(e.getCreatedAt());
+            return vo;
+        }).collect(Collectors.toList());
     }
 
     // ==================== 私有方法 ====================

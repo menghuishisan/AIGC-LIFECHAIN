@@ -26,7 +26,7 @@
         <template v-if="['PAY_CONFIRMED', 'AUTH_GRANTING', 'AUTH_GRANTED', 'ORDER_COMPLETED'].includes(order.statusInfo.orderStatus)">
           <el-result icon="success" title="支付成功" sub-title="您的订单已支付成功">
             <template #extra>
-              <el-button type="primary" @click="router.push(`/buyer/orders/${orderNo}`)">查看订单</el-button>
+              <el-button type="primary" @click="router.push(`/orders/${orderNo}`)">查看订单</el-button>
             </template>
           </el-result>
         </template>

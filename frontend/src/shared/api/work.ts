@@ -5,7 +5,7 @@
 import { get, post, put, download } from './http'
 import type {
   WorkUploadRequest, WorkMetaUpdateRequest, WorkDetailVO, WorkListVO,
-  WorkFeatureVO, ClaimSubmitRequest, ClaimDetailVO, ClaimReviewRequest,
+  WorkFeatureVO, ClaimSubmitRequest, ClaimDetailVO, ClaimListVO, ClaimReviewRequest,
   GenerateCertificateRequest, CertDetailVO, VerifyRequest, VerifyResultVO,
   VerifyQueryLogVO, PageResult, PageQuery, PreviewUrlVO
 } from '@/shared/types'
@@ -72,7 +72,7 @@ export const getClaimChainReceipt = (claimNo: string) =>
 
 /** 我的确权列表 */
 export const getMyClaims = (params: PageQuery & { status?: string }) =>
-  get<PageResult<ClaimDetailVO>>('/api/claims', params)
+  get<PageResult<ClaimListVO>>('/api/claims', params)
 
 /** 管理员审核确权 */
 export const reviewClaim = (data: ClaimReviewRequest) =>
@@ -80,7 +80,7 @@ export const reviewClaim = (data: ClaimReviewRequest) =>
 
 /** 管理员确权审核列表 */
 export const getAdminClaims = (params: PageQuery & { status?: string }) =>
-  get<PageResult<ClaimDetailVO>>('/api/admin/claims', params)
+  get<PageResult<ClaimListVO>>('/api/admin/claims', params)
 
 /* ========== 证书接口 ========== */
 

@@ -66,8 +66,8 @@ const portalRoutes: RouteRecordRaw[] = [
       { path: 'creator/certificates/:certNo', component: () => import('@/apps/portal/pages/CertDetail.vue'), props: true, meta: { roles: CREATOR_ONLY } },
       /* 购买者工作台 */
       { path: 'buyer/dashboard', component: () => import('@/apps/portal/pages/BuyerDashboard.vue'), meta: { roles: BUYER_ONLY } },
-      /* 买家订单详情 */
-      { path: 'buyer/orders/:orderNo', component: () => import('@/apps/portal/pages/OrderDetail.vue'), props: true, meta: { roles: BUYER_ONLY } },
+      /* 订单详情（创作者卖出/买家购买共用） */
+      { path: 'orders/:orderNo', component: () => import('@/apps/portal/pages/OrderDetail.vue'), props: true },
       /* 我的授权 */
       { path: 'buyer/licenses', component: () => import('@/apps/portal/pages/LicenseList.vue'), meta: { roles: BUYER_ONLY } },
       /* 授权详情 */

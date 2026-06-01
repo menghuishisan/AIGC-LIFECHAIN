@@ -146,6 +146,16 @@ export interface ClaimDetailVO {
   allowedActions: string[]
 }
 
+/** 确权列表项（与后端 ClaimListVO 对齐，列表场景使用平铺字段） */
+export interface ClaimListVO {
+  claimNo: string
+  workNo: string
+  workTitle?: string
+  status: string
+  submitTime?: string
+  createdAt?: string
+}
+
 /** 确权审核请求 */
 export interface ClaimReviewRequest {
   claimNo: string

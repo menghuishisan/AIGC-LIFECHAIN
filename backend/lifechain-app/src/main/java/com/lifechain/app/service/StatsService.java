@@ -5,7 +5,6 @@ import com.lifechain.app.dto.DistributionVO;
 import com.lifechain.app.dto.StatsCountVO;
 import com.lifechain.app.dto.StatsOverviewVO;
 import com.lifechain.app.dto.TrendPointVO;
-import com.lifechain.auth.entity.AccountEntity;
 import com.lifechain.auth.mapper.AccountMapper;
 import com.lifechain.regulator.entity.RiskEventEntity;
 import com.lifechain.regulator.mapper.RiskEventMapper;
@@ -38,11 +37,24 @@ public class StatsService {
     private final RiskEventMapper riskEventMapper;
 
     public StatsOverviewVO getOverview() {
+        LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
+        Long todayNewAccounts = accountMapper.selectCount(new LambdaQueryWrapper<com.lifechain.auth.entity.AccountEntity>()
+                .ge(com.lifechain.auth.entity.AccountEntity::getCreatedAt, startOfToday));
+        Long todayNewOrders = tradeOrderMapper.selectCount(new LambdaQueryWrapper<TradeOrderEntity>()
+                .ge(TradeOrderEntity::getCreatedAt, startOfToday));
+        Long totalTradeAmount = tradeOrderMapper.selectList(new LambdaQueryWrapper<TradeOrderEntity>()
+                        .select(TradeOrderEntity::getPayAmount)
+                        .eq(TradeOrderEntity::getOrderStatus, com.lifechain.common.enums.OrderStatusEnum.ORDER_COMPLETED.getCode()))
+                .stream().map(TradeOrderEntity::getPayAmount).filter(java.util.Objects::nonNull)
+                .mapToLong(Long::longValue).sum();
         return StatsOverviewVO.builder()
                 .totalAccounts(accountMapper.selectCount(new LambdaQueryWrapper<>()))
                 .totalWorks(workMapper.selectCount(new LambdaQueryWrapper<>()))
                 .totalOrders(tradeOrderMapper.selectCount(new LambdaQueryWrapper<>()))
                 .totalSettlements(settlementRecordMapper.selectCount(new LambdaQueryWrapper<>()))
+                .totalTradeAmount(totalTradeAmount)
+                .todayNewAccounts(todayNewAccounts)
+                .todayNewOrders(todayNewOrders)
                 .build();
     }
 
@@ -81,28 +93,24 @@ public class StatsService {
     }
 
     public DistributionVO getDistribution() {
-        Map<String, Long> worksByStatus = workMapper.selectList(new LambdaQueryWrapper<WorkEntity>()
-                        .select(WorkEntity::getStatus))
-                .stream().collect(Collectors.groupingBy(WorkEntity::getStatus, Collectors.counting()));
+        Map<String, Long> workTypeDistribution = workMapper.selectList(new LambdaQueryWrapper<WorkEntity>()
+                        .select(WorkEntity::getWorkType))
+                .stream().filter(w -> w.getWorkType() != null)
+                .collect(Collectors.groupingBy(WorkEntity::getWorkType, Collectors.counting()));
 
-        Map<String, Long> ordersByStatus = tradeOrderMapper.selectList(new LambdaQueryWrapper<TradeOrderEntity>()
+        Map<String, Long> orderStatusDistribution = tradeOrderMapper.selectList(new LambdaQueryWrapper<TradeOrderEntity>()
                         .select(TradeOrderEntity::getOrderStatus))
                 .stream().collect(Collectors.groupingBy(TradeOrderEntity::getOrderStatus, Collectors.counting()));
 
-        Map<String, Long> accountsByType = accountMapper.selectList(new LambdaQueryWrapper<AccountEntity>()
-                        .select(AccountEntity::getAccountType))
-                .stream().collect(Collectors.groupingBy(AccountEntity::getAccountType, Collectors.counting()));
-
-        Map<String, Long> riskByLevel = riskEventMapper.selectList(new LambdaQueryWrapper<RiskEventEntity>()
-                        .select(RiskEventEntity::getRiskLevel))
-                .stream().filter(e -> e.getRiskLevel() != null)
-                .collect(Collectors.groupingBy(RiskEventEntity::getRiskLevel, Collectors.counting()));
+        Map<String, Long> riskStatusDistribution = riskEventMapper.selectList(new LambdaQueryWrapper<RiskEventEntity>()
+                        .select(RiskEventEntity::getStatus))
+                .stream().filter(e -> e.getStatus() != null)
+                .collect(Collectors.groupingBy(RiskEventEntity::getStatus, Collectors.counting()));
 
         return DistributionVO.builder()
-                .worksByStatus(worksByStatus)
-                .ordersByStatus(ordersByStatus)
-                .accountsByType(accountsByType)
-                .riskByLevel(riskByLevel)
+                .workTypeDistribution(workTypeDistribution)
+                .orderStatusDistribution(orderStatusDistribution)
+                .riskStatusDistribution(riskStatusDistribution)
                 .build();
     }
 
