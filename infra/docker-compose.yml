@@ -30,6 +30,9 @@
 #
 # 所有环境变量统一从 backend/.env 读取
 # 启动时必须加 --env-file ../backend/.env
+#
+# 项目镜像统一使用 aigc-lifechain/ 前缀，便于和本机其他项目镜像区分。
+# 首次启动前可用本文件中的上游基础镜像重新 tag 到对应项目镜像名。
 
 networks:
   lifechain-net:
@@ -52,7 +55,7 @@ services:
 
   lifechain-mysql:
     container_name: lifechain-mysql
-    image: mysql:8.0
+    image: aigc-lifechain/mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME:-lifechain}
@@ -72,7 +75,7 @@ services:
 
   lifechain-redis:
     container_name: lifechain-redis
-    image: redis:7-alpine
+    image: aigc-lifechain/redis:7-alpine
     ports:
       - "6380:6379"
     volumes:
@@ -89,7 +92,7 @@ services:
 
   lifechain-minio:
     container_name: lifechain-minio
-    image: minio/minio:latest
+    image: aigc-lifechain/minio:latest
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
@@ -110,7 +113,7 @@ services:
 
   lifechain-rabbitmq:
     container_name: lifechain-rabbitmq
-    image: rabbitmq:3.13-management-alpine
+    image: aigc-lifechain/rabbitmq:3.13-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-lifechain}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-lifechain123}
@@ -130,7 +133,7 @@ services:
 
   lifechain-etcd:
     container_name: lifechain-etcd
-    image: quay.io/coreos/etcd:v3.5.14
+    image: aigc-lifechain/etcd:v3.5.14
     environment:
       ETCD_AUTO_COMPACTION_MODE: revision
       ETCD_AUTO_COMPACTION_RETENTION: "1000"
@@ -150,7 +153,7 @@ services:
 
   lifechain-milvus:
     container_name: lifechain-milvus
-    image: milvusdb/milvus:v2.4.4
+    image: aigc-lifechain/milvus:v2.4.4
     command: ["milvus", "run", "standalone"]
     environment:
       ETCD_ENDPOINTS: lifechain-etcd:2379
@@ -179,6 +182,7 @@ services:
 
   lifechain-feature-extract:
     container_name: lifechain-feature-extract
+    image: aigc-lifechain/feature-extract:latest
     build:
       context: ../services/feature-extract
       dockerfile: Dockerfile
@@ -205,7 +209,7 @@ services:
 
   orderer.lifechain.com:
     container_name: orderer.lifechain.com
-    image: hyperledger/fabric-orderer:2.5
+    image: aigc-lifechain/fabric-orderer:2.5
     environment:
       - FABRIC_LOGGING_SPEC=INFO
       - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
@@ -232,7 +236,7 @@ services:
 
   peer0.org1.lifechain.com:
     container_name: peer0.org1.lifechain.com
-    image: hyperledger/fabric-peer:2.5
+    image: aigc-lifechain/fabric-peer:2.5
     environment:
       - FABRIC_LOGGING_SPEC=INFO
       - CORE_PEER_ID=peer0.org1.lifechain.com
@@ -271,7 +275,7 @@ services:
 
   peer0.org2.lifechain.com:
     container_name: peer0.org2.lifechain.com
-    image: hyperledger/fabric-peer:2.5
+    image: aigc-lifechain/fabric-peer:2.5
     environment:
       - FABRIC_LOGGING_SPEC=INFO
       - CORE_PEER_ID=peer0.org2.lifechain.com
@@ -310,7 +314,7 @@ services:
 
   ca.org1.lifechain.com:
     container_name: ca.org1.lifechain.com
-    image: hyperledger/fabric-ca:1.5.7
+    image: aigc-lifechain/fabric-ca:1.5.7
     environment:
       - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
       - FABRIC_CA_SERVER_CA_NAME=ca-org1
@@ -328,7 +332,7 @@ services:
 
   ca.org2.lifechain.com:
     container_name: ca.org2.lifechain.com
-    image: hyperledger/fabric-ca:1.5.7
+    image: aigc-lifechain/fabric-ca:1.5.7
     environment:
       - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
       - FABRIC_CA_SERVER_CA_NAME=ca-org2
@@ -356,7 +360,7 @@ services:
 
   lifechain-otel-collector:
     container_name: lifechain-otel-collector
-    image: otel/opentelemetry-collector-contrib:0.103.0
+    image: aigc-lifechain/otel-collector-contrib:0.103.0
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
       - ./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
@@ -372,7 +376,7 @@ services:
 
   lifechain-jaeger:
     container_name: lifechain-jaeger
-    image: jaegertracing/all-in-one:1.57
+    image: aigc-lifechain/jaeger-all-in-one:1.57
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
@@ -383,7 +387,7 @@ services:
 
   lifechain-prometheus:
     container_name: lifechain-prometheus
-    image: prom/prometheus:v2.52.0
+    image: aigc-lifechain/prometheus:v2.52.0
     ports:
       - "9090:9090"
     volumes:
@@ -397,4 +401,3 @@ services:
     networks:
       - lifechain-net
     restart: unless-stopped
-

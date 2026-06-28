@@ -18,7 +18,7 @@ SQL_DIR="$SCRIPT_DIR"
 ENV_FILE="$SCRIPT_DIR/../.env"
 if [[ -f "$ENV_FILE" ]]; then
   set -a
-  source <(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$')
+  source <(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$' | sed 's/\r$//')
   set +a
 fi
 
@@ -104,11 +104,15 @@ if [[ "$NO_SEED" == false ]]; then
       ABS_SEED=$(cd "$SEED_ASSETS_HOST" && pwd)
       if command -v cygpath >/dev/null 2>&1; then
         ABS_SEED_NATIVE=$(cygpath -w "$ABS_SEED")
+        WORK_SRC="${ABS_SEED_NATIVE}\\work"
+        COVER_SRC="${ABS_SEED_NATIVE}\\cover"
       else
         ABS_SEED_NATIVE="$ABS_SEED"
+        WORK_SRC="${ABS_SEED_NATIVE}/work"
+        COVER_SRC="${ABS_SEED_NATIVE}/cover"
       fi
-      [[ -d "$ABS_SEED/work"  ]] && docker cp "${ABS_SEED_NATIVE}\\work"  "${MINIO_CONTAINER}:/tmp/seed-assets/work"  >/dev/null
-      [[ -d "$ABS_SEED/cover" ]] && docker cp "${ABS_SEED_NATIVE}\\cover" "${MINIO_CONTAINER}:/tmp/seed-assets/cover" >/dev/null
+      [[ -d "$ABS_SEED/work"  ]] && docker cp "$WORK_SRC"  "${MINIO_CONTAINER}:/tmp/seed-assets/work"  >/dev/null
+      [[ -d "$ABS_SEED/cover" ]] && docker cp "$COVER_SRC" "${MINIO_CONTAINER}:/tmp/seed-assets/cover" >/dev/null
       [[ -d "$ABS_SEED/work"  ]] && MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" mc cp --recursive /tmp/seed-assets/work/  "lifelocal/${BUCKET}/work/"  >/dev/null 2>&1
       [[ -d "$ABS_SEED/cover" ]] && MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" mc cp --recursive /tmp/seed-assets/cover/ "lifelocal/${PUBLIC_BUCKET}/cover/" >/dev/null 2>&1
       MSYS_NO_PATHCONV=1 docker exec "$MINIO_CONTAINER" rm -rf /tmp/seed-assets >/dev/null 2>&1 || true
