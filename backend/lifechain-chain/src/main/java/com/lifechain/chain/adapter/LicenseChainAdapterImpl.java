@@ -82,6 +82,26 @@ public class LicenseChainAdapterImpl implements LicenseChainAdapter {
         return fabricChainService.queryTransaction(CHAINCODE_NAME, "QueryLicense", licenseNo);
     }
 
+    @Override
+    public ChainSubmitResult revokeLicense(Long bizId, String licenseNo, String reason, LocalDateTime revokeTime) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("licenseNo", licenseNo);
+        payload.put("reason", reason);
+        payload.put("revokeTime", DateTimeUtil.formatUtc(revokeTime));
+        String json = serializePayload(payload);
+        ChainSubmitRequest request = new ChainSubmitRequest();
+        request.setBizType(BizTypeEnum.LICENSE.getCode());
+        request.setBizId(bizId);
+        request.setBizNo(licenseNo);
+        request.setTxType("REVOKE");
+        request.setChaincodeName(CHAINCODE_NAME);
+        request.setFunctionName("RevokeLicense");
+        request.setArgs(new String[]{json});
+        request.setRequestPayloadHash(HashUtil.sha256(json));
+        request.setIdempotentKey(BizTypeEnum.LICENSE.getCode() + ":" + bizId + ":REVOKE");
+        return fabricChainService.submitTransaction(request);
+    }
+
     /**
      * 将参数 Map 序列化为 JSON 字符串
      *

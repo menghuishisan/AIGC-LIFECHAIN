@@ -83,6 +83,8 @@
 
     <logger name="com.lifechain" level="DEBUG"/>
     <logger name="org.springframework.security" level="INFO"/>
+    <!-- 支付宝SDK原始报文日志可能包含签名和用户字段；渠道诊断使用适配器的脱敏业务日志。 -->
+    <logger name="sdk" level="OFF"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>

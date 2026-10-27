@@ -66,7 +66,6 @@
           <el-table-column prop="amount" label="金额" width="120">
             <template #default="{ row }">{{ formatCurrency(row.amount) }}</template>
           </el-table-column>
-          <el-table-column prop="itemStatus" label="状态" width="120" />
         </el-table>
       </div>
 

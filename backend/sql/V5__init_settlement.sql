@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS `settlement_record` (
     `updated_at`    DATETIME     NOT NULL               COMMENT '更新时间(UTC)',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_settle_no` (`settle_no`),
-    KEY `idx_order_id` (`order_id`),
+    UNIQUE KEY `uk_order_id` (`order_id`),
     KEY `idx_order_no` (`order_no`),
     KEY `idx_work_id` (`work_id`),
     KEY `idx_work_no` (`work_no`),
@@ -88,15 +88,13 @@ CREATE TABLE IF NOT EXISTS `settlement_item` (
     `role_type`    VARCHAR(30)   NOT NULL               COMMENT '角色类型',
     `ratio`        DECIMAL(5,4)  NOT NULL               COMMENT '分账比例',
     `amount`       BIGINT        NOT NULL               COMMENT '金额（分）',
-    `status`       VARCHAR(20)   NOT NULL               COMMENT '状态(PENDING/SUCCESS/FAILED)',
     `deleted_flag` TINYINT       NOT NULL DEFAULT 0     COMMENT '删除标记 0-未删除 1-已删除',
     `created_at`   DATETIME      NOT NULL               COMMENT '创建时间(UTC)',
     `updated_at`   DATETIME      NOT NULL               COMMENT '更新时间(UTC)',
     PRIMARY KEY (`id`),
     KEY `idx_settle_id` (`settle_id`),
     KEY `idx_settle_no` (`settle_no`),
-    KEY `idx_account_id` (`account_id`),
-    KEY `idx_status` (`status`)
+    KEY `idx_account_id` (`account_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='结算明细表';
 
 CREATE TABLE IF NOT EXISTS `reverse_settlement_record` (
@@ -124,7 +122,7 @@ CREATE TABLE IF NOT EXISTS `reverse_settlement_record` (
     `updated_at`     DATETIME     NOT NULL               COMMENT '更新时间(UTC)',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_reverse_no` (`reverse_no`),
-    KEY `idx_settle_id` (`settle_id`),
+    UNIQUE KEY `uk_reverse_settle_id` (`settle_id`),
     KEY `idx_settle_no` (`settle_no`),
     KEY `idx_order_id` (`order_id`),
     KEY `idx_status` (`status`),

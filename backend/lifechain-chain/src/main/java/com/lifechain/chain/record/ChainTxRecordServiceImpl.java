@@ -49,6 +49,7 @@ public class ChainTxRecordServiceImpl implements ChainTxRecordService {
         entity.setEndorsementSummary(result.getEndorsementSummary());
         entity.setSubmitTime(result.getSubmitTime());
         entity.setConfirmTime(result.getConfirmTime());
+        entity.setReceiptProcessed(false);
 
         if (result.isSuccess()) {
             entity.setChainStatus(ChainStatusEnum.CHAIN_SUBMITTED.getCode());

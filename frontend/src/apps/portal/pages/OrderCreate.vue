@@ -62,7 +62,7 @@ const router = useRouter()
 const route = useRoute()
 const submitting = ref(false)
 const infoLoading = ref(false)
-const payChannel = ref('WECHAT_PAY')
+const payChannel = ref('ALIPAY')
 
 const listingNo = route.query.listingNo as string || ''
 const workNo = route.query.workNo as string || ''

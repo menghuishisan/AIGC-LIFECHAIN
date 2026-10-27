@@ -117,7 +117,6 @@ export interface AdminOrderQuery {
 
 /** 支付请求 */
 export interface PayRequest {
-  orderNo?: string
   payChannel: string
   clientIp?: string
   requestId: string
@@ -129,11 +128,11 @@ export interface PayResultVO {
   prepayId?: string
   payParams?: Record<string, string>
   payUrl?: string
+  formHtml?: string
 }
 
 /** 退款申请请求 */
 export interface RefundApplyRequest {
-  orderNo?: string
   reason: string
   requestId: string
 }
@@ -141,9 +140,8 @@ export interface RefundApplyRequest {
 /** 退款处理请求 */
 export interface RefundProcessRequest {
   refundNo: string
-  action: string
-  reviewComment?: string
-  reasonCode?: string
+  action: 'APPROVE' | 'REJECT'
+  comment?: string
   requestId: string
 }
 

@@ -16,6 +16,7 @@ import com.lifechain.settlement.mapper.SettlementRecordMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 结算链上回执处理器
@@ -42,12 +43,15 @@ public class SettlementChainReceiptHandler implements ChainReceiptHandler {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void onChainSuccess(ChainTxRecordEntity record) {
         SettlementRecordEntity settlement = settlementRecordMapper.selectById(record.getBizId());
         if (settlement == null) {
             log.warn("结算回执处理失败，未找到结算记录，bizId={}", record.getBizId());
             return;
         }
+        settlement = settlementRecordMapper.selectBySettleNoForUpdate(settlement.getSettleNo());
+        if (!java.util.Objects.equals(record.getTxHash(), settlement.getTxHash())) return;
         String fromStatus = settlement.getStatus();
         if (!SettlementStatusEnum.SETTLE_PROCESSING.getCode().equals(fromStatus)
                 || !ChainStatusEnum.CHAIN_SUBMITTED.getCode().equals(settlement.getChainStatus())) {
@@ -80,9 +84,13 @@ public class SettlementChainReceiptHandler implements ChainReceiptHandler {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void onChainFailed(ChainTxRecordEntity record) {
         SettlementRecordEntity settlement = settlementRecordMapper.selectById(record.getBizId());
         if (settlement == null) return;
+        settlement = settlementRecordMapper.selectBySettleNoForUpdate(settlement.getSettleNo());
+        if (!java.util.Objects.equals(record.getTxHash(), settlement.getTxHash())
+                || !SettlementStatusEnum.SETTLE_PROCESSING.getCode().equals(settlement.getStatus())) return;
         String fromStatus = settlement.getStatus();
         settlement.setStatus(SettlementStatusEnum.SETTLE_FAILED.getCode());
         settlement.setChainStatus(ChainStatusEnum.CHAIN_FAILED.getCode());

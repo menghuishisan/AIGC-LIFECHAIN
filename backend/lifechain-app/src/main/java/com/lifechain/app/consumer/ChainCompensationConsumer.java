@@ -18,8 +18,7 @@ import java.io.IOException;
 /**
  * 链上交易补偿消息消费者
  * <p>
- * 消费延迟队列中到期的链上补偿消息，对 CHAIN_SUBMITTED 超时未确认的交易记录
- * 执行重试提交。若交易已被确认则跳过处理。
+ * 消费链上补偿消息，查询待确认交易，并重试最终成功或失败结果的业务回写。
  * </p>
  *
  * @author LifeChain
@@ -36,7 +35,7 @@ public class ChainCompensationConsumer {
      * 处理链上交易补偿消息
      * <p>
      * 从延迟队列接收到期消息后，查询链上交易记录状态，
-     * 若仍为 CHAIN_SUBMITTED（超时未确认）则执行重试提交。
+     * 待确认时查询链结果，已有最终结果时只重试业务回写。
      * </p>
      *
      * @param message     补偿消息体，包含 recordId 和 bizNo
@@ -55,8 +54,9 @@ public class ChainCompensationConsumer {
                 channel.basicAck(deliveryTag, false);
                 return;
             }
-            // 状态检查：仅对 CHAIN_SUBMITTED 状态执行补偿，已确认则跳过
-            if (!com.lifechain.common.enums.ChainStatusEnum.CHAIN_SUBMITTED.getCode().equals(record.getChainStatus())) {
+            // 链结果与业务回写分别确认，避免已确认失败的回执在业务事务失败后遗漏补偿。
+            if (Boolean.TRUE.equals(record.getReceiptProcessed())
+                    || !java.util.Set.of("CHAIN_SUBMITTED", "CHAIN_SUCCESS", "CHAIN_FAILED").contains(record.getChainStatus())) {
                 channel.basicAck(deliveryTag, false);
                 return;
             }

@@ -32,7 +32,8 @@ public interface SettlementService {
      * @return 结算记录视图对象
      */
     SettlementRecordVO settleOrder(String orderNo, Long orderId, Long workId,
-                                    String workNo, Long totalAmount, Long creatorAccountId);
+                                    String workNo, Long totalAmount, Long creatorAccountId,
+                                    java.math.BigDecimal creatorRatio, java.math.BigDecimal platformRatio);
 
     /**
      * 根据订单编号查询结算记录
@@ -74,7 +75,7 @@ public interface SettlementService {
     /**
      * 发起逆分账
      * <p>
-     * 针对已成功结算的订单发起逆分账操作，将已分账资金按原路退回。
+     * 针对已成功结算的订单撤销内部收益分配并上链；真实退款由支付渠道执行。
      * 仅允许对状态为 SETTLE_SUCCESS 的结算发起逆分账。
      * </p>
      *

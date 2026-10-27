@@ -28,7 +28,7 @@
 
         <!-- 价格 -->
         <el-form-item label="价格（元）" prop="priceAmount">
-          <el-input-number v-model="priceYuan" :min="0.01" :precision="2" :step="1" style="width: 100%" />
+          <el-input-number v-model="priceYuan" :min="0.01" :max="MAX_AMOUNT_YUAN" :precision="2" :step="1" style="width: 100%" />
         </el-form-item>
 
         <!-- 授权范围描述 -->
@@ -58,7 +58,7 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { tradeApi } from '@/shared/api'
 import { LicenseTypeMap } from '@/shared/constants'
-import { generateRequestId } from '@/shared/utils'
+import { generateRequestId, yuanToFen, MAX_AMOUNT_YUAN } from '@/shared/utils'
 import type { LicenseTemplateVO } from '@/shared/types'
 
 const router = useRouter()
@@ -83,7 +83,7 @@ const form = reactive({
 })
 
 /* 价格同步（元→分） */
-const formPriceFen = computed(() => Math.round(priceYuan.value * 100))
+const formPriceFen = computed(() => yuanToFen(priceYuan.value))
 
 const rules: FormRules = {
   workNo: [{ required: true, message: '请输入作品编号', trigger: 'blur' }],

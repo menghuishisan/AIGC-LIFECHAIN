@@ -37,6 +37,14 @@ public class PaymentAdapterFactory {
         };
     }
 
+    /** 将查询能力限制在实际已实现的渠道，避免对未知结果作成功推断。 */
+    public QueryablePaymentAdapter getQueryableAdapter(String payChannel) {
+        if (getAdapter(payChannel) instanceof QueryablePaymentAdapter adapter) {
+            return adapter;
+        }
+        throw new BizException(ErrorCodeEnum.PAY_CHANNEL_UNSUPPORTED, "当前渠道尚不支持主动查询");
+    }
+
     /**
      * 创建支付订单（自动路由到对应渠道）
      *
@@ -68,10 +76,7 @@ public class PaymentAdapterFactory {
                 request.getRefundNo(), request.getPayChannel(), request.getRefundAmount());
         PaymentAdapter adapter = getAdapter(request.getPayChannel());
         RefundResponse response = adapter.refund(request);
-        if (!response.isSuccess()) {
-            log.error("退款失败, 退款单号: {}, 错误: {}", request.getRefundNo(), response.getErrorMsg());
-            throw new BizException(ErrorCodeEnum.REFUND_FAILED, response.getErrorMsg());
-        }
+        // 明确拒绝交给订单服务持久化；网络未知由适配器返回pending，不能混为拒绝。
         return response;
     }
 }

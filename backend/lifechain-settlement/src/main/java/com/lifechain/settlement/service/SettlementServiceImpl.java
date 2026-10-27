@@ -16,24 +16,22 @@ import com.lifechain.common.model.PageResult;
 import com.lifechain.common.util.BizNoUtil;
 import com.lifechain.common.util.DateTimeUtil;
 import com.lifechain.common.util.HashUtil;
+import com.lifechain.common.util.MoneyUtil;
 import com.lifechain.settlement.dto.ReverseSettlementVO;
 import com.lifechain.settlement.dto.SettlementItemVO;
 import com.lifechain.settlement.dto.SettlementRecordVO;
 import com.lifechain.settlement.entity.ReverseSettlementRecordEntity;
 import com.lifechain.settlement.entity.SettlementItemEntity;
 import com.lifechain.settlement.entity.SettlementRecordEntity;
-import com.lifechain.settlement.entity.WorkSettleRuleEntity;
 import com.lifechain.settlement.mapper.ReverseSettlementRecordMapper;
 import com.lifechain.settlement.mapper.SettlementItemMapper;
 import com.lifechain.settlement.mapper.SettlementRecordMapper;
-import com.lifechain.settlement.mapper.WorkSettleRuleMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +42,7 @@ import java.util.stream.Collectors;
  * <p>
  * 核心分账结算逻辑实现。负责订单结算的完整生命周期管理：
  * <ol>
- *   <li>基于作品结算规则（或默认80/20规则）计算各角色分账金额</li>
+ *   <li>基于订单固定分账比例计算各角色的整数分收益</li>
  *   <li>创建结算记录和明细，提交链上存证</li>
  *   <li>根据链上回执更新结算状态</li>
  *   <li>支持结算失败重试和逆分账操作</li>
@@ -61,17 +59,12 @@ public class SettlementServiceImpl implements SettlementService {
 
     private final SettlementRecordMapper settlementRecordMapper;
     private final SettlementItemMapper settlementItemMapper;
-    private final WorkSettleRuleMapper workSettleRuleMapper;
     private final ReverseSettlementRecordMapper reverseSettlementRecordMapper;
     private final AccountMapper accountMapper;
     private final SettlementChainAdapter settlementChainAdapter;
     private final AuditService auditService;
     private final TraceEventService traceEventService;
 
-    /** 默认创作者分成比例（80%） */
-    private static final BigDecimal DEFAULT_CREATOR_RATIO = new BigDecimal("0.8000");
-    /** 默认平台分成比例（20%） */
-    private static final BigDecimal DEFAULT_PLATFORM_RATIO = new BigDecimal("0.2000");
     /** 平台系统账户ID（用于平台分成的收款方） */
     private static final Long PLATFORM_ACCOUNT_ID = 0L;
 
@@ -81,7 +74,7 @@ public class SettlementServiceImpl implements SettlementService {
      * 完整结算流程：
      * <ol>
      *   <li>幂等校验：检查订单是否已结算</li>
-     *   <li>查询生效规则，无规则则使用默认80/20比例</li>
+     *   <li>校验订单固定比例合计为1，禁止重新读取可变规则</li>
      *   <li>计算各角色分账金额</li>
      *   <li>创建结算记录（状态=SETTLE_PROCESSING, 链上状态=CHAIN_PENDING）</li>
      *   <li>创建结算明细</li>
@@ -94,7 +87,8 @@ public class SettlementServiceImpl implements SettlementService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SettlementRecordVO settleOrder(String orderNo, Long orderId, Long workId,
-                                           String workNo, Long totalAmount, Long creatorAccountId) {
+                                           String workNo, Long totalAmount, Long creatorAccountId,
+                                           BigDecimal creatorRatio, BigDecimal platformRatio) {
         log.info("开始结算，orderNo={}, workId={}, totalAmount={}", orderNo, workId, totalAmount);
 
         // 1. 幂等校验：检查订单是否已结算
@@ -105,23 +99,8 @@ public class SettlementServiceImpl implements SettlementService {
             throw new BizException(ErrorCodeEnum.SETTLEMENT_FAILED, "该订单已存在结算记录");
         }
 
-        // 2. 查询作品生效的结算规则
-        WorkSettleRuleEntity rule = workSettleRuleMapper.selectEffectiveRule(workId);
-        BigDecimal creatorRatio;
-        BigDecimal platformRatio;
-        if (rule != null) {
-            creatorRatio = rule.getCreatorRatio();
-            platformRatio = rule.getPlatformRatio();
-            log.info("使用作品结算规则，workId={}, creatorRatio={}, platformRatio={}",
-                    workId, creatorRatio, platformRatio);
-        } else {
-            creatorRatio = DEFAULT_CREATOR_RATIO;
-            platformRatio = DEFAULT_PLATFORM_RATIO;
-            log.info("作品无绑定规则，使用默认80/20比例，workId={}", workId);
-        }
-
-        // 3. 计算分账金额
-        long creatorAmount = calculateAmount(totalAmount, creatorRatio);
+        // 2. 仅使用下单时固定的比例；拒绝非法规则，不能由付款后的规则变化改写收益。
+        long creatorAmount = MoneyUtil.creatorShare(totalAmount, creatorRatio, platformRatio);
         long platformAmount = totalAmount - creatorAmount;
 
         LocalDateTime now = DateTimeUtil.nowUtc();
@@ -346,26 +325,26 @@ public class SettlementServiceImpl implements SettlementService {
         log.info("发起逆分账，settleNo={}, reason={}", settleNo, reason);
 
         // 1. 查询原结算记录
-        SettlementRecordEntity record = settlementRecordMapper.selectBySettleNo(settleNo);
+        SettlementRecordEntity record = settlementRecordMapper.selectBySettleNoForUpdate(settleNo);
         if (record == null) {
             throw new BizException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "结算记录不存在");
         }
-        if (!SettlementStatusEnum.SETTLE_SUCCESS.getCode().equals(record.getStatus())) {
+        ReverseSettlementRecordEntity existingReverse = reverseSettlementRecordMapper.selectBySettleNo(settleNo);
+        if (existingReverse != null && !SettlementStatusEnum.REVERSE_FAILED.getCode().equals(existingReverse.getStatus())) {
+            return buildReverseSettlementVO(existingReverse);
+        }
+        if (!SettlementStatusEnum.SETTLE_SUCCESS.getCode().equals(record.getStatus())
+                && !SettlementStatusEnum.REVERSE_PENDING.getCode().equals(record.getStatus())) {
             throw new BizException(ErrorCodeEnum.STATUS_INVALID,
                     "仅成功状态的结算可逆分账", null, record.getStatus());
         }
 
-        // 2. 检查是否已有逆分账记录
-        ReverseSettlementRecordEntity existingReverse = reverseSettlementRecordMapper.selectBySettleNo(settleNo);
-        if (existingReverse != null) {
-            throw new BizException(ErrorCodeEnum.REVERSE_SETTLEMENT_FAILED, "该结算已存在逆分账记录");
-        }
-
+        MoneyUtil.requireFen(record.getTotalAmount());
         LocalDateTime now = DateTimeUtil.nowUtc();
-        String reverseNo = BizNoUtil.reverseNo();
+        String reverseNo = existingReverse == null ? BizNoUtil.reverseNo() : existingReverse.getReverseNo();
 
         // 3. 创建逆分账记录
-        ReverseSettlementRecordEntity reverseRecord = new ReverseSettlementRecordEntity();
+        ReverseSettlementRecordEntity reverseRecord = existingReverse == null ? new ReverseSettlementRecordEntity() : existingReverse;
         reverseRecord.setReverseNo(reverseNo);
         reverseRecord.setSettleId(record.getId());
         reverseRecord.setSettleNo(settleNo);
@@ -374,18 +353,21 @@ public class SettlementServiceImpl implements SettlementService {
         reverseRecord.setReverseAmount(record.getTotalAmount());
         reverseRecord.setStatus(SettlementStatusEnum.REVERSE_PENDING.getCode());
         reverseRecord.setChainStatus(ChainStatusEnum.CHAIN_PENDING.getCode());
-        reverseRecord.setReason(reason);
-        reverseRecord.setApplyTime(now);
-        reverseRecord.setCreatedAt(now);
+        if (existingReverse == null) {
+            reverseRecord.setReason(reason);
+            reverseRecord.setApplyTime(now);
+            reverseRecord.setCreatedAt(now);
+        }
+        reverseRecord.setFailReason(null);
         reverseRecord.setUpdatedAt(now);
-        reverseSettlementRecordMapper.insert(reverseRecord);
+        if (existingReverse == null) reverseSettlementRecordMapper.insert(reverseRecord);
 
         // 4. 提交链上存证
         boolean chainSubmitSuccess = false;
         try {
             ChainSubmitResult chainResult = settlementChainAdapter.registerReverseSettlement(
                     reverseRecord.getId(), reverseNo, settleNo,
-                    record.getTotalAmount(), reason, now);
+                    record.getTotalAmount(), reverseRecord.getReason(), reverseRecord.getApplyTime());
 
             if (chainResult.isSuccess()) {
                 reverseRecord.setStatus(SettlementStatusEnum.REVERSE_PENDING.getCode());
@@ -410,9 +392,9 @@ public class SettlementServiceImpl implements SettlementService {
         reverseRecord.setUpdatedAt(DateTimeUtil.nowUtc());
         reverseSettlementRecordMapper.updateById(reverseRecord);
 
-        // 仅当链提交成功时，才把原结算推进到 REVERSE_PENDING
+        // 保留逆转意图，即便提交失败也不能恢复为已完成分账；重试复用相同编号和载荷。
         String fromSettleStatus = record.getStatus();
-        if (chainSubmitSuccess) {
+        if (!SettlementStatusEnum.REVERSE_PENDING.getCode().equals(record.getStatus())) {
             record.setStatus(SettlementStatusEnum.REVERSE_PENDING.getCode());
             record.setUpdatedAt(DateTimeUtil.nowUtc());
             settlementRecordMapper.updateById(record);
@@ -420,7 +402,7 @@ public class SettlementServiceImpl implements SettlementService {
             auditService.writeStatusHistory(
                     BizTypeEnum.SETTLEMENT.getCode(), record.getId(), settleNo,
                     fromSettleStatus, record.getStatus(),
-                    "逆分账链上提交成功，原结算进入逆分账中", null, null);
+                    "退款逆分账待链上确认", null, null);
         }
 
         // 5. 写入逆分账记录的审计日志
@@ -450,23 +432,6 @@ public class SettlementServiceImpl implements SettlementService {
     }
 
     /**
-     * 计算分账金额
-     * <p>
-     * 按比例计算金额，向下取整到分，确保不会超出总金额。
-     * </p>
-     *
-     * @param totalAmount 总金额（分）
-     * @param ratio       分账比例
-     * @return 分账金额（分）
-     */
-    private long calculateAmount(long totalAmount, BigDecimal ratio) {
-        return BigDecimal.valueOf(totalAmount)
-                .multiply(ratio)
-                .setScale(0, RoundingMode.FLOOR)
-                .longValue();
-    }
-
-    /**
      * 构建结算明细实体
      *
      * @param settleId  结算记录ID
@@ -488,7 +453,6 @@ public class SettlementServiceImpl implements SettlementService {
         item.setRoleType(roleType);
         item.setRatio(ratio);
         item.setAmount(amount);
-        item.setStatus("PENDING");
         item.setCreatedAt(now);
         item.setUpdatedAt(now);
         return item;
@@ -552,7 +516,6 @@ public class SettlementServiceImpl implements SettlementService {
         vo.setAccountNo(account != null ? account.getAccountNo() : null);
         vo.setRatio(item.getRatio());
         vo.setAmount(item.getAmount());
-        vo.setItemStatus(item.getStatus());
         return vo;
     }
 

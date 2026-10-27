@@ -1,6 +1,8 @@
 package com.lifechain.trade.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -23,9 +25,11 @@ public class RefundProcessRequest implements Serializable {
 
     /** 处理动作（APPROVE/REJECT） */
     @NotBlank(message = "处理动作不能为空")
+    @Pattern(regexp = "APPROVE|REJECT", message = "退款审批动作无效")
     private String action;
 
     /** 处理备注 */
+    @Size(max = 512, message = "处理备注不能超过512字")
     private String comment;
 
     /** 幂等请求ID */

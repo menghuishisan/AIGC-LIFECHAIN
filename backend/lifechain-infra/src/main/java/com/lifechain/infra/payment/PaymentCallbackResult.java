@@ -38,6 +38,15 @@ public class PaymentCallbackResult {
     /** 是否成功 */
     private boolean success;
 
+    /** 支付宝通知 ID，用于持久化去重；主动查询不产生通知 ID */
+    private String notifyId;
+
+    /** 渠道事件状态，非付款事件不得推进付款状态 */
+    private String tradeStatus;
+
+    /** 退款、关单、分账等事件仅记录通知，不作为买家付款处理 */
+    private boolean nonPaymentEvent;
+
     /** 原始回调报文（JSON或XML字符串，用于对账留痕） */
     private String rawPayload;
 }

@@ -45,10 +45,9 @@ public class DisputeResolutionHandlerImpl implements DisputeResolutionHandler {
         // 1. 触发退款申请
         try {
             RefundApplyRequest refundReq = new RefundApplyRequest();
-            refundReq.setOrderNo(orderNo);
             refundReq.setReason("争议案件 " + caseNo + " 结案：申请方胜诉，系统自动退款");
             refundReq.setRequestId(UUID.randomUUID().toString());
-            orderService.applyRefund(order.getBuyerAccountId(), refundReq);
+            orderService.applyRefund(order.getBuyerAccountId(), orderNo, refundReq);
             log.info("争议联动退款申请成功，caseNo={}, orderNo={}", caseNo, orderNo);
         } catch (Exception e) {
             log.warn("争议联动退款申请失败，caseNo={}, orderNo={}", caseNo, orderNo, e);

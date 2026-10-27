@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS `chain_tx_record` (
     `tx_hash`               VARCHAR(128)           DEFAULT NULL  COMMENT '链上交易哈希（Fabric Transaction ID）',
     `block_height`          BIGINT                 DEFAULT NULL  COMMENT '区块高度',
     `chain_status`          VARCHAR(20)   NOT NULL               COMMENT '链上状态（ChainStatusEnum: PENDING/SUCCESS/FAILED）',
+    `receipt_processed`     TINYINT       NOT NULL DEFAULT 0     COMMENT '链回执业务状态是否已回写',
     `request_payload_hash`  VARCHAR(64)            DEFAULT NULL  COMMENT '请求负载 SHA-256 哈希',
     `response_payload`      TEXT                   DEFAULT NULL  COMMENT '链码响应负载（JSON）',
     `endorsement_summary`   VARCHAR(256)           DEFAULT NULL  COMMENT '背书节点摘要',

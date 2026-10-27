@@ -11,14 +11,14 @@ import {
   AccountStatusMap, DidStatusMap, WorkStatusMap, ClaimStatusMap,
   CertStatusMap, OrderStatusMap, LicenseStatusMap, SettlementStatusMap,
   DisputeStatusMap, FreezeStatusMap, RiskStatusMap, ChainStatusMap,
-  PayStatusMap, ListingStatusMap
+  PayStatusMap, ListingStatusMap, RefundStatusMap
 } from '@/shared/constants'
 
 const props = defineProps<{
   /** 状态值 */
   status: string
   /** 状态类型，用于选择对应的映射表 */
-  type?: 'account' | 'did' | 'work' | 'claim' | 'cert' | 'order' | 'license' | 'settlement' | 'dispute' | 'freeze' | 'risk' | 'chain' | 'pay' | 'auth' | 'listing'
+  type?: 'account' | 'did' | 'work' | 'claim' | 'cert' | 'order' | 'license' | 'settlement' | 'dispute' | 'freeze' | 'risk' | 'chain' | 'pay' | 'auth' | 'listing' | 'refund'
 }>()
 
 /** 状态映射表集合 */
@@ -37,7 +37,8 @@ const statusMaps: Record<string, Record<string, string>> = {
   risk: RiskStatusMap,
   chain: ChainStatusMap,
   pay: PayStatusMap,
-  listing: ListingStatusMap
+  listing: ListingStatusMap,
+  refund: RefundStatusMap
 }
 
 /** 状态中文文案 */
@@ -55,6 +56,9 @@ const label = computed(() => {
 /** 颜色类型映射 */
 const colorType = computed(() => {
   const s = props.status
+  if (props.type === 'refund') {
+    return ({ PENDING: 'pending', PROCESSING: 'pending', SUCCESS: 'success', FAILED: 'danger', REJECTED: 'warning' } as Record<string, string>)[s] || 'draft'
+  }
   /* 成功类状态 */
   if (['AUTH_APPROVED', 'DID_ACTIVE', 'OWNERSHIP_CONFIRMED', 'CLAIM_SUCCESS',
     'CERT_ACTIVE', 'PAY_CONFIRMED', 'AUTH_GRANTED', 'ORDER_COMPLETED',

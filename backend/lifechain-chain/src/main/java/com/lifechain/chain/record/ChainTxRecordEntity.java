@@ -58,6 +58,10 @@ public class ChainTxRecordEntity extends BaseEntity {
     @TableField("chain_status")
     private String chainStatus;
 
+    /** 链上结果和业务回写分别持久化，业务回写失败仍可补偿。 */
+    @TableField("receipt_processed")
+    private Boolean receiptProcessed;
+
     /** 请求负载哈希（SHA-256） */
     @TableField("request_payload_hash")
     private String requestPayloadHash;

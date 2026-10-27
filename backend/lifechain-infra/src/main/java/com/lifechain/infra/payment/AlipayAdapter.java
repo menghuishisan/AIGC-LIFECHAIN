@@ -3,14 +3,21 @@ package com.lifechain.infra.payment;
 import com.alipay.api.AlipayApiException;
 import com.alipay.api.AlipayClient;
 import com.alipay.api.DefaultAlipayClient;
+import com.alipay.api.domain.AlipayTradePagePayModel;
+import com.alipay.api.domain.AlipayTradeQueryModel;
+import com.alipay.api.domain.AlipayTradeCloseModel;
+import com.alipay.api.domain.AlipayTradeRefundModel;
+import com.alipay.api.domain.AlipayTradeFastpayRefundQueryModel;
 import com.alipay.api.internal.util.AlipaySignature;
 import com.alipay.api.request.AlipayTradePagePayRequest;
+import com.alipay.api.request.AlipayTradeQueryRequest;
+import com.alipay.api.request.AlipayTradeCloseRequest;
 import com.alipay.api.request.AlipayTradeRefundRequest;
-import com.alipay.api.response.AlipayTradePagePayResponse;
-import com.alipay.api.response.AlipayTradeRefundResponse;
+import com.alipay.api.request.AlipayTradeFastpayRefundQueryRequest;
 import com.lifechain.common.enums.ErrorCodeEnum;
 import com.lifechain.common.enums.PayChannelEnum;
 import com.lifechain.common.exception.BizException;
+import com.lifechain.common.util.MoneyUtil;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -18,316 +25,301 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.net.URI;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
-/**
- * 支付宝支付适配器
- * <p>
- * 基于支付宝开放平台 Java SDK（alipay-sdk-java）实现，使用电脑网站支付（PC扫码）模式。
- * 支持创建支付单、解析回调通知、申请退款等核心操作。
- * 使用RSA2签名方式确保通信安全。
- * </p>
- */
+/** 支付宝统一收单适配层；表单、验签、交易查询、退款与关单均经官方 SDK。 */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class AlipayAdapter implements PaymentAdapter {
-
+public class AlipayAdapter implements QueryablePaymentAdapter {
+    private static final String SANDBOX_GATEWAY = "https://openapi-sandbox.dl.alipaydev.com/gateway.do";
+    private static final String PRODUCTION_GATEWAY = "https://openapi.alipay.com/gateway.do";
+    private static final DateTimeFormatter ALIPAY_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final AlipayConfig alipayConfig;
-
-    /** 支付宝SDK客户端 */
     private AlipayClient alipayClient;
 
-    /** 支付宝回调时间格式 */
-    private static final DateTimeFormatter ALIPAY_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
-    /**
-     * 初始化支付宝SDK客户端
-     * <p>
-     * 使用RSA2签名方式，JSON数据格式，UTF-8编码。
-     * </p>
-     */
     @PostConstruct
     public void init() {
-        if (isBlank(alipayConfig.getAppId())
-                || isBlank(alipayConfig.getServerUrl())
-                || isBlank(alipayConfig.getPrivateKey())
-                || isBlank(alipayConfig.getAlipayPublicKey())) {
-            log.warn("支付宝配置不完整，跳过初始化（缺失必需字段：appId/serverUrl/privateKey/alipayPublicKey 之一）");
+        if (isBlank(alipayConfig.getAppId()) || isBlank(alipayConfig.getServerUrl())
+                || isBlank(alipayConfig.getPrivateKey()) || isBlank(alipayConfig.getAlipayPublicKey())
+                || isBlank(alipayConfig.getSellerId())) {
+            log.warn("支付宝配置不完整，支付功能未启用");
             return;
         }
-        alipayClient = new DefaultAlipayClient(
-                alipayConfig.getServerUrl(),
-                alipayConfig.getAppId(),
-                alipayConfig.getPrivateKey(),
-                "json",
-                "UTF-8",
-                alipayConfig.getAlipayPublicKey(),
-                "RSA2"
-        );
-        log.info("支付宝适配器初始化完成, 应用ID: {}", alipayConfig.getAppId());
-    }
-
-    private static boolean isBlank(String s) {
-        return s == null || s.isBlank();
-    }
-
-    /**
-     * 创建支付宝支付订单（电脑网站支付）
-     * <p>
-     * 调用 alipay.trade.page.pay 接口，返回支付页面表单HTML。
-     * 前端渲染该表单即可跳转至支付宝收银台。
-     * 金额从分转换为元（保留2位小数）。
-     * </p>
-     *
-     * @param request 支付请求参数
-     * @return 支付响应（含支付表单HTML）
-     */
-    @Override
-    public PaymentResponse createPayment(PaymentRequest request) {
+        if (!Set.of(SANDBOX_GATEWAY, PRODUCTION_GATEWAY).contains(alipayConfig.getServerUrl())) {
+            throw new IllegalStateException("支付宝网关必须为受支持的官方 HTTPS 网关");
+        }
         try {
-            AlipayTradePagePayRequest payRequest = new AlipayTradePagePayRequest();
-            payRequest.setNotifyUrl(alipayConfig.getNotifyUrl());
-
-            /* 金额单位从分转为元 */
-            String amountYuan = convertFenToYuan(request.getTotalAmount());
-
-            String bizContent = String.format(
-                    "{\"out_trade_no\":\"%s\",\"total_amount\":\"%s\",\"subject\":\"%s\",\"product_code\":\"FAST_INSTANT_TRADE_PAY\"}",
-                    request.getOrderNo(),
-                    amountYuan,
-                    request.getSubject()
-            );
-            payRequest.setBizContent(bizContent);
-
-            AlipayTradePagePayResponse response = alipayClient.pageExecute(payRequest);
-
-            if (response.isSuccess()) {
-                log.info("支付宝下单成功, 订单号: {}", request.getOrderNo());
-
-                Map<String, String> payParams = new HashMap<>();
-                payParams.put("formHtml", response.getBody());
-
-                return PaymentResponse.builder()
-                        .orderNo(request.getOrderNo())
-                        .payUrl(response.getBody())
-                        .payChannel(PayChannelEnum.ALIPAY.getCode())
-                        .payParams(payParams)
-                        .success(true)
-                        .build();
-            } else {
-                log.error("支付宝下单失败, 订单号: {}, 错误码: {}, 错误信息: {}",
-                        request.getOrderNo(), response.getSubCode(), response.getSubMsg());
-                return PaymentResponse.builder()
-                        .orderNo(request.getOrderNo())
-                        .payChannel(PayChannelEnum.ALIPAY.getCode())
-                        .success(false)
-                        .errorMsg("支付宝下单失败: " + response.getSubMsg())
-                        .build();
-            }
-
+            com.alipay.api.AlipayConfig sdk = new com.alipay.api.AlipayConfig();
+            sdk.setServerUrl(alipayConfig.getServerUrl());
+            sdk.setAppId(alipayConfig.getAppId());
+            sdk.setPrivateKey(alipayConfig.getPrivateKey());
+            sdk.setAlipayPublicKey(alipayConfig.getAlipayPublicKey());
+            sdk.setFormat("json");
+            sdk.setCharset("UTF-8");
+            sdk.setSignType("RSA2");
+            sdk.setConnectTimeout(5000);
+            sdk.setReadTimeout(10000);
+            alipayClient = new DefaultAlipayClient(sdk);
         } catch (AlipayApiException e) {
-            log.error("支付宝下单异常, 订单号: {}, 错误: {}", request.getOrderNo(), e.getMessage(), e);
-            return PaymentResponse.builder()
-                    .orderNo(request.getOrderNo())
-                    .payChannel(PayChannelEnum.ALIPAY.getCode())
-                    .success(false)
-                    .errorMsg("支付宝下单异常: " + e.getMessage())
-                    .build();
+            throw new IllegalStateException("支付宝 SDK 配置不可用");
         }
     }
 
-    /**
-     * 解析微信支付异步回调（支付宝适配器不支持）
-     *
-     * @param request HTTP请求
-     * @return 不支持，抛出异常
-     */
     @Override
-    public PaymentCallbackResult parseWechatCallback(HttpServletRequest request) {
-        throw new BizException(ErrorCodeEnum.PAY_CHANNEL_UNSUPPORTED,
-                "支付宝适配器不支持解析微信支付回调");
+    public PaymentResponse createPayment(PaymentRequest request) {
+        requireClient();
+        validateAmount(request.getTotalAmount());
+        validateReturnUrl();
+        try {
+            AlipayTradePagePayRequest payRequest = new AlipayTradePagePayRequest();
+            String notifyUrl = alipayConfig.getNotifyUrl();
+            if (isPublicHttps(notifyUrl)) {
+                payRequest.setNotifyUrl(notifyUrl);
+            } else if (PRODUCTION_GATEWAY.equals(alipayConfig.getServerUrl())) {
+                throw new BizException(ErrorCodeEnum.PAY_CREATE_FAILED, "正式支付需要公网 HTTPS 通知地址");
+            }
+            payRequest.setReturnUrl(alipayConfig.getReturnUrl());
+            AlipayTradePagePayModel model = new AlipayTradePagePayModel();
+            model.setOutTradeNo(request.getOrderNo());
+            model.setTotalAmount(convertFenToYuan(request.getTotalAmount()));
+            model.setSubject(request.getSubject());
+            model.setProductCode("FAST_INSTANT_TRADE_PAY");
+            if (request.getExpireTime() == null) {
+                throw new BizException(ErrorCodeEnum.PARAM_INVALID, "支付订单缺少过期时间");
+            }
+            model.setTimeExpire(request.getExpireTime().atOffset(ZoneOffset.UTC)
+                    .atZoneSameInstant(ZoneId.of("Asia/Shanghai")).format(ALIPAY_DATE_FORMAT));
+            payRequest.setBizModel(model);
+            var response = alipayClient.pageExecute(payRequest, "POST");
+            if (!response.isSuccess() || isBlank(response.getBody())) {
+                throw new BizException(ErrorCodeEnum.PAY_CREATE_FAILED, "无法生成支付宝收银台表单");
+            }
+            // HTML 只存放在专用字段，避免被前端当作 URL 打开或输出到日志。
+            return PaymentResponse.builder().orderNo(request.getOrderNo())
+                    .payChannel(PayChannelEnum.ALIPAY.getCode())
+                    .formHtml(response.getBody()).success(true).build();
+        } catch (AlipayApiException e) {
+            log.warn("支付宝表单生成失败: orderNo={}", request.getOrderNo());
+            throw new BizException(ErrorCodeEnum.PAY_CREATE_FAILED, "支付宝支付暂不可用");
+        }
     }
 
-    /**
-     * 解析支付宝异步回调通知
-     * <p>
-     * 1. 从请求参数中提取所有回调字段<br>
-     * 2. 使用支付宝公钥进行RSA2验签<br>
-     * 3. 校验trade_status为TRADE_SUCCESS或TRADE_FINISHED<br>
-     * 4. 提取订单号、支付宝流水号、金额、支付时间等信息
-     * </p>
-     *
-     * @param request HTTP请求
-     * @return 回调解析结果
-     */
+    @Override
+    public PaymentQueryResult queryPayment(String orderNo) {
+        requireClient();
+        try {
+            var request = new AlipayTradeQueryRequest();
+            var model = new AlipayTradeQueryModel();
+            model.setOutTradeNo(orderNo);
+            request.setBizModel(model);
+            var response = alipayClient.execute(request);
+            if (!response.isSuccess()) {
+                String state = "ACQ.TRADE_NOT_EXIST".equals(response.getSubCode()) ? "NOT_FOUND" : "UNKNOWN";
+                return PaymentQueryResult.builder().orderNo(orderNo).tradeStatus(state).build();
+            }
+            if (!orderNo.equals(response.getOutTradeNo())) {
+                throw new BizException(ErrorCodeEnum.PAY_CONFIRM_FAILED, "支付宝查询订单不匹配");
+            }
+            return PaymentQueryResult.builder().orderNo(orderNo).thirdTradeNo(response.getTradeNo())
+                    .tradeStatus(response.getTradeStatus()).totalAmount(convertYuanToFen(response.getTotalAmount()))
+                    .payTime(response.getSendPayDate() == null ? null
+                            : LocalDateTime.ofInstant(response.getSendPayDate().toInstant(), ZoneOffset.UTC)).build();
+        } catch (AlipayApiException e) {
+            log.warn("支付宝查询结果未知: orderNo={}", orderNo);
+            return PaymentQueryResult.builder().orderNo(orderNo).tradeStatus("UNKNOWN").build();
+        }
+    }
+
+    @Override
+    public void closePayment(String orderNo) {
+        requireClient();
+        try {
+            var request = new AlipayTradeCloseRequest();
+            var model = new AlipayTradeCloseModel();
+            model.setOutTradeNo(orderNo);
+            request.setBizModel(model);
+            var response = alipayClient.execute(request);
+            if (!response.isSuccess() && !"ACQ.TRADE_NOT_EXIST".equals(response.getSubCode())
+                    && !"ACQ.TRADE_HAS_CLOSE".equals(response.getSubCode())) {
+                throw new BizException(ErrorCodeEnum.PAY_CONFIRM_FAILED, "支付宝关单未确认，请先刷新支付状态");
+            }
+        } catch (AlipayApiException e) {
+            throw new BizException(ErrorCodeEnum.PAY_CONFIRM_FAILED, "支付宝关单结果未知，请稍后查询");
+        }
+    }
+
+    @Override
+    public PaymentCallbackResult parseWechatCallback(HttpServletRequest request) {
+        throw new BizException(ErrorCodeEnum.PAY_CHANNEL_UNSUPPORTED);
+    }
+
     @Override
     public PaymentCallbackResult parseAlipayCallback(HttpServletRequest request) {
+        requireClient();
         try {
-            /* 提取所有回调参数 */
-            Map<String, String> params = extractCallbackParams(request);
-            String rawPayload = params.toString();
-
-            /* RSA2验签 */
-            boolean signVerified = AlipaySignature.rsaCheckV1(
-                    params,
-                    alipayConfig.getAlipayPublicKey(),
-                    "UTF-8",
-                    "RSA2"
-            );
-
-            if (!signVerified) {
-                log.error("支付宝回调验签失败, 参数: {}", rawPayload);
-                throw new BizException(ErrorCodeEnum.PAY_SIGN_VERIFY_FAILED, "支付宝回调验签失败");
+            Map<String, String> params = new HashMap<>();
+            for (var entry : request.getParameterMap().entrySet()) {
+                if (entry.getValue() == null || entry.getValue().length != 1) {
+                    throw new BizException(ErrorCodeEnum.PAY_SIGN_VERIFY_FAILED, "支付宝通知存在重复参数");
+                }
+                params.put(entry.getKey(), entry.getValue()[0]);
             }
-
-            String appId = params.get("app_id");
-            if (appId == null || !appId.equals(alipayConfig.getAppId())) {
-                log.error("支付宝回调 appId 不匹配, expected={}, actual={}", alipayConfig.getAppId(), appId);
-                throw new BizException(ErrorCodeEnum.PAY_SIGN_VERIFY_FAILED, "支付宝回调应用 ID 不匹配");
+            if (!alipayConfig.getAppId().equals(params.get("app_id"))
+                    || !"RSA2".equals(params.get("sign_type"))
+                    || !AlipaySignature.rsaCheckV1(params, alipayConfig.getAlipayPublicKey(), "UTF-8", "RSA2")) {
+                throw new BizException(ErrorCodeEnum.PAY_SIGN_VERIFY_FAILED, "支付宝通知验签失败");
             }
-
-            String tradeStatus = params.get("trade_status");
-            boolean success = "TRADE_SUCCESS".equals(tradeStatus) || "TRADE_FINISHED".equals(tradeStatus);
-
-            /* 金额从元转为分 */
-            Long paidAmount = convertYuanToFen(params.get("total_amount"));
-
-            LocalDateTime payTime = null;
-            String gmtPayment = params.get("gmt_payment");
-            if (gmtPayment != null && !gmtPayment.isEmpty()) {
-                payTime = LocalDateTime.parse(gmtPayment, ALIPAY_DATE_FORMAT);
+            if (!alipayConfig.getSellerId().equals(params.get("seller_id"))) {
+                throw new BizException(ErrorCodeEnum.PAY_SIGN_VERIFY_FAILED, "支付宝收款商户不匹配");
             }
-
-            log.info("支付宝回调解析成功, 订单号: {}, 交易状态: {}, 流水号: {}",
-                    params.get("out_trade_no"), tradeStatus, params.get("trade_no"));
-
-            return PaymentCallbackResult.builder()
-                    .orderNo(params.get("out_trade_no"))
-                    .thirdTradeNo(params.get("trade_no"))
-                    .paidAmount(paidAmount)
-                    .payChannel(PayChannelEnum.ALIPAY.getCode())
-                    .payTime(payTime)
-                    .success(success)
-                    .rawPayload(rawPayload)
-                    .build();
-
+            for (String field : Set.of("out_trade_no", "trade_no", "notify_id", "trade_status", "total_amount")) {
+                if (isBlank(params.get(field))) {
+                    throw new BizException(ErrorCodeEnum.PAY_SIGN_VERIFY_FAILED, "支付宝通知缺少必要字段");
+                }
+            }
+            String status = params.get("trade_status");
+            boolean paid = "TRADE_SUCCESS".equals(status) || "TRADE_FINISHED".equals(status);
+            boolean otherEvent = !paid || !isBlank(params.get("out_biz_no"))
+                    || !isBlank(params.get("gmt_refund")) || !isBlank(params.get("refund_fee"));
+            LocalDateTime payTime = isBlank(params.get("gmt_payment")) ? null
+                    : LocalDateTime.parse(params.get("gmt_payment"), ALIPAY_DATE_FORMAT)
+                    .atZone(ZoneId.of("Asia/Shanghai")).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+            // 保存去重所需业务元数据的摘要来源，不保留签名、买家身份或完整通知正文。
+            String auditSource = params.get("notify_id") + ":" + params.get("out_trade_no") + ":"
+                    + params.get("trade_no") + ":" + status + ":" + params.get("total_amount");
+            return PaymentCallbackResult.builder().orderNo(params.get("out_trade_no"))
+                    .thirdTradeNo(params.get("trade_no")).paidAmount(convertYuanToFen(params.get("total_amount")))
+                    .payChannel(PayChannelEnum.ALIPAY.getCode()).notifyId(params.get("notify_id"))
+                    .tradeStatus(status).nonPaymentEvent(otherEvent).payTime(payTime)
+                    .success(paid && !otherEvent).rawPayload(auditSource).build();
         } catch (BizException e) {
             throw e;
         } catch (Exception e) {
-            log.error("支付宝回调解析失败, 错误: {}", e.getMessage(), e);
-            throw new BizException(ErrorCodeEnum.PAY_SIGN_VERIFY_FAILED,
-                    "支付宝回调解析失败: " + e.getMessage());
+            log.warn("支付宝通知解析或验签失败");
+            throw new BizException(ErrorCodeEnum.PAY_SIGN_VERIFY_FAILED, "支付宝通知校验失败");
         }
     }
 
-    /**
-     * 申请支付宝退款
-     * <p>
-     * 调用 alipay.trade.refund 接口，支持部分退款和全额退款。
-     * 支付宝退款为同步接口，调用成功即表示退款已受理。
-     * </p>
-     *
-     * @param request 退款请求参数
-     * @return 退款响应
-     */
     @Override
     public RefundResponse refund(RefundRequest request) {
+        requireClient();
+        validateAmount(request.getRefundAmount());
+        if (request.getTotalAmount() == null || request.getRefundAmount() > request.getTotalAmount()) {
+            throw new BizException(ErrorCodeEnum.PARAM_INVALID, "退款金额超过原支付金额");
+        }
         try {
-            AlipayTradeRefundRequest refundRequest = new AlipayTradeRefundRequest();
-
-            String refundAmountYuan = convertFenToYuan(request.getRefundAmount());
-
-            String bizContent = String.format(
-                    "{\"out_trade_no\":\"%s\",\"refund_amount\":\"%s\",\"out_request_no\":\"%s\",\"refund_reason\":\"%s\"}",
-                    request.getOrderNo(),
-                    refundAmountYuan,
-                    request.getRefundNo(),
-                    request.getReason() != null ? request.getReason() : "退款"
-            );
-            refundRequest.setBizContent(bizContent);
-
-            AlipayTradeRefundResponse response = alipayClient.execute(refundRequest);
-
-            if (response.isSuccess()) {
-                log.info("支付宝退款成功, 退款单号: {}, 支付宝交易号: {}, 退款金额: {}元",
-                        request.getRefundNo(), response.getTradeNo(), refundAmountYuan);
-
-                return RefundResponse.builder()
-                        .refundNo(request.getRefundNo())
-                        .thirdRefundNo(response.getTradeNo())
-                        .success(true)
-                        .build();
-            } else {
-                log.error("支付宝退款失败, 退款单号: {}, 错误码: {}, 错误信息: {}",
-                        request.getRefundNo(), response.getSubCode(), response.getSubMsg());
-
-                return RefundResponse.builder()
-                        .refundNo(request.getRefundNo())
-                        .success(false)
-                        .errorMsg("支付宝退款失败: " + response.getSubMsg())
-                        .build();
-            }
-
-        } catch (AlipayApiException e) {
-            log.error("支付宝退款异常, 退款单号: {}, 错误: {}", request.getRefundNo(), e.getMessage(), e);
-            return RefundResponse.builder()
-                    .refundNo(request.getRefundNo())
-                    .success(false)
-                    .errorMsg("支付宝退款异常: " + e.getMessage())
-                    .build();
-        }
-    }
-
-    /**
-     * 从HTTP请求中提取支付宝回调参数
-     *
-     * @param request HTTP请求
-     * @return 参数Map
-     */
-    private Map<String, String> extractCallbackParams(HttpServletRequest request) {
-        Map<String, String> params = new HashMap<>();
-        Map<String, String[]> requestParams = request.getParameterMap();
-        for (Map.Entry<String, String[]> entry : requestParams.entrySet()) {
-            String[] values = entry.getValue();
-            StringBuilder valueStr = new StringBuilder();
-            for (int i = 0; i < values.length; i++) {
-                if (i > 0) {
-                    valueStr.append(",");
+            var sdkRequest = new AlipayTradeRefundRequest();
+            var model = new AlipayTradeRefundModel();
+            model.setOutTradeNo(request.getOrderNo());
+            model.setRefundAmount(convertFenToYuan(request.getRefundAmount()));
+            model.setOutRequestNo(request.getRefundNo());
+            model.setRefundReason(request.getReason());
+            sdkRequest.setBizModel(model);
+            var response = alipayClient.execute(sdkRequest);
+            if (!response.isSuccess()) {
+                if ("20000".equals(response.getCode())) {
+                    return pendingRefund(request.getRefundNo());
                 }
-                valueStr.append(values[i]);
+                return RefundResponse.builder().refundNo(request.getRefundNo()).success(false)
+                        .errorMsg("支付宝退款未受理，请核实原退款单").build();
             }
-            params.put(entry.getKey(), valueStr.toString());
+            if (!request.getOrderNo().equals(response.getOutTradeNo())
+                    || !request.getThirdTradeNo().equals(response.getTradeNo())
+                    || ("Y".equals(response.getFundChange())
+                        && !request.getRefundAmount().equals(convertYuanToFen(response.getRefundFee())))) {
+                throw new BizException(ErrorCodeEnum.REFUND_FAILED, "支付宝退款结果与原交易不匹配");
+            }
+            return RefundResponse.builder().refundNo(request.getRefundNo()).thirdRefundNo(response.getTradeNo())
+                    .success(true).pending(!"Y".equals(response.getFundChange())).build();
+        } catch (AlipayApiException e) {
+            // 网络异常可能已产生资金变动，保留原退款编号并交由查询确认。
+            return pendingRefund(request.getRefundNo());
         }
-        return params;
     }
 
-    /**
-     * 金额从分转换为元（保留2位小数）
-     *
-     * @param fen 金额（分）
-     * @return 金额字符串（元）
-     */
-    private String convertFenToYuan(Long fen) {
-        return new BigDecimal(fen)
-                .divide(new BigDecimal(100), 2, RoundingMode.HALF_UP)
-                .toPlainString();
+    @Override
+    public RefundResponse queryRefund(String orderNo, String refundNo, Long refundAmount) {
+        requireClient();
+        try {
+            var request = new AlipayTradeFastpayRefundQueryRequest();
+            var model = new AlipayTradeFastpayRefundQueryModel();
+            model.setOutTradeNo(orderNo);
+            model.setOutRequestNo(refundNo);
+            request.setBizModel(model);
+            var response = alipayClient.execute(request);
+            if (!response.isSuccess()) {
+                return pendingRefund(refundNo);
+            }
+            if (!orderNo.equals(response.getOutTradeNo()) || !refundNo.equals(response.getOutRequestNo())) {
+                throw new BizException(ErrorCodeEnum.REFUND_FAILED, "支付宝退款查询标识不匹配");
+            }
+            boolean confirmed = "REFUND_SUCCESS".equals(response.getRefundStatus());
+            if (confirmed && !refundAmount.equals(convertYuanToFen(response.getRefundAmount()))) {
+                throw new BizException(ErrorCodeEnum.REFUND_FAILED, "支付宝退款查询金额不匹配");
+            }
+            return RefundResponse.builder().refundNo(refundNo).thirdRefundNo(response.getTradeNo())
+                    .success(true).pending(!confirmed).build();
+        } catch (AlipayApiException e) {
+            return pendingRefund(refundNo);
+        }
     }
 
-    /**
-     * 金额从元转换为分
-     *
-     * @param yuan 金额字符串（元）
-     * @return 金额（分）
-     */
-    private Long convertYuanToFen(String yuan) {
-        return new BigDecimal(yuan)
-                .multiply(new BigDecimal(100))
-                .setScale(0, RoundingMode.HALF_UP)
-                .longValue();
+    private RefundResponse pendingRefund(String refundNo) {
+        return RefundResponse.builder().refundNo(refundNo).success(true).pending(true).build();
+    }
+
+    private void requireClient() {
+        if (alipayClient == null) {
+            throw new BizException(ErrorCodeEnum.PAY_CREATE_FAILED, "支付宝尚未配置完整，请完成应用与收款商户配置");
+        }
+    }
+
+    private void validateReturnUrl() {
+        try {
+            URI uri = URI.create(alipayConfig.getReturnUrl());
+            boolean loopback = Set.of("localhost", "127.0.0.1", "::1").contains(uri.getHost());
+            if (uri.getHost() == null || uri.getUserInfo() != null || uri.getFragment() != null
+                    || !("https".equals(uri.getScheme()) || (loopback && "http".equals(uri.getScheme())))
+                    || (PRODUCTION_GATEWAY.equals(alipayConfig.getServerUrl()) && !isPublicHttps(uri.toString()))) {
+                throw new IllegalArgumentException();
+            }
+        } catch (Exception e) {
+            throw new BizException(ErrorCodeEnum.PAY_CREATE_FAILED, "支付宝支付结果页地址未正确配置");
+        }
+    }
+
+    private static boolean isPublicHttps(String value) {
+        if (isBlank(value)) return false;
+        try {
+            URI uri = URI.create(value);
+            return "https".equals(uri.getScheme()) && uri.getHost() != null && uri.getUserInfo() == null
+                    && uri.getFragment() == null && !Set.of("localhost", "127.0.0.1", "::1").contains(uri.getHost());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private static void validateAmount(Long amount) {
+        MoneyUtil.requireFen(amount);
+    }
+
+    private static String convertFenToYuan(Long fen) {
+        return MoneyUtil.fenToYuan(fen);
+    }
+
+    private static Long convertYuanToFen(String yuan) {
+        return MoneyUtil.yuanToFen(yuan);
     }
 }

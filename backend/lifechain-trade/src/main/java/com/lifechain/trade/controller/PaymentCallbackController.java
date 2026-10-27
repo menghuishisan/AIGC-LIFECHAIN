@@ -68,8 +68,8 @@ public class PaymentCallbackController {
             orderService.handlePaymentCallback("ALIPAY", result);
             log.info("支付宝回调处理完成: orderNo={}", result.getOrderNo());
         } catch (Exception e) {
-            log.error("支付宝回调处理异常", e);
-            return "failure";
+            log.warn("支付宝回调处理失败，等待渠道重试");
+            return "fail";
         }
         return "success";
     }

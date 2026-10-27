@@ -17,6 +17,8 @@ import com.lifechain.trade.mapper.TradeOrderMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.Objects;
 
 @Slf4j
 @Component
@@ -34,10 +36,24 @@ public class LicenseChainReceiptHandler implements ChainReceiptHandler {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void onChainSuccess(ChainTxRecordEntity record) {
         LicenseRecordEntity license = licenseRecordMapper.selectById(record.getBizId());
         if (license == null) {
             log.warn("授权回执处理失败，未找到授权记录，bizId={}", record.getBizId());
+            return;
+        }
+        if (license.getOrderId() != null) {
+            var linked = tradeOrderMapper.selectById(license.getOrderId());
+            if (linked != null) tradeOrderMapper.selectByOrderNoForUpdate(linked.getOrderNo());
+            license = licenseRecordMapper.selectById(record.getBizId());
+        }
+        if (!Objects.equals(record.getTxHash(), license.getTxHash())) return;
+        if ("REVOKE".equals(record.getTxType())) {
+            if (!LicenseStatusEnum.LICENSE_REVOKED.getCode().equals(license.getLicenseStatus())) return;
+            license.setChainStatus(ChainStatusEnum.CHAIN_SUCCESS.getCode());
+            license.setBlockHeight(record.getBlockHeight());
+            licenseRecordMapper.updateById(license);
             return;
         }
         String fromStatus = license.getLicenseStatus();
@@ -67,7 +83,8 @@ public class LicenseChainReceiptHandler implements ChainReceiptHandler {
                 // 授权生效后自动触发结算
                 try {
                     var settlementResult = settlementService.settleOrder(order.getOrderNo(), order.getId(),
-                            order.getWorkId(), order.getWorkNo(), order.getPayAmount(), order.getCreatorAccountId());
+                            order.getWorkId(), order.getWorkNo(), order.getPayAmount(), order.getCreatorAccountId(),
+                            order.getCreatorRatio(), order.getPlatformRatio());
                     // 仅当结算记录创建成功且未立即失败时，才推进订单到 SETTLEMENT_PENDING
                     if (settlementResult != null
                             && !SettlementStatusEnum.SETTLE_FAILED.getCode().equals(settlementResult.getSettleStatus())) {
@@ -95,9 +112,24 @@ public class LicenseChainReceiptHandler implements ChainReceiptHandler {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void onChainFailed(ChainTxRecordEntity record) {
         LicenseRecordEntity license = licenseRecordMapper.selectById(record.getBizId());
         if (license == null) return;
+        if (license.getOrderId() != null) {
+            var linked = tradeOrderMapper.selectById(license.getOrderId());
+            if (linked != null) tradeOrderMapper.selectByOrderNoForUpdate(linked.getOrderNo());
+            license = licenseRecordMapper.selectById(record.getBizId());
+        }
+        if (!Objects.equals(record.getTxHash(), license.getTxHash())) return;
+        if ("REVOKE".equals(record.getTxType())) {
+            if (LicenseStatusEnum.LICENSE_REVOKED.getCode().equals(license.getLicenseStatus())) {
+                license.setChainStatus(ChainStatusEnum.CHAIN_FAILED.getCode());
+                licenseRecordMapper.updateById(license);
+            }
+            return;
+        }
+        if (!LicenseStatusEnum.LICENSE_PENDING.getCode().equals(license.getLicenseStatus())) return;
         String fromStatus = license.getLicenseStatus();
         license.setLicenseStatus(LicenseStatusEnum.LICENSE_PENDING.getCode());
         license.setChainStatus(ChainStatusEnum.CHAIN_FAILED.getCode());

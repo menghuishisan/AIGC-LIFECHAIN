@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	ChaincodeVersion     = "v1"
-	DocTypeSettlement    = "settlement"
-	DocTypeReversal      = "reverse_settlement"
-	StatusSettled        = "SETTLE_SUCCESS"
-	StatusReversed       = "REVERSE_SUCCESS"
+	ChaincodeVersion  = "v1"
+	DocTypeSettlement = "settlement"
+	DocTypeReversal   = "reverse_settlement"
+	StatusSettled     = "SETTLE_SUCCESS"
+	StatusReversed    = "REVERSE_SUCCESS"
 )
 
 // SettlementContract 实现结算链码的所有合约函数
@@ -58,6 +58,12 @@ func (c *SettlementContract) RegisterSettlement(ctx contractapi.TransactionConte
 	if req.SettleNo == "" || req.OrderNo == "" || req.SummaryHash == "" {
 		return fmt.Errorf("settleNo, orderNo, summaryHash are required")
 	}
+	if req.TotalAmount < 1 || req.TotalAmount > 10000000000 {
+		return fmt.Errorf("totalAmount must be CNY integer fen within 1..10000000000")
+	}
+	if req.Currency != "CNY" || req.AmountUnit != "FEN" {
+		return fmt.Errorf("settlement requires CNY integer FEN")
+	}
 
 	key := settleKey(req.SettleNo)
 	existing, err := ctx.GetStub().GetState(key)
@@ -69,7 +75,8 @@ func (c *SettlementContract) RegisterSettlement(ctx contractapi.TransactionConte
 		if err = json.Unmarshal(existing, &existingLedger); err != nil {
 			return fmt.Errorf("failed to unmarshal existing ledger: %w", err)
 		}
-		if existingLedger.OrderNo == req.OrderNo && existingLedger.SummaryHash == req.SummaryHash {
+		if existingLedger.OrderNo == req.OrderNo && existingLedger.SummaryHash == req.SummaryHash &&
+			existingLedger.TotalAmount == req.TotalAmount && existingLedger.SettleTime == req.SettleTime {
 			return nil
 		}
 		return fmt.Errorf("CONFLICT: settlement already exists with different payload: %s", req.SettleNo)
@@ -86,6 +93,8 @@ func (c *SettlementContract) RegisterSettlement(ctx contractapi.TransactionConte
 		SettleNo:         req.SettleNo,
 		OrderNo:          req.OrderNo,
 		TotalAmount:      req.TotalAmount,
+		Currency:         req.Currency,
+		AmountUnit:       req.AmountUnit,
 		SummaryHash:      req.SummaryHash,
 		Status:           StatusSettled,
 		SettleTime:       settleTime,
@@ -115,6 +124,12 @@ func (c *SettlementContract) RegisterReverseSettlement(ctx contractapi.Transacti
 	if req.ReverseNo == "" || req.SettleNo == "" {
 		return fmt.Errorf("reverseNo, settleNo are required")
 	}
+	if req.ReverseAmount < 1 || req.ReverseAmount > 10000000000 {
+		return fmt.Errorf("reverseAmount must be CNY integer fen within 1..10000000000")
+	}
+	if req.Currency != "CNY" || req.AmountUnit != "FEN" {
+		return fmt.Errorf("reversal requires CNY integer FEN")
+	}
 
 	// 校验原 settleNo 必须已存在于账本
 	settleKeyStr := settleKey(req.SettleNo)
@@ -124,6 +139,13 @@ func (c *SettlementContract) RegisterReverseSettlement(ctx contractapi.Transacti
 	}
 	if settleBytes == nil {
 		return fmt.Errorf("settlement not found on ledger: %s", req.SettleNo)
+	}
+	var settlement SettlementLedger
+	if err = json.Unmarshal(settleBytes, &settlement); err != nil {
+		return fmt.Errorf("invalid settlement ledger: %w", err)
+	}
+	if req.ReverseAmount != settlement.TotalAmount {
+		return fmt.Errorf("full refund reversal amount must equal original totalAmount")
 	}
 
 	key := reverseKey(req.ReverseNo)
@@ -136,10 +158,20 @@ func (c *SettlementContract) RegisterReverseSettlement(ctx contractapi.Transacti
 		if err2 = json.Unmarshal(existing, &existingLedger); err2 != nil {
 			return fmt.Errorf("failed to unmarshal existing ledger: %w", err2)
 		}
-		if existingLedger.SettleNo == req.SettleNo && existingLedger.ReverseAmount == req.ReverseAmount {
+		if existingLedger.SettleNo == req.SettleNo && existingLedger.ReverseAmount == req.ReverseAmount &&
+			existingLedger.Reason == req.Reason && existingLedger.ReverseTime == req.ReverseTime {
 			return nil
 		}
 		return fmt.Errorf("CONFLICT: reverse settlement already exists with different payload: %s", req.ReverseNo)
+	}
+	// 同一原结算仅允许一笔全额逆转；读取和写入同一索引使Fabric MVCC阻止并发重复逆转。
+	reversalIndex := "REVERSED#" + req.SettleNo
+	prior, err := ctx.GetStub().GetState(reversalIndex)
+	if err != nil {
+		return fmt.Errorf("failed to read reversal index: %w", err)
+	}
+	if prior != nil {
+		return fmt.Errorf("CONFLICT: settlement already reversed: %s", req.SettleNo)
 	}
 
 	now := txTime(ctx)
@@ -153,6 +185,8 @@ func (c *SettlementContract) RegisterReverseSettlement(ctx contractapi.Transacti
 		ReverseNo:        req.ReverseNo,
 		SettleNo:         req.SettleNo,
 		ReverseAmount:    req.ReverseAmount,
+		Currency:         req.Currency,
+		AmountUnit:       req.AmountUnit,
 		Reason:           req.Reason,
 		Status:           StatusReversed,
 		ReverseTime:      reverseTime,
@@ -167,7 +201,17 @@ func (c *SettlementContract) RegisterReverseSettlement(ctx contractapi.Transacti
 	if err = ctx.GetStub().PutState(key, b); err != nil {
 		return fmt.Errorf("failed to put state: %w", err)
 	}
-
+	if err = ctx.GetStub().PutState(reversalIndex, []byte(req.ReverseNo)); err != nil {
+		return fmt.Errorf("failed to put reversal index: %w", err)
+	}
+	settlement.Status = StatusReversed
+	settleUpdated, err := json.Marshal(settlement)
+	if err != nil {
+		return err
+	}
+	if err = ctx.GetStub().PutState(settleKeyStr, settleUpdated); err != nil {
+		return err
+	}
 	emitEvent(ctx, "ReverseSettlementRegistered", "REVERSE_SETTLEMENT", req.ReverseNo, StatusReversed)
 	return nil
 }

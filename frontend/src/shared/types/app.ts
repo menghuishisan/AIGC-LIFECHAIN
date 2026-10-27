@@ -176,7 +176,6 @@ export interface SettlementItemVO {
   accountNo: string
   ratio: number
   amount: number
-  itemStatus: string
 }
 
 /** 上传策略响应 */

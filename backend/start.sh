@@ -31,6 +31,10 @@ set +a
 
 cd "$SCRIPT_DIR"
 
+if [[ "${ALIPAY_SERVER_URL:-}" == "https://openapi-sandbox.dl.alipaydev.com/gateway.do" && -f "$SCRIPT_DIR/.alipay-sandbox.json" && -z "${ALIPAY_SANDBOX_CONFIG_PATH:-}" ]]; then
+  export ALIPAY_SANDBOX_CONFIG_PATH="$SCRIPT_DIR/.alipay-sandbox.json"
+fi
+
 if [[ "$SKIP_BUILD" == "false" ]]; then
   echo "[start] mvn 编译打包中..."
   mvn -pl lifechain-app -am clean package -DskipTests -q

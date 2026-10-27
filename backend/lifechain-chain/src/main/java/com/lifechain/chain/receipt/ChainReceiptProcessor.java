@@ -1,6 +1,7 @@
 package com.lifechain.chain.receipt;
 
 import com.lifechain.chain.record.ChainTxRecordEntity;
+import com.lifechain.chain.record.ChainTxRecordMapper;
 import com.lifechain.common.enums.ChainStatusEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -21,8 +22,10 @@ import java.util.Map;
 public class ChainReceiptProcessor {
 
     private final Map<String, ChainReceiptHandler> handlerMap = new HashMap<>();
+    private final ChainTxRecordMapper recordMapper;
 
-    public ChainReceiptProcessor(List<ChainReceiptHandler> handlers) {
+    public ChainReceiptProcessor(List<ChainReceiptHandler> handlers, ChainTxRecordMapper recordMapper) {
+        this.recordMapper = recordMapper;
         for (ChainReceiptHandler handler : handlers) {
             handlerMap.put(handler.getBizType(), handler);
         }
@@ -38,6 +41,7 @@ public class ChainReceiptProcessor {
      * @param record 已更新最终链状态的交易记录
      */
     public void processReceipt(ChainTxRecordEntity record) {
+        if (Boolean.TRUE.equals(record.getReceiptProcessed())) return;
         String bizType = record.getBizType();
         ChainReceiptHandler handler = handlerMap.get(bizType);
         if (handler == null) {
@@ -58,9 +62,14 @@ public class ChainReceiptProcessor {
                 handler.onChainFailed(record);
                 log.info("业务失败处理完成，bizType={}, bizNo={}", bizType, record.getBizNo());
             }
+            if (java.util.Set.of("CHAIN_SUCCESS", "CHAIN_FAILED").contains(chainStatus)) {
+                record.setReceiptProcessed(true);
+                recordMapper.updateById(record);
+            }
         } catch (Exception e) {
             log.error("链回执业务状态回写异常，bizType={}, bizNo={}, txHash={}",
                     bizType, record.getBizNo(), record.getTxHash(), e);
+            throw new IllegalStateException("链回执业务回写尚未完成", e);
         }
     }
 }

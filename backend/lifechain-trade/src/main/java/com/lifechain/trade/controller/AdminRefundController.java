@@ -5,6 +5,7 @@ import com.lifechain.common.context.UserContext;
 import com.lifechain.common.model.ApiResponse;
 import com.lifechain.common.model.PageQuery;
 import com.lifechain.common.model.PageResult;
+import com.lifechain.common.model.RequestIdRequest;
 import com.lifechain.trade.dto.RefundDetailVO;
 import com.lifechain.trade.dto.RefundProcessRequest;
 import com.lifechain.trade.service.OrderService;
@@ -32,6 +33,15 @@ import org.springframework.web.bind.annotation.*;
 public class AdminRefundController {
 
     private final OrderService orderService;
+
+    /** 仅查询既有退款编号，不重新发送退款请求。 */
+    @PostMapping("/{refundNo}/refresh")
+    @Idempotent(key = "#request.requestId")
+    @Operation(summary = "查询并确认渠道退款结果")
+    public ApiResponse<RefundDetailVO> refreshRefund(@PathVariable String refundNo,
+                                                     @Valid @RequestBody RequestIdRequest request) {
+        return ApiResponse.success(orderService.refreshRefund(UserContext.getUserId(), refundNo));
+    }
 
     /**
      * 分页查询退款列表

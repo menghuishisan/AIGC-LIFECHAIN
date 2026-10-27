@@ -24,7 +24,7 @@ public class IncomeItemVO {
         vo.setRoleType(entity.getRoleType());
         vo.setRatio(entity.getRatio());
         vo.setAmount(entity.getAmount());
-        vo.setStatus(entity.getStatus());
+        vo.setStatus(entity.getSettleStatus());
         vo.setCreatedAt(entity.getCreatedAt());
         return vo;
     }

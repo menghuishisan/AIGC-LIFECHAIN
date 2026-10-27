@@ -28,6 +28,4 @@ public class SettlementItemVO implements Serializable {
     /** 结算金额（单位：分） */
     private Long amount;
 
-    /** 明细状态 */
-    private String itemStatus;
 }

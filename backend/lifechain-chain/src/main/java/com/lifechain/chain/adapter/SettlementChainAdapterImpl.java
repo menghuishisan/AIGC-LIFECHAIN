@@ -49,7 +49,9 @@ public class SettlementChainAdapterImpl implements SettlementChainAdapter {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("settleNo", settleNo);
         payload.put("orderNo", orderNo);
-        payload.put("totalAmount", totalAmount);
+        payload.put("currency", "CNY");
+        payload.put("amountUnit", "FEN");
+        payload.put("totalAmount", com.lifechain.common.util.MoneyUtil.requireFen(totalAmount));
         payload.put("summaryHash", summaryHash);
         payload.put("settleTime", DateTimeUtil.formatUtc(settleTime));
 
@@ -81,7 +83,9 @@ public class SettlementChainAdapterImpl implements SettlementChainAdapter {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("reverseNo", reverseNo);
         payload.put("settleNo", settleNo);
-        payload.put("reverseAmount", reverseAmount);
+        payload.put("reverseAmount", com.lifechain.common.util.MoneyUtil.requireFen(reverseAmount));
+        payload.put("currency", "CNY");
+        payload.put("amountUnit", "FEN");
         payload.put("reason", reason);
         payload.put("reverseTime", DateTimeUtil.formatUtc(reverseTime));
 

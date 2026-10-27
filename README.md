@@ -178,6 +178,24 @@ FABRIC_TLS_CERT=./runtime-config/fabric/org1/tls-ca.pem
 FABRIC_OVERRIDE_AUTH=peer0.org1.lifechain.com
 ```
 
+支付在各部署环境使用同一套实现，通过 `backend/.env` 配置切换：
+
+| 配置 | 用途 |
+| --- | --- |
+| `ALIPAY_SERVER_URL` | 选择官方沙箱或正式网关，地址见 `.env.example` |
+| `ALIPAY_APP_ID`、`ALIPAY_SELLER_ID`、`ALIPAY_PRIVATE_KEY`、`ALIPAY_PUBLIC_KEY` | 同一环境、同一应用和收款商户的参数 |
+| `ALIPAY_SANDBOX_CONFIG_PATH` | 沙箱配置文件的绝对路径；正式网关忽略沙箱文件 |
+| `ALIPAY_RETURN_URL` | 前端完整结果页地址，路径固定为 `/payment/success` |
+| `ALIPAY_NOTIFY_URL` | 后端完整通知地址，路径固定为 `/api/payments/alipay/callback` |
+| `WECHAT_*` | 微信独立的应用、商户、证书与通知参数 |
+| `CORS_ALLOWED_ORIGINS` | 当前网站实际来源 |
+
+沙箱配置由 Skill 准备后保存在 `backend/.alipay-sandbox.json`，启动脚本和应用只读取该文件，不创建新沙箱。后续测试继续复用同一配置；清理订单、测试库和临时脚本时保留此文件。项目登录账号与支付宝沙箱买家账号分别用于网站登录和渠道付款。
+
+公网部署时填写已开通应用的正式参数及 HTTPS 地址，重启同一后端构建产物。前端通过站点反向代理访问 `/api`，并为 `/payment/success` 等页面路由配置 SPA 回退。付款状态仍由渠道验签通知或服务端查询确认；回跳参数不直接判定成功。
+
+金额在 API、数据库和 Fabric 中统一为 `CNY` 整数分；仅渠道边界转换为元。订单固定分账比例，尾分归平台；当前统一全额退款，并补偿授权撤销和逆分账。收益分配和链上存证不表示支付机构已向创作者实际打款。
+
 ### 4. 部署区块链链码
 
 `infra/docker-compose.yml` 已经把 Orderer / 2 个 Peer / 2 个 CA 全部拉起（TLS 启用）。链码部署一次到位（自动建 channel + peer join + 安装/批准/提交 5 个链码）：

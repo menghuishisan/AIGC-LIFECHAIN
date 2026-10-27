@@ -80,8 +80,6 @@ const portalRoutes: RouteRecordRaw[] = [
       { path: 'orders/create', component: () => import('@/apps/portal/pages/OrderCreate.vue'), meta: { roles: BUYER_ONLY } },
       /* 支付（仅 BUYER） */
       { path: 'orders/:orderNo/pay', component: () => import('@/apps/portal/pages/PayPage.vue'), props: true, meta: { roles: BUYER_ONLY } },
-      /* 支付回调结果（仅 BUYER 私域） */
-      { path: 'payment/success', component: () => import('@/apps/portal/pages/PaymentSuccess.vue'), meta: { roles: BUYER_ONLY } },
       { path: 'payment/cancel', component: () => import('@/apps/portal/pages/PaymentCancel.vue'), meta: { roles: BUYER_ONLY } },
       /* 个人中心：portal 通用区，CREATOR / BUYER 都可访问 */
       { path: 'profile', component: () => import('@/apps/portal/pages/Profile.vue') },
@@ -178,6 +176,8 @@ const verifyRoutes: RouteRecordRaw[] = [
 
 /* ========== 公共路由（无需登录） ========== */
 const publicRoutes: RouteRecordRaw[] = [
+  /* 支付返回页公开可达；订单查询仍须登录并校验归属。 */
+  { path: '/payment/success', component: () => import('@/apps/portal/pages/PaymentSuccess.vue'), meta: { public: true } },
   { path: '/login', component: () => import('@/apps/portal/pages/Login.vue'), meta: { public: true } },
   { path: '/register', component: () => import('@/apps/portal/pages/Register.vue'), meta: { public: true } },
 ]

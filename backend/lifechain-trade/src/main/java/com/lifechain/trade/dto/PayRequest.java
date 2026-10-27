@@ -16,10 +16,6 @@ import java.io.Serializable;
 @Data
 public class PayRequest implements Serializable {
 
-    /** 订单编号 */
-    @NotBlank(message = "订单编号不能为空")
-    private String orderNo;
-
     /** 支付渠道（WECHAT_PAY/ALIPAY） */
     @NotBlank(message = "支付渠道不能为空")
     private String payChannel;

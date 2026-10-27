@@ -46,7 +46,7 @@ public class SettlementItemEntity extends BaseEntity {
     @TableField("amount")
     private Long amount;
 
-    /** 状态（PENDING/SUCCESS/FAILED） */
-    @TableField("status")
-    private String status;
+    /** 收益查询关联主结算状态，不在明细重复保存状态。 */
+    @TableField(exist = false)
+    private String settleStatus;
 }

@@ -14,6 +14,7 @@ import com.lifechain.settlement.mapper.SettlementRecordMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Component
@@ -30,12 +31,16 @@ public class ReverseSettlementChainReceiptHandler implements ChainReceiptHandler
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void onChainSuccess(ChainTxRecordEntity record) {
         ReverseSettlementRecordEntity reverse = reverseSettlementRecordMapper.selectById(record.getBizId());
         if (reverse == null) {
             log.warn("逆分账回执处理失败，未找到逆分账记录，bizId={}", record.getBizId());
             return;
         }
+        settlementRecordMapper.selectBySettleNoForUpdate(reverse.getSettleNo());
+        reverse = reverseSettlementRecordMapper.selectById(record.getBizId());
+        if (!java.util.Objects.equals(record.getTxHash(), reverse.getTxHash())) return;
         String fromStatus = reverse.getStatus();
         if (!SettlementStatusEnum.REVERSE_PENDING.getCode().equals(fromStatus)
                 || !ChainStatusEnum.CHAIN_SUBMITTED.getCode().equals(reverse.getChainStatus())) {
@@ -68,9 +73,14 @@ public class ReverseSettlementChainReceiptHandler implements ChainReceiptHandler
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void onChainFailed(ChainTxRecordEntity record) {
         ReverseSettlementRecordEntity reverse = reverseSettlementRecordMapper.selectById(record.getBizId());
         if (reverse == null) return;
+        settlementRecordMapper.selectBySettleNoForUpdate(reverse.getSettleNo());
+        reverse = reverseSettlementRecordMapper.selectById(record.getBizId());
+        if (!java.util.Objects.equals(record.getTxHash(), reverse.getTxHash())
+                || !SettlementStatusEnum.REVERSE_PENDING.getCode().equals(reverse.getStatus())) return;
         String fromStatus = reverse.getStatus();
         reverse.setStatus(SettlementStatusEnum.REVERSE_FAILED.getCode());
         reverse.setChainStatus(ChainStatusEnum.CHAIN_FAILED.getCode());
@@ -81,17 +91,16 @@ public class ReverseSettlementChainReceiptHandler implements ChainReceiptHandler
                 fromStatus, SettlementStatusEnum.REVERSE_FAILED.getCode(),
                 "链上回执失败: " + record.getFailReason(), null, null);
 
-        // 逆分账失败时必须恢复原结算状态为 SETTLE_SUCCESS
+        // 退款事实不回退，保留逆转意图，补偿继续使用同一逆分账编号。
         SettlementRecordEntity settlement = settlementRecordMapper.selectById(reverse.getSettleId());
         if (settlement != null && SettlementStatusEnum.REVERSE_PENDING.getCode().equals(settlement.getStatus())) {
             String settleFromStatus = settlement.getStatus();
-            settlement.setStatus(SettlementStatusEnum.SETTLE_SUCCESS.getCode());
+            settlement.setStatus(SettlementStatusEnum.REVERSE_PENDING.getCode());
             settlement.setUpdatedAt(DateTimeUtil.nowUtc());
             settlementRecordMapper.updateById(settlement);
             auditService.writeStatusHistory(BizTypeEnum.SETTLEMENT.getCode(), settlement.getId(), settlement.getSettleNo(),
-                    settleFromStatus, SettlementStatusEnum.SETTLE_SUCCESS.getCode(),
-                    "逆分账链上失败，恢复原结算状态", null, null);
-            log.info("逆分账失败，原结算状态已恢复: settleNo={}", settlement.getSettleNo());
+                    settleFromStatus, SettlementStatusEnum.REVERSE_PENDING.getCode(),
+                    "逆分账链上失败，等待补偿重试", null, null);
         }
     }
 }

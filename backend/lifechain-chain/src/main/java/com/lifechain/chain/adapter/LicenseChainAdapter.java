@@ -41,4 +41,7 @@ public interface LicenseChainAdapter {
      * @return 链上查询结果
      */
     ChainQueryResult queryLicense(String licenseNo);
+
+    /** 退款后撤销链上授权，固定载荷可重复提交且不能重新激活授权。 */
+    ChainSubmitResult revokeLicense(Long bizId, String licenseNo, String reason, LocalDateTime revokeTime);
 }

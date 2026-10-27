@@ -19,6 +19,11 @@ import java.util.List;
 @Mapper
 public interface SettlementRecordMapper extends BaseMapper<SettlementRecordEntity> {
 
+    default SettlementRecordEntity selectBySettleNoForUpdate(String settleNo) {
+        return selectOne(new LambdaQueryWrapper<SettlementRecordEntity>()
+                .eq(SettlementRecordEntity::getSettleNo, settleNo).last("FOR UPDATE"));
+    }
+
     /**
      * 根据结算编号查询
      *

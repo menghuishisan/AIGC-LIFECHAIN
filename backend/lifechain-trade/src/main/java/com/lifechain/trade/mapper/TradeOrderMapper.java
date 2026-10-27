@@ -31,6 +31,12 @@ public interface TradeOrderMapper extends BaseMapper<TradeOrderEntity> {
                 .eq(TradeOrderEntity::getOrderNo, orderNo));
     }
 
+    /** 事务内锁定订单，串行化付款、通知、取消和退款，避免重复授权。 */
+    default TradeOrderEntity selectByOrderNoForUpdate(String orderNo) {
+        return selectOne(new LambdaQueryWrapper<TradeOrderEntity>()
+                .eq(TradeOrderEntity::getOrderNo, orderNo).last("FOR UPDATE"));
+    }
+
     /**
      * 根据买方账户ID查询订单列表
      *

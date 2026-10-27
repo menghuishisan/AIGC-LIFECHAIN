@@ -28,4 +28,7 @@ public class PayResultVO implements Serializable {
 
     /** 支付链接（扫码支付时使用） */
     private String payUrl;
+
+    /** 支付宝收银台 HTML 表单，与扫码支付链接使用独立字段 */
+    private String formHtml;
 }

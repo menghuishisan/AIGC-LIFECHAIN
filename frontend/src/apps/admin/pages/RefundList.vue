@@ -14,7 +14,7 @@
         <template #default="{ row }">{{ formatCurrency(row.refundAmount) }}</template>
       </el-table-column>
       <el-table-column prop="refundStatus" label="状态" width="120">
-        <template #default="{ row }"><el-tag size="small">{{ row.refundStatus }}</el-tag></template>
+        <template #default="{ row }"><StatusTag :status="row.refundStatus" type="refund" /></template>
       </el-table-column>
       <el-table-column prop="applyTime" label="申请时间" width="180">
         <template #default="{ row }">{{ formatTime(row.applyTime) }}</template>
@@ -32,11 +32,13 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { tradeApi } from '@/shared/api'
+import { StatusTag } from '@/shared/components'
+import type { RefundDetailVO } from '@/shared/types'
 import { formatCurrency, formatTime } from '@/shared/utils'
 
 const router = useRouter()
 const loading = ref(false)
-const list = ref<any[]>([])
+const list = ref<RefundDetailVO[]>([])
 const total = ref(0)
 const query = reactive({ pageNo: 1, pageSize: 10 })
 

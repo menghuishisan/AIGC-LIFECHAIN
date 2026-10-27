@@ -26,7 +26,7 @@
         </el-form-item>
 
         <el-form-item label="建议价格（元）">
-          <el-input-number v-model="priceYuan" :min="0" :precision="2" :step="1" style="width: 100%" />
+          <el-input-number v-model="priceYuan" :min="0" :max="MAX_AMOUNT_YUAN" :precision="2" :step="1" style="width: 100%" />
         </el-form-item>
 
         <el-form-item label="描述说明">
@@ -49,7 +49,7 @@ import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { tradeApi } from '@/shared/api'
 import { LicenseTypeMap } from '@/shared/constants'
-import { generateRequestId } from '@/shared/utils'
+import { generateRequestId, yuanToFen, MAX_AMOUNT_YUAN } from '@/shared/utils'
 
 const router = useRouter()
 const formRef = ref<FormInstance>()
@@ -79,7 +79,7 @@ async function handleSubmit() {
       licenseType: form.licenseType,
       scopeDescription: form.scopeDescription,
       durationDays: form.durationDays,
-      priceAmount: priceYuan.value ? Math.round(priceYuan.value * 100) : undefined,
+      priceAmount: priceYuan.value ? yuanToFen(priceYuan.value) : undefined,
       description: form.description || undefined,
       requestId: generateRequestId()
     })

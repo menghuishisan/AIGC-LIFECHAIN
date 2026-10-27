@@ -12,6 +12,8 @@ type LicenseLedger struct {
 	LicenseHash      string `json:"licenseHash"`
 	Status           string `json:"status"`
 	EffectiveTime    string `json:"effectiveTime"`
+	RevokeTime       string `json:"revokeTime,omitempty"`
+	RevokeReason     string `json:"revokeReason,omitempty"`
 	TxTime           string `json:"txTime"`
 	ChaincodeVersion string `json:"chaincodeVersion"`
 }
@@ -25,6 +27,13 @@ type RegisterLicenseRequest struct {
 	LicenseType   string `json:"licenseType"`
 	LicenseHash   string `json:"licenseHash"`
 	EffectiveTime string `json:"effectiveTime"`
+}
+
+// EventPayload 链码事件负载
+type RevokeLicenseRequest struct {
+	LicenseNo  string `json:"licenseNo"`
+	Reason     string `json:"reason"`
+	RevokeTime string `json:"revokeTime"`
 }
 
 // EventPayload 链码事件负载

@@ -3,6 +3,7 @@
  * 对接后端 trade 模块所有接口
  */
 import { get, post, del } from './http'
+import { generateRequestId } from '@/shared/utils'
 import type {
   CreateListingRequest, ListingReviewRequest, ListingDetailVO,
   CreateOrderRequest, OrderDetailVO, OrderListVO, AdminOrderListVO, AdminOrderQuery,
@@ -58,6 +59,14 @@ export const getAdminOrders = (params: PageQuery & AdminOrderQuery) =>
 /** 发起支付 */
 export const payOrder = (orderNo: string, data: PayRequest) =>
   post<PayResultVO>(`/api/orders/${orderNo}/pay`, data)
+
+/** 服务端主动查询渠道交易并补偿本人的订单状态 */
+export const refreshPayment = (orderNo: string) =>
+  post<OrderDetailVO>(`/api/orders/${encodeURIComponent(orderNo)}/payment-status`, { requestId: generateRequestId() })
+
+/** 查询已批准退款的渠道结果，不发起新退款 */
+export const refreshRefund = (refundNo: string) =>
+  post<RefundDetailVO>(`/api/admin/refunds/${encodeURIComponent(refundNo)}/refresh`, { requestId: generateRequestId() })
 
 /** 取消订单 */
 export const cancelOrder = (orderNo: string, requestId: string) =>

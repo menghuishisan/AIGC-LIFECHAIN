@@ -13,6 +13,7 @@
             去支付
           </el-button>
           <el-button v-if="detail.allowedActions.includes('CANCEL')" @click="handleCancel">取消订单</el-button>
+          <el-button v-if="detail.allowedActions.includes('QUERY_PAYMENT')" :loading="refreshing" @click="refreshPayment">查询支付结果</el-button>
           <el-button v-if="detail.allowedActions.includes('APPLY_REFUND')" type="warning" @click="showRefundDialog = true">申请退款</el-button>
         </template>
       </DetailHeader>
@@ -110,6 +111,7 @@ import type { OrderDetailVO, TraceEventVO } from '@/shared/types'
 const props = defineProps<{ orderNo: string }>()
 const router = useRouter()
 const loading = ref(false)
+const refreshing = ref(false)
 const detail = ref<OrderDetailVO | null>(null)
 const traces = ref<TraceEventVO[]>([])
 const showRefundDialog = ref(false)
@@ -128,6 +130,12 @@ async function loadData() {
   } finally {
     loading.value = false
   }
+}
+
+async function refreshPayment() {
+  refreshing.value = true
+  try { await tradeApi.refreshPayment(props.orderNo); await loadData() }
+  finally { refreshing.value = false }
 }
 
 /** 取消订单 */

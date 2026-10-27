@@ -29,6 +29,9 @@ public class PaymentResponse {
     /** 支付链接（扫码支付时使用） */
     private String payUrl;
 
+    /** 支付宝收银台 HTML 表单，前端只按表单方式提交 */
+    private String formHtml;
+
     /** 支付渠道 */
     private String payChannel;
 

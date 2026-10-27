@@ -244,3 +244,11 @@ export const ReviewResultMap: Record<string, string> = {
   APPROVED: '通过',
   REJECTED: '驳回'
 }
+/** 退款记录状态，与订单的 REFUND_PENDING 状态分别定义。 */
+export const RefundStatusMap: Record<string, string> = {
+  PENDING: '待审批',
+  PROCESSING: '退款结果待确认',
+  SUCCESS: '退款成功',
+  FAILED: '退款失败',
+  REJECTED: '已拒绝'
+}

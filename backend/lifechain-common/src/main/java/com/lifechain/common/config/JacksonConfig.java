@@ -37,6 +37,8 @@ public class JacksonConfig {
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         // 忽略未知属性
         objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        // 禁止把JSON小数静默截断为整数分或整数ID。
+        objectMapper.disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
 
         return objectMapper;
     }

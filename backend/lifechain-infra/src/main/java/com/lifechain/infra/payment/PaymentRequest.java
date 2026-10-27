@@ -27,6 +27,9 @@ public class PaymentRequest {
     /** 支付金额（单位：分） */
     private Long totalAmount;
 
+    /** 订单绝对过期时间（UTC），支付渠道不得延长本地付款期限。 */
+    private java.time.LocalDateTime expireTime;
+
     /** 支付渠道：WECHAT_PAY / ALIPAY */
     private String payChannel;
 

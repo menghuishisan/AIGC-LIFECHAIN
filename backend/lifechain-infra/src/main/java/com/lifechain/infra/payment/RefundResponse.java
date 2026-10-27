@@ -27,6 +27,9 @@ public class RefundResponse {
     /** 是否成功 */
     private boolean success;
 
+    /** 已受理但资金结果尚未确认，需要复用原退款编号查询 */
+    private boolean pending;
+
     /** 错误信息（失败时填充） */
     private String errorMsg;
 }

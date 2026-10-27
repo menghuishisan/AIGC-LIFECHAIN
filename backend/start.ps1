@@ -34,6 +34,12 @@ Get-Content $EnvFile | ForEach-Object {
 
 Set-Location $ScriptDir
 
+$SandboxConfig = Join-Path $ScriptDir ".alipay-sandbox.json"
+if ($env:ALIPAY_SERVER_URL -eq "https://openapi-sandbox.dl.alipaydev.com/gateway.do" -and
+    (Test-Path -LiteralPath $SandboxConfig -PathType Leaf) -and -not $env:ALIPAY_SANDBOX_CONFIG_PATH) {
+    $env:ALIPAY_SANDBOX_CONFIG_PATH = $SandboxConfig
+}
+
 if (-not $SkipBuild) {
     Write-Host "[start] mvn 编译打包中..." -ForegroundColor Cyan
     mvn -pl lifechain-app -am clean package -DskipTests -q

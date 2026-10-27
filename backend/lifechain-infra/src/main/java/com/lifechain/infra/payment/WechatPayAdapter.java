@@ -3,6 +3,7 @@ package com.lifechain.infra.payment;
 import com.lifechain.common.enums.ErrorCodeEnum;
 import com.lifechain.common.enums.PayChannelEnum;
 import com.lifechain.common.exception.BizException;
+import com.lifechain.common.util.MoneyUtil;
 import com.wechat.pay.java.core.Config;
 import com.wechat.pay.java.core.RSAAutoCertificateConfig;
 import com.wechat.pay.java.core.notification.NotificationConfig;
@@ -17,6 +18,7 @@ import com.wechat.pay.java.service.refund.RefundService;
 import com.wechat.pay.java.service.refund.model.AmountReq;
 import com.wechat.pay.java.service.refund.model.CreateRequest;
 import com.wechat.pay.java.service.refund.model.Refund;
+import com.wechat.pay.java.service.refund.model.QueryByOutRefundNoRequest;
 import com.wechat.pay.java.service.refund.model.Status;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
@@ -113,7 +115,12 @@ public class WechatPayAdapter implements PaymentAdapter {
             prepayRequest.setNotifyUrl(wechatPayConfig.getNotifyUrl());
 
             Amount amount = new Amount();
-            amount.setTotal(request.getTotalAmount().intValue());
+            // 微信Native接口使用int分，拒绝溢出，不能截断Long金额。
+            com.lifechain.common.util.MoneyUtil.requireFen(request.getTotalAmount());
+            if (request.getTotalAmount() > Integer.MAX_VALUE) {
+                throw new BizException(ErrorCodeEnum.PARAM_INVALID, "微信支付金额超出渠道整数分范围");
+            }
+            amount.setTotal(Math.toIntExact(request.getTotalAmount()));
             amount.setCurrency("CNY");
             prepayRequest.setAmount(amount);
 
@@ -239,6 +246,12 @@ public class WechatPayAdapter implements PaymentAdapter {
      */
     @Override
     public RefundResponse refund(RefundRequest request) {
+        requireRefundService();
+        MoneyUtil.requireFen(request.getRefundAmount());
+        MoneyUtil.requireFen(request.getTotalAmount());
+        if (request.getRefundAmount() > request.getTotalAmount() || request.getTotalAmount() > Integer.MAX_VALUE) {
+            throw new BizException(ErrorCodeEnum.PARAM_INVALID, "微信退款金额超过原支付金额或渠道范围");
+        }
         try {
             CreateRequest createRequest = new CreateRequest();
             createRequest.setOutTradeNo(request.getOrderNo());
@@ -254,25 +267,56 @@ public class WechatPayAdapter implements PaymentAdapter {
 
             Refund refund = refundService.create(createRequest);
 
-            boolean success = Status.SUCCESS.equals(refund.getStatus()) ||
-                    Status.PROCESSING.equals(refund.getStatus());
-
             log.info("微信退款请求完成, 退款单号: {}, 微信退款号: {}, 状态: {}",
                     request.getRefundNo(), refund.getRefundId(), refund.getStatus());
-
-            return RefundResponse.builder()
-                    .refundNo(request.getRefundNo())
-                    .thirdRefundNo(refund.getRefundId())
-                    .success(success)
-                    .build();
-
+            if (refund.getAmount() == null || !request.getTotalAmount().equals(refund.getAmount().getTotal())
+                    || !java.util.Objects.equals(request.getThirdTradeNo(), refund.getTransactionId())) {
+                throw new BizException(ErrorCodeEnum.REFUND_FAILED, "微信退款原交易不匹配");
+            }
+            return mapRefund(request.getOrderNo(), request.getRefundNo(), request.getRefundAmount(), refund);
+        } catch (BizException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("微信退款失败, 退款单号: {}, 错误: {}", request.getRefundNo(), e.getMessage(), e);
-            return RefundResponse.builder()
-                    .refundNo(request.getRefundNo())
-                    .success(false)
-                    .errorMsg("微信退款失败: " + e.getMessage())
-                    .build();
+            log.warn("微信退款结果未知，保留原退款编号查询: refundNo={}", request.getRefundNo());
+            return pendingRefund(request.getRefundNo());
+        }
+    }
+
+    @Override
+    public RefundResponse queryRefund(String orderNo, String refundNo, Long refundAmount) {
+        requireRefundService();
+        MoneyUtil.requireFen(refundAmount);
+        try {
+            var request = new QueryByOutRefundNoRequest();
+            request.setOutRefundNo(refundNo);
+            return mapRefund(orderNo, refundNo, refundAmount, refundService.queryByOutRefundNo(request));
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("微信退款查询结果未知: refundNo={}", refundNo);
+            return pendingRefund(refundNo);
+        }
+    }
+
+    private RefundResponse mapRefund(String orderNo, String refundNo, Long refundAmount, Refund refund) {
+        if (refund == null || !orderNo.equals(refund.getOutTradeNo()) || !refundNo.equals(refund.getOutRefundNo())
+                || refund.getAmount() == null || !refundAmount.equals(refund.getAmount().getRefund())
+                || !"CNY".equals(refund.getAmount().getCurrency()) || isBlank(refund.getRefundId())) {
+            throw new BizException(ErrorCodeEnum.REFUND_FAILED, "微信退款标识、币种或金额不匹配");
+        }
+        boolean closed = Status.CLOSED.equals(refund.getStatus());
+        return RefundResponse.builder().refundNo(refundNo).thirdRefundNo(refund.getRefundId())
+                .success(!closed).pending(!closed && !Status.SUCCESS.equals(refund.getStatus()))
+                .errorMsg(closed ? "微信退款已关闭，资金未退回" : null).build();
+    }
+
+    private RefundResponse pendingRefund(String refundNo) {
+        return RefundResponse.builder().refundNo(refundNo).success(true).pending(true).build();
+    }
+
+    private void requireRefundService() {
+        if (refundService == null) {
+            throw new BizException(ErrorCodeEnum.REFUND_FAILED, "微信支付尚未配置完整");
         }
     }
 }

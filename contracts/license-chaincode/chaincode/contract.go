@@ -105,6 +105,46 @@ func (c *LicenseContract) RegisterLicense(ctx contractapi.TransactionContextInte
 	return nil
 }
 
+// RevokeLicense 退款后撤销授权；相同载荷幂等，保留原授权存证与撤销历史。
+func (c *LicenseContract) RevokeLicense(ctx contractapi.TransactionContextInterface, payloadJSON string) error {
+	var req RevokeLicenseRequest
+	if err := json.Unmarshal([]byte(payloadJSON), &req); err != nil {
+		return fmt.Errorf("invalid revoke payload: %w", err)
+	}
+	if req.LicenseNo == "" || req.Reason == "" || req.RevokeTime == "" {
+		return fmt.Errorf("licenseNo, reason, revokeTime are required")
+	}
+	b, err := ctx.GetStub().GetState(ledgerKey(req.LicenseNo))
+	if err != nil {
+		return err
+	}
+	if b == nil {
+		return fmt.Errorf("license not found: %s", req.LicenseNo)
+	}
+	var ledger LicenseLedger
+	if err = json.Unmarshal(b, &ledger); err != nil {
+		return err
+	}
+	if ledger.Status == "LICENSE_REVOKED" {
+		if ledger.RevokeReason == req.Reason && ledger.RevokeTime == req.RevokeTime {
+			return nil
+		}
+		return fmt.Errorf("CONFLICT: license revoked with different payload")
+	}
+	ledger.Status = "LICENSE_REVOKED"
+	ledger.RevokeReason = req.Reason
+	ledger.RevokeTime = req.RevokeTime
+	b, err = json.Marshal(ledger)
+	if err != nil {
+		return err
+	}
+	if err = ctx.GetStub().PutState(ledgerKey(req.LicenseNo), b); err != nil {
+		return err
+	}
+	emitEvent(ctx, "LicenseRevoked", "LICENSE", req.LicenseNo, ledger.Status)
+	return nil
+}
+
 // QueryLicense 查询授权许可账本状态
 func (c *LicenseContract) QueryLicense(ctx contractapi.TransactionContextInterface, licenseNo string) (*LicenseLedger, error) {
 	key := ledgerKey(licenseNo)

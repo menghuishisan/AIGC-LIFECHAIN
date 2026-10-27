@@ -22,6 +22,8 @@ import org.hyperledger.fabric.client.Proposal;
 import org.hyperledger.fabric.client.Status;
 import org.hyperledger.fabric.client.SubmitException;
 import org.hyperledger.fabric.client.SubmittedTransaction;
+import org.hyperledger.fabric.protos.peer.ProcessedTransaction;
+import org.hyperledger.fabric.protos.peer.TxValidationCode;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
@@ -122,14 +124,17 @@ public class FabricChainServiceImpl implements FabricChainService {
         } catch (CommitStatusException e) {
             log.error("链上提交状态查询失败（可能未上链），bizType={}, bizNo={}, txId={}",
                     request.getBizType(), request.getBizNo(), e.getTransactionId(), e);
-            result.setSuccess(false);
+            // 提交后查询超时仍保留交易ID，不能当成确定失败后重新交付或重复下单。
+            result.setSuccess(true);
+            result.setTxHash(e.getTransactionId());
             result.setFailReason("链上提交状态查询失败: " + e.getMessage());
             result.setReasonCode(ErrorCodeEnum.CHAIN_RECEIPT_TIMEOUT.getCode());
 
         } catch (SubmitException e) {
             log.error("链上交易提交到 orderer 失败，bizType={}, bizNo={}, txId={}",
                     request.getBizType(), request.getBizNo(), e.getTransactionId(), e);
-            result.setSuccess(false);
+            result.setSuccess(true);
+            result.setTxHash(e.getTransactionId());
             result.setFailReason("链上提交到 orderer 失败: " + e.getMessage());
             result.setReasonCode(ErrorCodeEnum.CHAIN_SUBMIT_FAILED.getCode());
 
@@ -182,13 +187,15 @@ public class FabricChainServiceImpl implements FabricChainService {
         }
 
         String currentStatus = record.getChainStatus();
-        if (ChainStatusEnum.CHAIN_SUCCESS.getCode().equals(currentStatus)) {
-            log.info("链上交易已成功，无需重试，recordId={}, txHash={}", chainTxRecordId, record.getTxHash());
+        if (ChainStatusEnum.CHAIN_SUCCESS.getCode().equals(currentStatus)
+                || ChainStatusEnum.CHAIN_FAILED.getCode().equals(currentStatus)) {
+            // 已确认的链结果不再提交或查询；只重试尚未完成的业务回写，包括无交易ID的背书失败。
+            log.info("链上交易已有最终结果，重试业务回写，recordId={}, status={}", chainTxRecordId, currentStatus);
+            chainReceiptProcessor.processReceipt(record);
             return buildResultFromRecord(record);
         }
 
-        if (!ChainStatusEnum.CHAIN_SUBMITTED.getCode().equals(currentStatus)
-                && !ChainStatusEnum.CHAIN_FAILED.getCode().equals(currentStatus)) {
+        if (!ChainStatusEnum.CHAIN_SUBMITTED.getCode().equals(currentStatus)) {
             throw new BizException(ErrorCodeEnum.STATUS_INVALID,
                     "当前链上状态不可重试，recordId=" + chainTxRecordId + ", status=" + currentStatus,
                     null, currentStatus);
@@ -206,6 +213,7 @@ public class FabricChainServiceImpl implements FabricChainService {
         record.setFailReason("自动重试失败：缺少交易哈希，需业务层重新提交");
         record.setReasonCode(ErrorCodeEnum.CHAIN_SUBMIT_FAILED.getCode());
         chainTxRecordMapper.updateById(record);
+        chainReceiptProcessor.processReceipt(record);
 
         return buildResultFromRecord(record);
     }
@@ -214,8 +222,8 @@ public class FabricChainServiceImpl implements FabricChainService {
      * 通过系统链码 QSCC 验证交易是否已成功上链
      * <p>
      * 调用 {@code qscc} 系统链码的 {@code GetTransactionByID} 方法，
-     * 如果能查到交易说明已成功上链，更新记录状态为 CHAIN_SUCCESS；
-     * 如果查不到说明交易未上链，更新记录状态为 CHAIN_FAILED。
+     * 只有 VALID 回执才更新为 CHAIN_SUCCESS；无效回执更新为 CHAIN_FAILED。
+     * 网络故障或暂时查不到时保留待确认状态，不能推断交易失败。
      * </p>
      *
      * @param record 链上交易记录
@@ -229,10 +237,12 @@ public class FabricChainServiceImpl implements FabricChainService {
 
             log.info("链上交易验证成功，txHash={}, 响应长度={}字节", record.getTxHash(), txData.length);
 
-            record.setChainStatus(ChainStatusEnum.CHAIN_SUCCESS.getCode());
+            ProcessedTransaction processed = ProcessedTransaction.parseFrom(txData);
+            boolean valid = processed.getValidationCode() == TxValidationCode.VALID_VALUE;
+            record.setChainStatus(valid ? ChainStatusEnum.CHAIN_SUCCESS.getCode() : ChainStatusEnum.CHAIN_FAILED.getCode());
             record.setConfirmTime(DateTimeUtil.nowUtc());
-            record.setFailReason(null);
-            record.setReasonCode(null);
+            record.setFailReason(valid ? null : "Fabric交易验证未通过: " + processed.getValidationCode());
+            record.setReasonCode(valid ? null : ErrorCodeEnum.CHAIN_RECEIPT_FAILED.getCode());
             chainTxRecordMapper.updateById(record);
 
             // 链上成功，通过统一回执处理器推进业务状态
@@ -241,17 +251,11 @@ public class FabricChainServiceImpl implements FabricChainService {
             return buildResultFromRecord(record);
 
         } catch (GatewayException e) {
-            log.warn("链上交易验证失败（交易未找到），txHash={}, 原因={}", record.getTxHash(), e.getMessage());
-
-            record.setChainStatus(ChainStatusEnum.CHAIN_FAILED.getCode());
-            record.setFailReason("链上交易验证失败: " + e.getMessage());
-            record.setReasonCode(ErrorCodeEnum.CHAIN_RECEIPT_FAILED.getCode());
-            chainTxRecordMapper.updateById(record);
-
-            // 链上失败，通过统一回执处理器处理业务失败
-            chainReceiptProcessor.processReceipt(record);
-
+            // 暂时查不到或网络失败不证明交易无效，保留待确认状态供下一轮补偿。
+            log.warn("链上交易查询结果未知: txHash={}", record.getTxHash());
             return buildResultFromRecord(record);
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+            throw new BizException(ErrorCodeEnum.CHAIN_RECEIPT_FAILED, "Fabric交易回执格式无效");
         }
     }
 

@@ -5,6 +5,7 @@ import com.lifechain.common.context.UserContext;
 import com.lifechain.common.model.ApiResponse;
 import com.lifechain.common.model.PageQuery;
 import com.lifechain.common.model.PageResult;
+import com.lifechain.common.model.RequestIdRequest;
 import com.lifechain.trade.dto.*;
 import com.lifechain.trade.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -97,10 +98,18 @@ public class OrderController {
     public ApiResponse<PayResultVO> payOrder(@PathVariable String orderNo,
                                              @Valid @RequestBody PayRequest request) {
         Long accountId = UserContext.getUserId();
-        request.setOrderNo(orderNo);
         log.info("发起支付，accountId={}, orderNo={}", accountId, orderNo);
-        PayResultVO result = orderService.payOrder(accountId, request);
+        PayResultVO result = orderService.payOrder(accountId, orderNo, request);
         return ApiResponse.success(result);
+    }
+
+    /** 主动查询可能补偿订单状态，因此使用 POST；订单归属在服务层校验。 */
+    @PostMapping("/{orderNo}/payment-status")
+    @Idempotent(key = "#request.requestId")
+    @Operation(summary = "刷新支付状态")
+    public ApiResponse<OrderDetailVO> refreshPayment(@PathVariable String orderNo,
+                                                     @Valid @RequestBody RequestIdRequest request) {
+        return ApiResponse.success(orderService.refreshPayment(UserContext.getUserId(), orderNo));
     }
 
     /**
@@ -133,9 +142,8 @@ public class OrderController {
     public ApiResponse<Void> applyRefund(@PathVariable String orderNo,
                                          @Valid @RequestBody RefundApplyRequest request) {
         Long accountId = UserContext.getUserId();
-        request.setOrderNo(orderNo);
         log.info("申请退款，accountId={}, orderNo={}", accountId, orderNo);
-        orderService.applyRefund(accountId, request);
+        orderService.applyRefund(accountId, orderNo, request);
         return ApiResponse.success();
     }
 }

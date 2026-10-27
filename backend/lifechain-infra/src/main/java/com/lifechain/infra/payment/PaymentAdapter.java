@@ -56,4 +56,7 @@ public interface PaymentAdapter {
      * @return 退款响应
      */
     RefundResponse refund(RefundRequest request);
+
+    /** 使用持久化的原退款编号查询资金结果；未知结果必须返回pending。 */
+    RefundResponse queryRefund(String orderNo, String refundNo, Long refundAmount);
 }

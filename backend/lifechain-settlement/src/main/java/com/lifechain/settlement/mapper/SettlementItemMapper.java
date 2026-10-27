@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.lifechain.settlement.entity.SettlementItemEntity;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import java.util.List;
 
@@ -18,6 +20,24 @@ import java.util.List;
  */
 @Mapper
 public interface SettlementItemMapper extends BaseMapper<SettlementItemEntity> {
+
+    /** 主结算确认且未进入逆转流程的金额才计入当前净收益。 */
+    @Select("""
+            SELECT i.*, s.status AS settle_status FROM settlement_item i
+            JOIN settlement_record s ON s.id = i.settle_id
+            WHERE i.account_id = #{accountId} AND i.deleted_flag = 0 AND s.deleted_flag = 0
+              AND s.status = 'SETTLE_SUCCESS' AND s.chain_status = 'CHAIN_SUCCESS'
+            """)
+    List<SettlementItemEntity> selectConfirmedIncome(@Param("accountId") Long accountId);
+
+    /** 收益明细的状态统一取主结算，逆分账完成后不会残留成功收益。 */
+    @Select("""
+            SELECT i.*, s.status AS settle_status FROM settlement_item i
+            JOIN settlement_record s ON s.id = i.settle_id
+            WHERE i.account_id = #{accountId} AND i.deleted_flag = 0 AND s.deleted_flag = 0
+            ORDER BY i.created_at DESC, i.id DESC
+            """)
+    Page<SettlementItemEntity> selectIncomePage(Page<SettlementItemEntity> page, @Param("accountId") Long accountId);
 
     /**
      * 根据结算记录ID查询所有明细

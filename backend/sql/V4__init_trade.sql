@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `license_template` (
     `license_type`      VARCHAR(30)  NOT NULL               COMMENT '授权类型(PERSONAL_USE/COMMERCIAL_USE/EXCLUSIVE)',
     `scope_description` TEXT                  DEFAULT NULL  COMMENT '范围描述',
     `duration_days`     INT                   DEFAULT NULL  COMMENT '有效天数',
-    `price_amount`      BIGINT       NOT NULL               COMMENT '价格（分）',
+    `price_amount`      BIGINT                DEFAULT NULL  COMMENT '建议价格（分，可选）',
     `currency`          VARCHAR(10)  NOT NULL DEFAULT 'CNY' COMMENT '币种',
     `status`            VARCHAR(20)  NOT NULL               COMMENT '状态(ACTIVE/INACTIVE)',
     `description`       VARCHAR(512)          DEFAULT NULL  COMMENT '描述',
@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS `trade_order` (
     `license_type`        VARCHAR(30)  NOT NULL               COMMENT '授权类型',
     `price_amount`        BIGINT       NOT NULL               COMMENT '原价（分）',
     `pay_amount`          BIGINT       NOT NULL               COMMENT '实付金额（分）',
+    `creator_ratio`       DECIMAL(5,4) NOT NULL               COMMENT '下单固定创作者分成比例',
+    `platform_ratio`      DECIMAL(5,4) NOT NULL               COMMENT '下单固定平台分成比例',
     `currency`            VARCHAR(10)  NOT NULL DEFAULT 'CNY' COMMENT '币种',
     `pay_channel`         VARCHAR(20)           DEFAULT NULL  COMMENT '支付渠道',
     `pay_status`          VARCHAR(20)           DEFAULT NULL  COMMENT '支付状态',
@@ -184,7 +186,7 @@ CREATE TABLE IF NOT EXISTS `refund_record` (
     `pay_channel`     VARCHAR(20)  NOT NULL               COMMENT '原支付渠道',
     `refund_amount`   BIGINT       NOT NULL               COMMENT '退款金额（分）',
     `currency`        VARCHAR(10)  NOT NULL DEFAULT 'CNY' COMMENT '币种',
-    `refund_status`   VARCHAR(20)  NOT NULL               COMMENT '退款状态(PENDING/SUCCESS/FAILED)',
+    `refund_status`   VARCHAR(20)  NOT NULL               COMMENT '退款状态(PENDING/PROCESSING/SUCCESS/FAILED/REJECTED)',
     `refund_reason`   VARCHAR(512)          DEFAULT NULL  COMMENT '退款原因',
     `reason_code`     VARCHAR(64)           DEFAULT NULL  COMMENT '原因码',
     `third_refund_no` VARCHAR(128)          DEFAULT NULL  COMMENT '渠道退款流水号',
@@ -193,7 +195,7 @@ CREATE TABLE IF NOT EXISTS `refund_record` (
     `fail_reason`     VARCHAR(512)          DEFAULT NULL  COMMENT '失败原因',
     `operator_id`     BIGINT                DEFAULT NULL  COMMENT '操作人ID',
     `request_id`      VARCHAR(64)           DEFAULT NULL  COMMENT '幂等ID',
-    `pre_refund_order_status` VARCHAR(20)   DEFAULT NULL  COMMENT '退款前订单状态（拒绝退款时用于恢复）',
+    `pre_refund_order_status` VARCHAR(30) NOT NULL        COMMENT '退款前订单状态（拒绝退款时用于恢复）',
     `deleted_flag`    TINYINT      NOT NULL DEFAULT 0     COMMENT '删除标记 0-未删除 1-已删除',
     `created_at`      DATETIME     NOT NULL               COMMENT '创建时间(UTC)',
     `updated_at`      DATETIME     NOT NULL               COMMENT '更新时间(UTC)',
@@ -205,3 +207,21 @@ CREATE TABLE IF NOT EXISTS `refund_record` (
     KEY `idx_third_refund_no` (`third_refund_no`),
     KEY `idx_request_id` (`request_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='退款记录表';
+
+
+-- 支付通知去重与审计，与支付表一并初始化。
+CREATE TABLE IF NOT EXISTS payment_notification (
+    id BIGINT NOT NULL,
+    pay_channel VARCHAR(20) NOT NULL,
+    notify_id VARCHAR(256) NOT NULL,
+    order_no VARCHAR(64) NOT NULL,
+    third_trade_no VARCHAR(128) NOT NULL,
+    trade_status VARCHAR(64) NOT NULL,
+    payload_hash CHAR(64) NOT NULL,
+    deleted_flag TINYINT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_payment_notify (pay_channel, notify_id),
+    KEY idx_payment_notify_order (order_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='支付通知去重与审计记录';

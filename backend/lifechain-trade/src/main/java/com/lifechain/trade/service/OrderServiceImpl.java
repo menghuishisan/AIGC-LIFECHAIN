@@ -10,7 +10,9 @@ import com.lifechain.auth.mapper.AccountMapper;
 import com.lifechain.auth.mapper.DidRecordMapper;
 import com.lifechain.chain.adapter.LicenseChainAdapter;
 import com.lifechain.chain.model.ChainSubmitResult;
+import com.lifechain.chain.record.ChainTxRecordService;
 import com.lifechain.common.enums.*;
+import com.lifechain.common.context.UserContext;
 import com.lifechain.common.exception.BizException;
 import com.lifechain.common.model.PageQuery;
 import com.lifechain.common.model.PageResult;
@@ -19,6 +21,7 @@ import com.lifechain.common.util.BizNoUtil;
 import com.lifechain.common.util.DateTimeUtil;
 import com.lifechain.common.util.FieldVisibilityUtil;
 import com.lifechain.common.util.HashUtil;
+import com.lifechain.common.util.MoneyUtil;
 import com.lifechain.infra.notification.NotificationService;
 import com.lifechain.infra.mq.MessagePublisher;
 import com.lifechain.infra.mq.RabbitMQConfig;
@@ -40,10 +43,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 订单服务实现
@@ -65,12 +71,14 @@ public class OrderServiceImpl implements OrderService {
     private final AccountMapper accountMapper;
     private final DidRecordMapper didRecordMapper;
     private final PaymentRecordMapper paymentMapper;
+    private final PaymentNotificationMapper paymentNotificationMapper;
     private final LicenseRecordMapper licenseMapper;
     private final RefundRecordMapper refundMapper;
     private final WorkListingMapper listingMapper;
     private final WorkMapper workMapper;
     private final PaymentAdapterFactory paymentAdapterFactory;
     private final LicenseChainAdapter licenseChainAdapter;
+    private final ChainTxRecordService chainTxRecordService;
     private final AuditService auditService;
     private final TraceEventService traceEventService;
     private final ObjectMapper objectMapper;
@@ -80,6 +88,7 @@ public class OrderServiceImpl implements OrderService {
     private final NotificationService notificationService;
     private final RedisService redisService;
     private final MessagePublisher messagePublisher;
+    private final PlatformTransactionManager transactionManager;
 
     @Value("${lifechain.pay.wechat.notifyUrl:}")
     private String wechatNotifyUrl;
@@ -133,10 +142,21 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // 2.5 交易前校验授权双方都具备有效DID，确保后续授权上链主体归属清晰
-        assertActiveDidForTrade(listing.getCreatorAccountId(), "创作者");
-        assertActiveDidForTrade(buyerAccountId, "购买方");
+        DidRecordEntity creatorDid = assertActiveDidForTrade(listing.getCreatorAccountId(), "创作者");
+        DidRecordEntity buyerDid = assertActiveDidForTrade(buyerAccountId, "购买方");
 
         // 3. 创建订单
+        MoneyUtil.requireFen(listing.getPriceAmount());
+        MoneyUtil.requireCny(listing.getCurrency());
+        PayChannelEnum.fromCode(request.getPayChannel());
+        if (PayChannelEnum.WECHAT_PAY.getCode().equals(request.getPayChannel())
+                && listing.getPriceAmount() > Integer.MAX_VALUE) {
+            throw new BizException(ErrorCodeEnum.PARAM_INVALID, "金额超出微信支付渠道范围，请选择支付宝");
+        }
+        WorkSettleRuleEntity fixedRule = workSettleRuleMapper.selectEffectiveRuleByWorkNo(listing.getWorkNo());
+        var creatorRatio = fixedRule == null ? new java.math.BigDecimal("0.8000") : fixedRule.getCreatorRatio();
+        var platformRatio = fixedRule == null ? new java.math.BigDecimal("0.2000") : fixedRule.getPlatformRatio();
+        MoneyUtil.requireRatios(creatorRatio, platformRatio);
         LocalDateTime now = DateTimeUtil.nowUtc();
         TradeOrderEntity order = new TradeOrderEntity();
         order.setOrderNo(BizNoUtil.orderNo());
@@ -145,11 +165,15 @@ public class OrderServiceImpl implements OrderService {
         order.setListingId(listing.getId());
         order.setListingNo(listing.getListingNo());
         order.setBuyerAccountId(buyerAccountId);
+        order.setBuyerSubjectId(buyerDid.getSubjectId());
         order.setCreatorAccountId(listing.getCreatorAccountId());
+        order.setCreatorSubjectId(creatorDid.getSubjectId());
         order.setOrderStatus(OrderStatusEnum.ORDER_CREATED.getCode());
         order.setLicenseType(listing.getLicenseType());
         order.setPriceAmount(listing.getPriceAmount());
         order.setPayAmount(listing.getPriceAmount());
+        order.setCreatorRatio(creatorRatio);
+        order.setPlatformRatio(platformRatio);
         order.setCurrency(listing.getCurrency());
         order.setPayChannel(request.getPayChannel());
         order.setPayStatus(PayStatusEnum.PAY_INIT.getCode());
@@ -174,7 +198,7 @@ public class OrderServiceImpl implements OrderService {
 
         // 4.1 创建分账规则快照
         try {
-            WorkSettleRuleEntity settleRule = workSettleRuleMapper.selectEffectiveRuleByWorkNo(listing.getWorkNo());
+            WorkSettleRuleEntity settleRule = fixedRule;
             if (settleRule != null) {
                 String ruleJson = objectMapper.writeValueAsString(settleRule);
                 TradeOrderSnapshotEntity ruleSnapshot = new TradeOrderSnapshotEntity();
@@ -222,11 +246,11 @@ public class OrderServiceImpl implements OrderService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public PayResultVO payOrder(Long buyerAccountId, PayRequest request) {
-        log.info("发起支付，buyerAccountId={}, orderNo={}", buyerAccountId, request.getOrderNo());
+    public PayResultVO payOrder(Long buyerAccountId, String orderNo, PayRequest request) {
+        log.info("发起支付，buyerAccountId={}, orderNo={}", buyerAccountId, orderNo);
 
         // 1. 查询订单
-        TradeOrderEntity order = orderMapper.selectByOrderNo(request.getOrderNo());
+        TradeOrderEntity order = orderMapper.selectByOrderNoForUpdate(orderNo);
         if (order == null) {
             throw new BizException(ErrorCodeEnum.ORDER_NOT_FOUND);
         }
@@ -234,19 +258,21 @@ public class OrderServiceImpl implements OrderService {
             throw new BizException(ErrorCodeEnum.RESOURCE_ACCESS_DENIED, "非本人订单");
         }
 
+        if (!order.getPayChannel().equals(request.getPayChannel())) {
+            throw new BizException(ErrorCodeEnum.PARAM_INVALID, "支付渠道必须与订单一致");
+        }
+
         // 2. 校验订单状态
-        if (!OrderStatusEnum.ORDER_CREATED.getCode().equals(order.getOrderStatus())) {
+        boolean resume = PayChannelEnum.ALIPAY.getCode().equals(order.getPayChannel())
+                && order.getPayChannel().equals(request.getPayChannel())
+                && OrderStatusEnum.PAY_PENDING_CONFIRM.getCode().equals(order.getOrderStatus());
+        if (!resume && !OrderStatusEnum.ORDER_CREATED.getCode().equals(order.getOrderStatus())) {
             throw new BizException(ErrorCodeEnum.STATUS_INVALID, "订单状态不允许支付",
                     null, order.getOrderStatus());
         }
 
         // 3. 校验是否过期
         if (order.getExpireTime() != null && order.getExpireTime().isBefore(DateTimeUtil.nowUtc())) {
-            order.setOrderStatus(OrderStatusEnum.ORDER_EXPIRED.getCode());
-            orderMapper.updateById(order);
-            auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
-                    OrderStatusEnum.ORDER_CREATED.getCode(), OrderStatusEnum.ORDER_EXPIRED.getCode(),
-                    "订单已过期", null, null);
             throw new BizException(ErrorCodeEnum.STATUS_INVALID, "订单已过期");
         }
 
@@ -262,6 +288,7 @@ public class OrderServiceImpl implements OrderService {
         payReq.setOrderNo(order.getOrderNo());
         payReq.setSubject("AIGC作品授权-" + order.getWorkNo());
         payReq.setTotalAmount(order.getPayAmount());
+        payReq.setExpireTime(order.getExpireTime());
         payReq.setPayChannel(request.getPayChannel());
         payReq.setNotifyUrl(notifyUrl);
         payReq.setClientIp(request.getClientIp());
@@ -270,6 +297,17 @@ public class OrderServiceImpl implements OrderService {
         PaymentResponse payResp = paymentAdapterFactory.createPayment(payReq);
         if (!payResp.isSuccess()) {
             throw new BizException(ErrorCodeEnum.PAY_CREATE_FAILED, payResp.getErrorMsg());
+        }
+
+        // 已有支付会话复用同一商户订单号和支付记录，浏览器刷新不重复记账。
+        if (resume) {
+            PayResultVO result = new PayResultVO();
+            result.setOrderNo(order.getOrderNo());
+            result.setPayParams(payResp.getPayParams());
+            result.setPayUrl(payResp.getPayUrl());
+            result.setFormHtml(payResp.getFormHtml());
+            result.setPrepayId(payResp.getPrepayId());
+            return result;
         }
 
         // 6. 创建支付记录
@@ -307,6 +345,7 @@ public class OrderServiceImpl implements OrderService {
         result.setPrepayId(payResp.getPrepayId());
         result.setPayParams(payResp.getPayParams());
         result.setPayUrl(payResp.getPayUrl());
+        result.setFormHtml(payResp.getFormHtml());
         return result;
     }
 
@@ -325,108 +364,148 @@ public class OrderServiceImpl implements OrderService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void handlePaymentCallback(String payChannel, PaymentCallbackResult callbackResult) {
-        String orderNo = callbackResult.getOrderNo();
-        log.info("处理支付回调: orderNo={}, channel={}, success={}",
-                orderNo, payChannel, callbackResult.isSuccess());
-
-        // 1. 查询订单
-        TradeOrderEntity order = orderMapper.selectByOrderNo(orderNo);
+    public void handlePaymentCallback(String payChannel, PaymentCallbackResult result) {
+        TradeOrderEntity order = orderMapper.selectByOrderNoForUpdate(result.getOrderNo());
         if (order == null) {
-            log.error("支付回调订单不存在: orderNo={}", orderNo);
-            return;
+            throw new BizException(ErrorCodeEnum.ORDER_NOT_FOUND);
         }
-
-        // 2. 幂等检查：如果订单已进入支付确认及之后的状态，直接返回
-        String currentStatus = order.getOrderStatus();
-        if (OrderStatusEnum.PAY_CONFIRMED.getCode().equals(currentStatus)
-                || OrderStatusEnum.AUTH_GRANTING.getCode().equals(currentStatus)
-                || OrderStatusEnum.AUTH_GRANTED.getCode().equals(currentStatus)
-                || OrderStatusEnum.SETTLEMENT_PENDING.getCode().equals(currentStatus)
-                || OrderStatusEnum.ORDER_COMPLETED.getCode().equals(currentStatus)) {
-            log.info("支付回调幂等处理，订单已处理: orderNo={}, currentStatus={}", orderNo, currentStatus);
-            return;
+        // 业务归属、金额和流水校验先于幂等返回，重复通知也不能绕过校验。
+        if (!payChannel.equals(order.getPayChannel()) || !payChannel.equals(result.getPayChannel())) {
+            throw new BizException(ErrorCodeEnum.PAY_CONFIRM_FAILED, "支付渠道不匹配");
         }
-
-        // 2.5 校验支付渠道一致性：回调渠道必须与订单原支付渠道一致
-        if (order.getPayChannel() != null && !order.getPayChannel().equals(payChannel)) {
-            log.error("支付渠道不一致: orderNo={}, orderChannel={}, callbackChannel={}",
-                    orderNo, order.getPayChannel(), payChannel);
-            order.setOrderStatus(OrderStatusEnum.ORDER_EXCEPTION.getCode());
-            orderMapper.updateById(order);
-            auditService.writeAuditLog(BizTypeEnum.ORDER.getCode(), order.getId(), orderNo,
-                    "PAY_CHANNEL_MISMATCH",
-                    "支付渠道不一致,订单渠道:" + order.getPayChannel() + ",回调渠道:" + payChannel,
-                    null, null, null, "FAILED", "PAY_CHANNEL_MISMATCH");
-            return;
+        if ((result.isSuccess() || result.isNonPaymentEvent())
+                && !java.util.Objects.equals(order.getPayAmount(), result.getPaidAmount())) {
+            throw new BizException(ErrorCodeEnum.PAY_AMOUNT_MISMATCH);
         }
-
-        // 3. 校验金额一致性
-        if (callbackResult.isSuccess() && callbackResult.getPaidAmount().compareTo(order.getPayAmount()) != 0) {
-            log.error("支付金额不一致: orderNo={}, expected={}, actual={}",
-                    orderNo, order.getPayAmount(), callbackResult.getPaidAmount());
-            order.setOrderStatus(OrderStatusEnum.ORDER_EXCEPTION.getCode());
-            orderMapper.updateById(order);
-            auditService.writeAuditLog(BizTypeEnum.ORDER.getCode(), order.getId(), orderNo,
-                    "PAY_AMOUNT_MISMATCH",
-                    "支付金额不一致,期望:" + order.getPayAmount() + ",实际:" + callbackResult.getPaidAmount(),
-                    null, null, null, "FAILED", ErrorCodeEnum.PAY_AMOUNT_MISMATCH.getCode());
-            return;
-        }
-
-        // 4. 更新支付记录
-        LocalDateTime now = DateTimeUtil.nowUtc();
         List<PaymentRecordEntity> payments = paymentMapper.selectByOrderId(order.getId());
-        PaymentRecordEntity payment = payments.isEmpty() ? null : payments.get(0);
-        if (payment != null) {
-            payment.setThirdTradeNo(callbackResult.getThirdTradeNo());
-            payment.setPayTime(callbackResult.getPayTime());
-            payment.setCallbackTime(now);
-            payment.setCallbackRawRef(callbackResult.getRawPayload() != null
-                    ? HashUtil.sha256(callbackResult.getRawPayload()) : null);
-            if (callbackResult.isSuccess()) {
-                payment.setPayStatus(PayStatusEnum.PAY_SUCCESS.getCode());
-            } else {
-                payment.setPayStatus(PayStatusEnum.PAY_FAILED.getCode());
-            }
-            paymentMapper.updateById(payment);
+        PaymentRecordEntity payment = payments.stream().filter(p -> payChannel.equals(p.getPayChannel()))
+                .findFirst().orElseThrow(() -> new BizException(ErrorCodeEnum.PAY_CONFIRM_FAILED, "缺少支付记录"));
+        if (result.isSuccess() && (result.getThirdTradeNo() == null || result.getThirdTradeNo().isBlank())) {
+            throw new BizException(ErrorCodeEnum.PAY_CONFIRM_FAILED, "缺少渠道交易流水");
         }
-
-        // 5. 支付失败处理
-        if (!callbackResult.isSuccess()) {
-            log.warn("支付失败: orderNo={}", orderNo);
+        if (payment.getThirdTradeNo() != null && !payment.getThirdTradeNo().equals(result.getThirdTradeNo())) {
+            throw new BizException(ErrorCodeEnum.PAY_CONFIRM_FAILED, "支付流水不匹配");
+        }
+        if (result.getNotifyId() != null) {
+            var previous = paymentNotificationMapper.selectByNotifyId(payChannel, result.getNotifyId());
+            String payloadHash = HashUtil.sha256(result.getRawPayload());
+            if (previous != null) {
+                if (!order.getOrderNo().equals(previous.getOrderNo()) || !payloadHash.equals(previous.getPayloadHash())) {
+                    throw new BizException(ErrorCodeEnum.PAY_CONFIRM_FAILED, "通知标识与既有记录不匹配");
+                }
+                return;
+            }
+            var notification = new PaymentNotificationEntity();
+            notification.setPayChannel(payChannel);
+            notification.setNotifyId(result.getNotifyId());
+            notification.setOrderNo(order.getOrderNo());
+            notification.setThirdTradeNo(result.getThirdTradeNo());
+            notification.setTradeStatus(result.getTradeStatus());
+            notification.setPayloadHash(payloadHash);
+            paymentNotificationMapper.insert(notification);
+        }
+        // 退款、关闭、分账及等待付款通知不修改付款状态，尤其不能将已付款订单降级。
+        if (result.isNonPaymentEvent() || order.getPayTime() != null
+                || PayStatusEnum.PAY_SUCCESS.getCode().equals(payment.getPayStatus())) {
             return;
         }
+        LocalDateTime now = DateTimeUtil.nowUtc();
+        payment.setThirdTradeNo(result.getThirdTradeNo());
+        payment.setPayTime(result.getPayTime());
+        payment.setCallbackTime(now);
+        payment.setCallbackRawRef(result.getRawPayload() == null ? null : HashUtil.sha256(result.getRawPayload()));
+        payment.setPayStatus(result.isSuccess() ? PayStatusEnum.PAY_SUCCESS.getCode() : PayStatusEnum.PAY_FAILED.getCode());
+        paymentMapper.updateById(payment);
+        if (!result.isSuccess()) return;
 
-        // 6. 支付成功：更新订单状态到 PAY_CONFIRMED
         String fromStatus = order.getOrderStatus();
-        order.setOrderStatus(OrderStatusEnum.PAY_CONFIRMED.getCode());
         order.setPayStatus(PayStatusEnum.PAY_SUCCESS.getCode());
-        order.setPayTime(callbackResult.getPayTime() != null ? callbackResult.getPayTime() : now);
+        order.setPayTime(result.getPayTime() == null ? now : result.getPayTime());
+        // 失效订单发生晚到付款时保留资金事实并转异常处理，禁止继续交付授权。
+        if (!OrderStatusEnum.PAY_PENDING_CONFIRM.getCode().equals(fromStatus)) {
+            order.setOrderStatus(OrderStatusEnum.ORDER_EXCEPTION.getCode());
+            orderMapper.updateById(order);
+            auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
+                    fromStatus, order.getOrderStatus(), "失效订单收到付款，需人工核实退款", "LATE_PAYMENT", null);
+            return;
+        }
+        order.setOrderStatus(OrderStatusEnum.PAY_CONFIRMED.getCode());
         orderMapper.updateById(order);
-
-        auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), orderNo,
-                fromStatus, OrderStatusEnum.PAY_CONFIRMED.getCode(),
-                "支付确认", null, null);
-        auditService.writeAuditLog(BizTypeEnum.ORDER.getCode(), order.getId(), orderNo,
-                "PAY_CONFIRMED",
-                "支付确认,第三方流水号:" + callbackResult.getThirdTradeNo(),
+        auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
+                fromStatus, OrderStatusEnum.PAY_CONFIRMED.getCode(), "支付确认", null, null);
+        auditService.writeAuditLog(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
+                "PAY_CONFIRMED", "支付确认,第三方流水号:" + result.getThirdTradeNo(),
                 null, null, null, "SUCCESS", null);
-
-        traceEventService.writeTraceEvent(BizTypeEnum.ORDER.getCode(), order.getId(), orderNo,
+        traceEventService.writeTraceEvent(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
                 "ORDER_PAY_CONFIRMED", "支付确认成功", null, null, null);
-
-        // 通知买家支付成功
         notificationService.sendNotice(order.getBuyerAccountId(), "支付成功",
-                "您的订单 " + orderNo + " 已支付成功，授权正在处理中。",
-                "ORDER", "ORDER", orderNo);
-        // 通知卖家（创作者）有新的授权购买
+                "您的订单 " + order.getOrderNo() + " 已支付成功，授权正在处理中。", "ORDER", "ORDER", order.getOrderNo());
         notificationService.sendNotice(order.getCreatorAccountId(), "作品被购买",
-                "您的作品 " + order.getWorkNo() + " 已被购买，订单号：" + orderNo + "，授权正在上链处理。",
-                "ORDER", "ORDER", orderNo);
-
-        // 7. 自动授权上链
+                "您的作品已被购买，订单号：" + order.getOrderNo() + "，授权正在上链处理。", "ORDER", "ORDER", order.getOrderNo());
         grantLicense(order);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OrderDetailVO refreshPayment(Long buyerAccountId, String orderNo) {
+        TradeOrderEntity order = orderMapper.selectByOrderNoForUpdate(orderNo);
+        if (order == null) throw new BizException(ErrorCodeEnum.ORDER_NOT_FOUND);
+        if (!buyerAccountId.equals(order.getBuyerAccountId())) {
+            throw new BizException(ErrorCodeEnum.RESOURCE_ACCESS_DENIED);
+        }
+        if (PayChannelEnum.ALIPAY.getCode().equals(order.getPayChannel())
+                && OrderStatusEnum.PAY_PENDING_CONFIRM.getCode().equals(order.getOrderStatus())) {
+            PaymentQueryResult query = paymentAdapterFactory.getQueryableAdapter(order.getPayChannel()).queryPayment(orderNo);
+            if (query.isPaid()) {
+                handlePaymentCallback(order.getPayChannel(), PaymentCallbackResult.builder().orderNo(orderNo)
+                        .thirdTradeNo(query.getThirdTradeNo()).paidAmount(query.getTotalAmount())
+                        .payChannel(order.getPayChannel()).payTime(query.getPayTime()).success(true)
+                        .tradeStatus(query.getTradeStatus()).build());
+                order = orderMapper.selectByOrderNo(orderNo);
+            }
+        }
+        return buildOrderDetailVO(order);
+    }
+
+    /** 延迟队列、交易补偿共用同一过期事务；未知渠道结果不关闭本地订单。 */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void expireOrder(String orderNo) {
+        TradeOrderEntity order = orderMapper.selectByOrderNoForUpdate(orderNo);
+        if (order == null || order.getExpireTime() == null
+                || order.getExpireTime().isAfter(DateTimeUtil.nowUtc())) return;
+        String status = order.getOrderStatus();
+        if (OrderStatusEnum.PAY_PENDING_CONFIRM.getCode().equals(status)) {
+            if (!PayChannelEnum.ALIPAY.getCode().equals(order.getPayChannel())) return;
+            var adapter = paymentAdapterFactory.getQueryableAdapter(order.getPayChannel());
+            PaymentQueryResult query = adapter.queryPayment(orderNo);
+            if (query.isPaid()) {
+                handlePaymentCallback(order.getPayChannel(), PaymentCallbackResult.builder().orderNo(orderNo)
+                        .thirdTradeNo(query.getThirdTradeNo()).paidAmount(query.getTotalAmount())
+                        .payChannel(order.getPayChannel()).payTime(query.getPayTime()).success(true)
+                        .tradeStatus(query.getTradeStatus()).build());
+                return;
+            }
+            if (!Set.of("WAIT_BUYER_PAY", "TRADE_CLOSED", "NOT_FOUND").contains(query.getTradeStatus())) {
+                throw new BizException(ErrorCodeEnum.PAY_CONFIRM_FAILED, "付款结果未知，稍后重试过期处理");
+            }
+            adapter.closePayment(orderNo);
+        } else if (!OrderStatusEnum.ORDER_CREATED.getCode().equals(status)) {
+            return;
+        }
+        order.setOrderStatus(OrderStatusEnum.ORDER_EXPIRED.getCode());
+        order.setPayStatus(PayStatusEnum.PAY_CLOSED.getCode());
+        order.setCancelTime(DateTimeUtil.nowUtc());
+        order.setCancelReason("订单超时自动过期");
+        orderMapper.updateById(order);
+        for (PaymentRecordEntity payment : paymentMapper.selectByOrderId(order.getId())) {
+            if (Set.of(PayStatusEnum.PAY_INIT.getCode(), PayStatusEnum.PAY_PENDING.getCode()).contains(payment.getPayStatus())) {
+                payment.setPayStatus(PayStatusEnum.PAY_CLOSED.getCode());
+                paymentMapper.updateById(payment);
+            }
+        }
+        auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), orderNo,
+                status, order.getOrderStatus(), "订单超时自动过期", "ORDER_EXPIRED", null);
     }
 
     /**
@@ -476,7 +555,43 @@ public class OrderServiceImpl implements OrderService {
                 OrderStatusEnum.PAY_CONFIRMED.getCode(), OrderStatusEnum.AUTH_GRANTING.getCode(),
                 "授权处理中", null, null);
 
-        // 4. 查询授权方与被授权方的真实DID
+        submitLicense(order, license, now);
+    }
+
+    /**
+     * 背书失败没有提交交易，可在依赖恢复后重试；已提交但结果未知的交易由链回执任务查询。
+     * 订单行锁与退款共用，复用原授权记录，避免重复交付或退款后重新激活。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void retryLicenseGrant(String orderNo) {
+        TradeOrderEntity order = orderMapper.selectByOrderNoForUpdate(orderNo);
+        if (order == null || !PayStatusEnum.PAY_SUCCESS.getCode().equals(order.getPayStatus())
+                || !OrderStatusEnum.ORDER_EXCEPTION.getCode().equals(order.getOrderStatus())) return;
+        LicenseRecordEntity license = licenseMapper.selectByOrderId(order.getId());
+        if (license == null || !LicenseStatusEnum.LICENSE_PENDING.getCode().equals(license.getLicenseStatus())
+                || !ChainStatusEnum.CHAIN_FAILED.getCode().equals(license.getChainStatus())
+                || (license.getTxHash() != null && !license.getTxHash().isBlank())) return;
+        var attempt = chainTxRecordService.getByBizTypeAndBizNo(BizTypeEnum.LICENSE.getCode(), license.getLicenseNo());
+        if (attempt == null || !"REGISTER".equals(attempt.getTxType())
+                || !ChainStatusEnum.CHAIN_FAILED.getCode().equals(attempt.getChainStatus())
+                || (attempt.getTxHash() != null && !attempt.getTxHash().isBlank())
+                || !ErrorCodeEnum.CHAIN_SUBMIT_FAILED.getCode().equals(attempt.getReasonCode())
+                || attempt.getFailReason() == null || !attempt.getFailReason().startsWith("链码背书失败:")) return;
+        DidRecordEntity creator = assertActiveDidForTrade(order.getCreatorAccountId(), "创作者");
+        DidRecordEntity buyer = assertActiveDidForTrade(order.getBuyerAccountId(), "购买方");
+        if (!creator.getSubjectId().equals(order.getCreatorSubjectId())
+                || !buyer.getSubjectId().equals(order.getBuyerSubjectId())) return;
+        order.setOrderStatus(OrderStatusEnum.AUTH_GRANTING.getCode());
+        orderMapper.updateById(order);
+        auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), orderNo,
+                OrderStatusEnum.ORDER_EXCEPTION.getCode(), OrderStatusEnum.AUTH_GRANTING.getCode(),
+                "重试未提交的授权背书，复用原授权记录", null, null);
+        submitLicense(order, license, license.getEffectiveTime());
+    }
+
+    private void submitLicense(TradeOrderEntity order, LicenseRecordEntity license, LocalDateTime effectiveTime) {
+        // 查询授权方与被授权方的真实DID。
         DidRecordEntity creatorDid = didRecordMapper.selectByAccountId(order.getCreatorAccountId());
         DidRecordEntity buyerDid = didRecordMapper.selectByAccountId(order.getBuyerAccountId());
 
@@ -504,7 +619,7 @@ public class OrderServiceImpl implements OrderService {
                     license.getId(), license.getLicenseNo(), license.getWorkNo(),
                     licensorDidValue,
                     licenseeDidValue,
-                    license.getLicenseType(), license.getLicenseHash(), now);
+                    license.getLicenseType(), license.getLicenseHash(), effectiveTime);
 
             if (chainResult.isSuccess()) {
                 // 链提交成功 → CHAIN_SUBMITTED，等待回执确认后再推进到 LICENSE_ACTIVE
@@ -577,11 +692,13 @@ public class OrderServiceImpl implements OrderService {
     /**
      * 交易前校验参与授权上链的主体 DID 是否已生效。
      */
-    private void assertActiveDidForTrade(Long accountId, String roleName) {
+    private DidRecordEntity assertActiveDidForTrade(Long accountId, String roleName) {
         DidRecordEntity didRecord = didRecordMapper.selectByAccountId(accountId);
-        if (didRecord == null || !DidStatusEnum.DID_ACTIVE.getCode().equals(didRecord.getStatus())) {
+        if (didRecord == null || !DidStatusEnum.DID_ACTIVE.getCode().equals(didRecord.getStatus())
+                || didRecord.getSubjectId() == null) {
             throw new BizException(ErrorCodeEnum.DID_NOT_ACTIVE, roleName + "DID未生效，当前无法完成交易授权");
         }
+        return didRecord;
     }
 
     /**
@@ -652,7 +769,7 @@ public class OrderServiceImpl implements OrderService {
     public void cancelOrder(Long buyerAccountId, String orderNo) {
         log.info("取消订单，buyerAccountId={}, orderNo={}", buyerAccountId, orderNo);
 
-        TradeOrderEntity order = orderMapper.selectByOrderNo(orderNo);
+        TradeOrderEntity order = orderMapper.selectByOrderNoForUpdate(orderNo);
         if (order == null) {
             throw new BizException(ErrorCodeEnum.ORDER_NOT_FOUND);
         }
@@ -666,8 +783,22 @@ public class OrderServiceImpl implements OrderService {
                     null, order.getOrderStatus());
         }
 
+        if (PayChannelEnum.ALIPAY.getCode().equals(order.getPayChannel())
+                && OrderStatusEnum.PAY_PENDING_CONFIRM.getCode().equals(order.getOrderStatus())) {
+            var adapter = paymentAdapterFactory.getQueryableAdapter(order.getPayChannel());
+            PaymentQueryResult query = adapter.queryPayment(orderNo);
+            if (query.isPaid()) {
+                throw new BizException(ErrorCodeEnum.ORDER_ALREADY_PAID, "订单已付款，请刷新支付状态");
+            }
+            if (!Set.of("WAIT_BUYER_PAY", "TRADE_CLOSED", "NOT_FOUND").contains(query.getTradeStatus())) {
+                throw new BizException(ErrorCodeEnum.PAY_CONFIRM_FAILED, "付款结果尚未确认，请稍后再取消");
+            }
+            adapter.closePayment(orderNo);
+        }
+
         String fromStatus = order.getOrderStatus();
         order.setOrderStatus(OrderStatusEnum.ORDER_CANCELLED.getCode());
+        order.setPayStatus(PayStatusEnum.PAY_CLOSED.getCode());
         order.setCancelTime(DateTimeUtil.nowUtc());
         order.setCancelReason("用户主动取消");
         orderMapper.updateById(order);
@@ -700,10 +831,10 @@ public class OrderServiceImpl implements OrderService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void applyRefund(Long buyerAccountId, RefundApplyRequest request) {
-        log.info("申请退款，buyerAccountId={}, orderNo={}", buyerAccountId, request.getOrderNo());
+    public void applyRefund(Long buyerAccountId, String orderNo, RefundApplyRequest request) {
+        log.info("申请退款，buyerAccountId={}, orderNo={}", buyerAccountId, orderNo);
 
-        TradeOrderEntity order = orderMapper.selectByOrderNo(request.getOrderNo());
+        TradeOrderEntity order = orderMapper.selectByOrderNoForUpdate(orderNo);
         if (order == null) {
             throw new BizException(ErrorCodeEnum.ORDER_NOT_FOUND);
         }
@@ -715,27 +846,35 @@ public class OrderServiceImpl implements OrderService {
         String orderStatus = order.getOrderStatus();
         if (!OrderStatusEnum.AUTH_GRANTED.getCode().equals(orderStatus)
                 && !OrderStatusEnum.ORDER_COMPLETED.getCode().equals(orderStatus)
-                && !OrderStatusEnum.SETTLEMENT_PENDING.getCode().equals(orderStatus)) {
+                && !OrderStatusEnum.SETTLEMENT_PENDING.getCode().equals(orderStatus)
+                && !OrderStatusEnum.AUTH_GRANTING.getCode().equals(orderStatus)
+                && !OrderStatusEnum.PAY_CONFIRMED.getCode().equals(orderStatus)
+                && !OrderStatusEnum.ORDER_EXCEPTION.getCode().equals(orderStatus)) {
             throw new BizException(ErrorCodeEnum.STATUS_INVALID, "当前订单状态不允许退款");
         }
 
         // 获取支付记录
         List<PaymentRecordEntity> payments = paymentMapper.selectByOrderId(order.getId());
-        PaymentRecordEntity payment = payments.isEmpty() ? null : payments.get(0);
+        PaymentRecordEntity payment = payments.stream()
+                .filter(p -> PayStatusEnum.PAY_SUCCESS.getCode().equals(p.getPayStatus()))
+                .findFirst().orElseThrow(() -> new BizException(ErrorCodeEnum.REFUND_FAILED, "缺少已付款记录"));
+        boolean reservedRefund = refundMapper.selectByOrderId(order.getId()).stream()
+                .anyMatch(r -> Set.of(RefundStatusEnum.PENDING.getCode(), RefundStatusEnum.PROCESSING.getCode(), RefundStatusEnum.SUCCESS.getCode()).contains(r.getRefundStatus()));
+        if (reservedRefund) {
+            throw new BizException(ErrorCodeEnum.REFUND_FAILED, "订单已有待处理或已成功的退款");
+        }
 
         LocalDateTime now = DateTimeUtil.nowUtc();
         RefundRecordEntity refund = new RefundRecordEntity();
         refund.setRefundNo(BizNoUtil.refundNo());
         refund.setOrderId(order.getId());
         refund.setOrderNo(order.getOrderNo());
-        if (payment != null) {
-            refund.setPaymentId(payment.getId());
-            refund.setPaymentNo(payment.getPaymentNo());
-            refund.setPayChannel(payment.getPayChannel());
-        }
+        refund.setPaymentId(payment.getId());
+        refund.setPaymentNo(payment.getPaymentNo());
+        refund.setPayChannel(payment.getPayChannel());
         refund.setRefundAmount(order.getPayAmount());
         refund.setCurrency(order.getCurrency());
-        refund.setRefundStatus("PENDING");
+        refund.setRefundStatus(RefundStatusEnum.PENDING.getCode());
         refund.setRefundReason(request.getReason());
         refund.setApplyTime(now);
         refund.setRequestId(request.getRequestId());
@@ -762,96 +901,193 @@ public class OrderServiceImpl implements OrderService {
      * 管理员审批退款：
      * <ul>
      *   <li>APPROVE：调用支付渠道退款接口，成功则订单状态变为 REFUNDED</li>
-     *   <li>REJECT：退款状态设为 REJECTED，订单恢复到 AUTH_GRANTED</li>
+     *   <li>REJECT：退款状态设为 REJECTED，订单恢复到申请前状态</li>
      * </ul>
      * </p>
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void processRefund(Long operatorId, RefundProcessRequest request) {
-        log.info("处理退款审批，operatorId={}, refundNo={}, action={}",
-                operatorId, request.getRefundNo(), request.getAction());
-
-        RefundRecordEntity refund = refundMapper.selectByRefundNo(request.getRefundNo());
-        if (refund == null) {
-            throw new BizException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "退款记录不存在");
-        }
-        if (!"PENDING".equals(refund.getRefundStatus())) {
-            throw new BizException(ErrorCodeEnum.STATUS_INVALID, "退款状态不允许处理");
-        }
-
-        TradeOrderEntity order = orderMapper.selectByOrderNo(refund.getOrderNo());
-        LocalDateTime now = DateTimeUtil.nowUtc();
-
-        if ("APPROVE".equals(request.getAction())) {
-            // 调用支付适配层退款
-            List<PaymentRecordEntity> payments = paymentMapper.selectByOrderId(order.getId());
-            PaymentRecordEntity payment = payments.isEmpty() ? null : payments.get(0);
-
-            RefundRequest refundReq = new RefundRequest();
-            refundReq.setRefundNo(refund.getRefundNo());
-            refundReq.setOrderNo(order.getOrderNo());
-            if (payment != null) {
-                refundReq.setThirdTradeNo(payment.getThirdTradeNo());
-                refundReq.setPayChannel(payment.getPayChannel());
-            }
-            refundReq.setRefundAmount(refund.getRefundAmount());
-            refundReq.setTotalAmount(order.getPayAmount());
-            refundReq.setReason(refund.getRefundReason());
-
-            RefundResponse refundResp = paymentAdapterFactory.refund(refundReq);
-            if (refundResp.isSuccess()) {
-                refund.setRefundStatus("SUCCESS");
-                refund.setThirdRefundNo(refundResp.getThirdRefundNo());
-                refund.setCompleteTime(now);
-                refund.setOperatorId(operatorId);
-                refundMapper.updateById(refund);
-
-                order.setOrderStatus(OrderStatusEnum.REFUNDED.getCode());
-                orderMapper.updateById(order);
-
-                auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
-                        OrderStatusEnum.REFUND_PENDING.getCode(), OrderStatusEnum.REFUNDED.getCode(),
-                        "退款成功", null, operatorId);
-
-                log.info("退款成功: refundNo={}, orderNo={}", refund.getRefundNo(), order.getOrderNo());
-
-                // 退款成功后触发逆分账
-                try {
-                    var settlement = settlementRecordMapper.selectByOrderNo(order.getOrderNo());
-                    if (settlement != null && SettlementStatusEnum.SETTLE_SUCCESS.getCode().equals(settlement.getStatus())) {
-                        settlementService.reverseSettlement(settlement.getSettleNo(), "退款触发逆分账");
-                        log.info("退款触发逆分账成功: refundNo={}, settleNo={}", refund.getRefundNo(), settlement.getSettleNo());
-                    }
-                } catch (Exception e) {
-                    log.error("退款触发逆分账失败: refundNo={}, orderNo={}", refund.getRefundNo(), order.getOrderNo(), e);
+        // 先提交退款意图，再调用外部渠道。进程中断或本地回写失败时，定时查询仍能找回结果。
+        var transaction = new TransactionTemplate(transactionManager);
+        RefundRequest refundRequest = transaction.execute(status -> prepareRefund(operatorId, request));
+        if (refundRequest == null) return;
+        RefundResponse response = paymentAdapterFactory.refund(refundRequest);
+        if (response.isPending()) return;
+        transaction.executeWithoutResult(status -> {
+            TradeOrderEntity order = orderMapper.selectByOrderNoForUpdate(refundRequest.getOrderNo());
+            RefundRecordEntity refund = refundMapper.selectByRefundNo(refundRequest.getRefundNo());
+            if (RefundStatusEnum.PROCESSING.getCode().equals(refund.getRefundStatus())) {
+                if (!response.isSuccess()) {
+                    failRefund(order, refund, response.getErrorMsg());
+                    return;
                 }
-            } else {
-                refund.setRefundStatus("FAILED");
-                refund.setFailReason(refundResp.getErrorMsg());
-                refund.setOperatorId(operatorId);
-                refundMapper.updateById(refund);
-                log.error("退款失败: refundNo={}, error={}", refund.getRefundNo(), refundResp.getErrorMsg());
+                refund.setThirdRefundNo(response.getThirdRefundNo());
+                completeRefund(order, refund, operatorId);
             }
-        } else {
-            // 拒绝退款
-            refund.setRefundStatus("REJECTED");
-            refund.setOperatorId(operatorId);
-            refundMapper.updateById(refund);
+        });
+    }
 
-            // 恢复订单到退款前状态
-            String restoreStatus = refund.getPreRefundOrderStatus() != null
-                    ? refund.getPreRefundOrderStatus()
-                    : OrderStatusEnum.AUTH_GRANTED.getCode();
-            order.setOrderStatus(restoreStatus);
-            orderMapper.updateById(order);
-
-            auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
-                    OrderStatusEnum.REFUND_PENDING.getCode(), restoreStatus,
-                    "退款被拒绝", null, operatorId);
-
-            log.info("退款已拒绝: refundNo={}, orderNo={}", refund.getRefundNo(), order.getOrderNo());
+    private RefundRequest prepareRefund(Long operatorId, RefundProcessRequest request) {
+        RefundRecordEntity refund = refundMapper.selectByRefundNo(request.getRefundNo());
+        if (refund == null) throw new BizException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "退款记录不存在");
+        TradeOrderEntity order = orderMapper.selectByOrderNoForUpdate(refund.getOrderNo());
+        if (order == null) throw new BizException(ErrorCodeEnum.ORDER_NOT_FOUND);
+        refund = refundMapper.selectByRefundNo(request.getRefundNo());
+        if (!RefundStatusEnum.PENDING.getCode().equals(refund.getRefundStatus())
+                || !OrderStatusEnum.REFUND_PENDING.getCode().equals(order.getOrderStatus())) {
+            throw new BizException(ErrorCodeEnum.STATUS_INVALID, "退款状态不允许审批");
         }
+        if (!Set.of("APPROVE", "REJECT").contains(request.getAction())) {
+            throw new BizException(ErrorCodeEnum.PARAM_INVALID, "退款审批动作无效");
+        }
+        refund.setOperatorId(operatorId);
+        if ("REJECT".equals(request.getAction())) {
+            if (refund.getPreRefundOrderStatus() == null) {
+                throw new BizException(ErrorCodeEnum.STATUS_INVALID, "退款缺少原订单状态");
+            }
+            refund.setRefundStatus(RefundStatusEnum.REJECTED.getCode());
+            refundMapper.updateById(refund);
+            order.setOrderStatus(refund.getPreRefundOrderStatus());
+            orderMapper.updateById(order);
+            auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
+                    OrderStatusEnum.REFUND_PENDING.getCode(), order.getOrderStatus(),
+                    "退款被拒绝" + (request.getComment() == null ? "" : ":" + request.getComment()), null, operatorId);
+            return null;
+        }
+        PaymentRecordEntity payment = paymentMapper.selectById(refund.getPaymentId());
+        if (payment == null || !PayStatusEnum.PAY_SUCCESS.getCode().equals(payment.getPayStatus())
+                || !order.getId().equals(payment.getOrderId()) || !order.getPayChannel().equals(payment.getPayChannel())
+                || !java.util.Objects.equals(refund.getRefundAmount(), order.getPayAmount())
+                || !java.util.Objects.equals(payment.getPayAmount(), order.getPayAmount())
+                || !java.util.Objects.equals(payment.getCurrency(), order.getCurrency())) {
+            throw new BizException(ErrorCodeEnum.REFUND_FAILED, "退款原支付记录或金额不匹配");
+        }
+        RefundRequest refundRequest = RefundRequest.builder().refundNo(refund.getRefundNo())
+                .orderNo(order.getOrderNo()).thirdTradeNo(payment.getThirdTradeNo())
+                .payChannel(payment.getPayChannel()).refundAmount(refund.getRefundAmount())
+                .totalAmount(order.getPayAmount()).reason(refund.getRefundReason()).build();
+        MoneyUtil.requireFen(refund.getRefundAmount());
+        MoneyUtil.requireCny(order.getCurrency());
+        refund.setRefundStatus(RefundStatusEnum.PROCESSING.getCode());
+        refundMapper.updateById(refund);
+        auditService.writeAuditLog(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
+                "REFUND_APPROVED", request.getComment(), operatorId, null, null, "PROCESSING", null);
+        return refundRequest;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RefundDetailVO refreshRefund(Long operatorId, String refundNo) {
+        RefundRecordEntity refund = refundMapper.selectByRefundNo(refundNo);
+        if (refund == null) throw new BizException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "退款记录不存在");
+        TradeOrderEntity order = orderMapper.selectByOrderNoForUpdate(refund.getOrderNo());
+        if (order == null) throw new BizException(ErrorCodeEnum.ORDER_NOT_FOUND);
+        refund = refundMapper.selectByRefundNo(refundNo);
+        if (RefundStatusEnum.PROCESSING.getCode().equals(refund.getRefundStatus())) {
+            if (refund.getUpdatedAt() != null && refund.getUpdatedAt().plusSeconds(10).isAfter(DateTimeUtil.nowUtc())) {
+                throw new BizException(ErrorCodeEnum.STATUS_INVALID, "请在退款提交至少 10 秒后查询");
+            }
+            RefundResponse response = paymentAdapterFactory.getAdapter(refund.getPayChannel())
+                    .queryRefund(order.getOrderNo(), refund.getRefundNo(), refund.getRefundAmount());
+            if (!response.isSuccess() && !response.isPending()) {
+                failRefund(order, refund, response.getErrorMsg());
+                return getRefundDetail(refundNo);
+            }
+            if (response.isPending()) {
+                // 覆盖“已提交退款意图，但进程在调用渠道前退出”的窗口；重试固定out_request_no，绝不新建退款编号。
+                var payment = paymentMapper.selectById(refund.getPaymentId());
+                if (payment == null || !PayStatusEnum.PAY_SUCCESS.getCode().equals(payment.getPayStatus())) {
+                    throw new BizException(ErrorCodeEnum.REFUND_FAILED, "退款原支付记录不可用");
+                }
+                response = paymentAdapterFactory.refund(RefundRequest.builder().refundNo(refund.getRefundNo())
+                        .orderNo(order.getOrderNo()).thirdTradeNo(payment.getThirdTradeNo()).payChannel(refund.getPayChannel())
+                        .totalAmount(order.getPayAmount()).refundAmount(refund.getRefundAmount()).reason(refund.getRefundReason()).build());
+                // 已存在的退款可能仍在处理；重试时返回拒绝也不能抹掉之前的未知资金事实，继续查询。
+            }
+            if (response.isSuccess() && !response.isPending()) {
+                refund.setThirdRefundNo(response.getThirdRefundNo());
+                completeRefund(order, refund, operatorId);
+            }
+        }
+        return getRefundDetail(refundNo);
+    }
+
+    private void failRefund(TradeOrderEntity order, RefundRecordEntity refund, String reason) {
+        refund.setRefundStatus(RefundStatusEnum.FAILED.getCode());
+        refund.setFailReason(reason);
+        refundMapper.updateById(refund);
+        order.setOrderStatus(refund.getPreRefundOrderStatus());
+        orderMapper.updateById(order);
+    }
+
+    /** 渠道退款事实独立提交；后续逆分账失败不能回滚已确认的退款。 */
+    private void completeRefund(TradeOrderEntity order, RefundRecordEntity refund, Long operatorId) {
+        if (RefundStatusEnum.SUCCESS.getCode().equals(refund.getRefundStatus())) return;
+        refund.setRefundStatus(RefundStatusEnum.SUCCESS.getCode());
+        refund.setCompleteTime(DateTimeUtil.nowUtc());
+        if (operatorId != null) refund.setOperatorId(operatorId);
+        refundMapper.updateById(refund);
+        String fromStatus = order.getOrderStatus();
+        order.setOrderStatus(OrderStatusEnum.REFUNDED.getCode());
+        orderMapper.updateById(order);
+        auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
+                fromStatus, order.getOrderStatus(), "退款已由支付渠道确认", null, operatorId);
+        revokeRefundedLicense(order);
+    }
+
+    private void revokeRefundedLicense(TradeOrderEntity order) {
+        var license = licenseMapper.selectByOrderId(order.getId());
+        if (license != null && !LicenseStatusEnum.LICENSE_REVOKED.getCode().equals(license.getLicenseStatus())) {
+            String fromStatus = license.getLicenseStatus();
+            license.setLicenseStatus(LicenseStatusEnum.LICENSE_REVOKED.getCode());
+            license.setChainStatus(ChainStatusEnum.CHAIN_PENDING.getCode());
+            license.setTxHash(null);
+            license.setBlockHeight(null);
+            licenseMapper.updateById(license);
+            auditService.writeStatusHistory(BizTypeEnum.LICENSE.getCode(), license.getId(), license.getLicenseNo(),
+                    fromStatus, license.getLicenseStatus(), "退款确认，撤销业务授权", null, null);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reconcileRefundEffects(String refundNo) {
+        var refund = refundMapper.selectByRefundNo(refundNo);
+        if (refund == null) return;
+        var order = orderMapper.selectByOrderNoForUpdate(refund.getOrderNo());
+        refund = refundMapper.selectByRefundNo(refundNo);
+        if (order == null || !RefundStatusEnum.SUCCESS.getCode().equals(refund.getRefundStatus())) return;
+        revokeRefundedLicense(order);
+        var license = licenseMapper.selectByOrderId(order.getId());
+        if (license != null && Set.of(ChainStatusEnum.CHAIN_PENDING.getCode(),
+                ChainStatusEnum.CHAIN_FAILED.getCode()).contains(license.getChainStatus())) {
+            var result = licenseChainAdapter.revokeLicense(license.getId(), license.getLicenseNo(),
+                    "订单退款确认", refund.getCompleteTime());
+            license.setChainStatus(result.isSuccess() ? ChainStatusEnum.CHAIN_SUBMITTED.getCode() : ChainStatusEnum.CHAIN_FAILED.getCode());
+            license.setTxHash(result.getTxHash());
+            license.setBlockHeight(result.getBlockHeight());
+            licenseMapper.updateById(license);
+        }
+        var settlement = settlementRecordMapper.selectByOrderNo(order.getOrderNo());
+        // 结算回执晚于退款时也会进入此处；逆分账复用原有编号，失败可重试。
+        if (settlement != null && Set.of(SettlementStatusEnum.SETTLE_SUCCESS.getCode(),
+                SettlementStatusEnum.REVERSE_PENDING.getCode()).contains(settlement.getStatus())) {
+            settlementService.reverseSettlement(settlement.getSettleNo(), "退款触发逆分账");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void completeSettlement(String orderNo) {
+        var order = orderMapper.selectByOrderNoForUpdate(orderNo);
+        if (order == null || !OrderStatusEnum.SETTLEMENT_PENDING.getCode().equals(order.getOrderStatus())) return;
+        var settlement = settlementRecordMapper.selectByOrderNo(orderNo);
+        if (settlement == null || !SettlementStatusEnum.SETTLE_SUCCESS.getCode().equals(settlement.getStatus())) return;
+        order.setOrderStatus(OrderStatusEnum.ORDER_COMPLETED.getCode());
+        order.setCompleteTime(DateTimeUtil.nowUtc());
+        orderMapper.updateById(order);
+        auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), orderNo,
+                OrderStatusEnum.SETTLEMENT_PENDING.getCode(), order.getOrderStatus(), "结算回执确认，订单完成", null, null);
     }
 
     /**
@@ -928,16 +1164,24 @@ public class OrderServiceImpl implements OrderService {
      */
     private List<String> computeAllowedActions(TradeOrderEntity order) {
         List<String> actions = new ArrayList<>();
+        if (!order.getBuyerAccountId().equals(UserContext.getUserId())) return actions;
         String status = order.getOrderStatus();
         if (OrderStatusEnum.ORDER_CREATED.getCode().equals(status)) {
             actions.add("PAY");
             actions.add("CANCEL");
         }
         if (OrderStatusEnum.PAY_PENDING_CONFIRM.getCode().equals(status)) {
+            if (PayChannelEnum.ALIPAY.getCode().equals(order.getPayChannel())) {
+                actions.add("PAY");
+                actions.add("QUERY_PAYMENT");
+            }
             actions.add("CANCEL");
         }
         if (OrderStatusEnum.AUTH_GRANTED.getCode().equals(status)
-                || OrderStatusEnum.ORDER_COMPLETED.getCode().equals(status)) {
+                || OrderStatusEnum.ORDER_COMPLETED.getCode().equals(status)
+                || OrderStatusEnum.SETTLEMENT_PENDING.getCode().equals(status)
+                || (PayStatusEnum.PAY_SUCCESS.getCode().equals(order.getPayStatus())
+                    && Set.of("AUTH_GRANTING", "PAY_CONFIRMED", "ORDER_EXCEPTION").contains(status))) {
             actions.add("APPLY_REFUND");
         }
         return actions;

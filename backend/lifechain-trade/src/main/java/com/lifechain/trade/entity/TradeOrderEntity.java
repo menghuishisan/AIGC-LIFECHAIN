@@ -76,6 +76,13 @@ public class TradeOrderEntity extends BaseEntity {
     @TableField("pay_amount")
     private Long payAmount;
 
+    /** 下单时固定的分账比例，结算不得重新读取可变的作品规则。 */
+    @TableField("creator_ratio")
+    private java.math.BigDecimal creatorRatio;
+
+    @TableField("platform_ratio")
+    private java.math.BigDecimal platformRatio;
+
     /** 币种 */
     @TableField("currency")
     private String currency;

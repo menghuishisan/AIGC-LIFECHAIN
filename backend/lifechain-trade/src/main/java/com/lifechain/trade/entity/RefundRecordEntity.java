@@ -55,7 +55,7 @@ public class RefundRecordEntity extends BaseEntity {
     @TableField("currency")
     private String currency;
 
-    /** 退款状态（PENDING/SUCCESS/FAILED） */
+    /** 退款状态（PENDING/PROCESSING/SUCCESS/FAILED/REJECTED） */
     @TableField("refund_status")
     private String refundStatus;
 

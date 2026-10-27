@@ -9,6 +9,10 @@
         </template>
       </DetailHeader>
 
+      <el-alert type="info" :closable="false" show-icon
+        title="本页记录人民币收益分配及链上存证，尚未执行向创作者的实际打款；退款由原支付渠道另行确认。"
+        style="margin-bottom: 16px;" />
+
       <div class="lc-card">
         <div class="lc-card__title">结算信息</div>
         <el-descriptions :column="2" border size="small">
@@ -38,7 +42,6 @@
           <el-table-column prop="amount" label="金额" width="120">
             <template #default="{ row }">{{ formatCurrency(row.amount) }}</template>
           </el-table-column>
-          <el-table-column prop="itemStatus" label="状态" width="120" />
         </el-table>
       </div>
     </template>

@@ -62,6 +62,8 @@ docs/
 前端测试报告.md
 
 # === Environment & Secrets ===
+.alipay-sandbox.json
+.alipay-sandbox.*
 .env
 .env.*
 !.env.example

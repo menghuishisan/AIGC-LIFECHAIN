@@ -152,13 +152,15 @@ public class LicenseServiceImpl implements LicenseService {
 
     @Override
     public LicenseTemplateVO createTemplate(CreateLicenseTemplateRequest request) {
+        if (request.getPriceAmount() != null) com.lifechain.common.util.MoneyUtil.requireFen(request.getPriceAmount());
+        if (request.getCurrency() != null) com.lifechain.common.util.MoneyUtil.requireCny(request.getCurrency());
         LicenseTemplateEntity entity = new LicenseTemplateEntity();
         entity.setTemplateName(request.getTemplateName());
         entity.setLicenseType(request.getLicenseType());
         entity.setScopeDescription(request.getScopeDescription());
         entity.setDurationDays(request.getDurationDays());
         entity.setPriceAmount(request.getPriceAmount());
-        entity.setCurrency(request.getCurrency());
+        entity.setCurrency("CNY");
         entity.setDescription(request.getDescription());
         entity.setTemplateCode(BizNoUtil.generate("LTPL"));
         entity.setStatus("ACTIVE");

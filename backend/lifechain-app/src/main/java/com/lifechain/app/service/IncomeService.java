@@ -22,12 +22,8 @@ public class IncomeService {
                 .eq(SettlementItemEntity::getAccountId, accountId);
         Long totalItems = settlementItemMapper.selectCount(wrapper);
 
-        LambdaQueryWrapper<SettlementItemEntity> successWrapper = new LambdaQueryWrapper<SettlementItemEntity>()
-                .eq(SettlementItemEntity::getAccountId, accountId)
-                .eq(SettlementItemEntity::getStatus, "SUCCESS");
-        Long successItems = settlementItemMapper.selectCount(successWrapper);
-
-        var successList = settlementItemMapper.selectList(successWrapper);
+        var successList = settlementItemMapper.selectConfirmedIncome(accountId);
+        long successItems = successList.size();
         long totalIncome = successList.stream().mapToLong(SettlementItemEntity::getAmount).sum();
 
         IncomeSummaryVO summary = new IncomeSummaryVO();
@@ -38,11 +34,8 @@ public class IncomeService {
     }
 
     public PageResult<IncomeItemVO> listIncomeDetails(Long accountId, PageQuery query) {
-        LambdaQueryWrapper<SettlementItemEntity> wrapper = new LambdaQueryWrapper<SettlementItemEntity>()
-                .eq(SettlementItemEntity::getAccountId, accountId)
-                .orderByDesc(SettlementItemEntity::getCreatedAt);
         Page<SettlementItemEntity> page = new Page<>(query.getPageNo(), query.getPageSize());
-        Page<SettlementItemEntity> result = settlementItemMapper.selectPage(page, wrapper);
+        Page<SettlementItemEntity> result = settlementItemMapper.selectIncomePage(page, accountId);
         return PageResult.of(result.getRecords().stream().map(IncomeItemVO::fromEntity).toList(),
                 result.getTotal(), query.getPageNo(), query.getPageSize());
     }

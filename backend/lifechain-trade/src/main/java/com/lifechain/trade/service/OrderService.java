@@ -61,7 +61,19 @@ public interface OrderService {
      * @param request        支付请求
      * @return 支付结果（含前端调起支付所需参数）
      */
-    PayResultVO payOrder(Long buyerAccountId, PayRequest request);
+    PayResultVO payOrder(Long buyerAccountId, String orderNo, PayRequest request);
+
+    /** 买方主动向支付渠道查询并补偿本人的订单，浏览器回跳参数不直接决定状态。 */
+    OrderDetailVO refreshPayment(Long buyerAccountId, String orderNo);
+
+    /** 队列和定时补偿共用的过期入口，先核实并关闭渠道交易。 */
+    void expireOrder(String orderNo);
+
+    /** 仅重试确定未提交的授权背书失败，复用原授权编号及合同内容。 */
+    void retryLicenseGrant(String orderNo);
+
+    /** 管理员对已批准且结果未知的退款进行查询，不发起新的退款。 */
+    RefundDetailVO refreshRefund(Long operatorId, String refundNo);
 
     /**
      * 处理支付回调
@@ -97,7 +109,7 @@ public interface OrderService {
      * @param buyerAccountId 买方账户ID
      * @param request        退款申请请求
      */
-    void applyRefund(Long buyerAccountId, RefundApplyRequest request);
+    void applyRefund(Long buyerAccountId, String orderNo, RefundApplyRequest request);
 
     /**
      * 处理退款审批
@@ -110,6 +122,12 @@ public interface OrderService {
      * @param request    退款处理请求
      */
     void processRefund(Long operatorId, RefundProcessRequest request);
+
+    /** 独立补偿已退款订单的授权撤销与逆分账，可安全重复调用。 */
+    void reconcileRefundEffects(String refundNo);
+
+    /** 在订单行锁内处理结算完成，不能覆盖并发退款状态。 */
+    void completeSettlement(String orderNo);
 
     /**
      * 分页查询退款列表（管理员）

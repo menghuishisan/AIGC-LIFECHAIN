@@ -134,7 +134,7 @@ public class ListingServiceImpl implements ListingService {
             }
             templateId = template.getId();
             licenseType = template.getLicenseType();
-            priceAmount = template.getPriceAmount();
+            if (template.getPriceAmount() != null) priceAmount = template.getPriceAmount();
             scopeDescription = template.getScopeDescription();
             durationDays = template.getDurationDays();
         }
@@ -142,9 +142,7 @@ public class ListingServiceImpl implements ListingService {
         if (licenseType == null || licenseType.isBlank()) {
             throw new BizException(ErrorCodeEnum.PARAM_MISSING, "授权类型不能为空");
         }
-        if (priceAmount == null || priceAmount <= 0) {
-            throw new BizException(ErrorCodeEnum.PARAM_INVALID, "价格必须大于0");
-        }
+        com.lifechain.common.util.MoneyUtil.requireFen(priceAmount);
 
         // 4. 创建上架记录
         WorkListingEntity listing = new WorkListingEntity();

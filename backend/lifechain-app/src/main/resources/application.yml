@@ -162,16 +162,19 @@ lifechain:
       # 微信退款异步回调地址（需要公网可访问）
       refundNotifyUrl: ${WECHAT_REFUND_NOTIFY_URL:}
     alipay:
+      sandboxConfigPath: ${ALIPAY_SANDBOX_CONFIG_PATH:}
       # 支付宝应用的 AppId
       appId: ${ALIPAY_APP_ID:}
       # 商户私钥，用于生成签名
       privateKey: ${ALIPAY_PRIVATE_KEY:}
       # 支付宝公钥，用于验签
       alipayPublicKey: ${ALIPAY_PUBLIC_KEY:}
+      # 可信收款商户 PID，不从通知参数推导
+      sellerId: ${ALIPAY_SELLER_ID:}
+      # 前端实际存在的同步回跳结果页
+      returnUrl: ${ALIPAY_RETURN_URL:}
       # 支付宝支付异步回调地址（需要公网可访问）
       notifyUrl: ${ALIPAY_NOTIFY_URL:}
-      # 支付宝退款异步回调地址（需要公网可访问）
-      refundNotifyUrl: ${ALIPAY_REFUND_NOTIFY_URL:}
       # 支付宝网关地址，正式环境与沙箱环境地址不同
       serverUrl: ${ALIPAY_SERVER_URL:}
 

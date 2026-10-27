@@ -17,10 +17,6 @@ import java.io.Serializable;
 @Data
 public class RefundApplyRequest implements Serializable {
 
-    /** 订单编号 */
-    @NotBlank(message = "订单编号不能为空")
-    private String orderNo;
-
     /** 退款原因 */
     @NotBlank(message = "退款原因不能为空")
     private String reason;

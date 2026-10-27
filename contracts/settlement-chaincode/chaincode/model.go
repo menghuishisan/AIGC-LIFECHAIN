@@ -7,6 +7,8 @@ type SettlementLedger struct {
 	SettleNo         string `json:"settleNo"`
 	OrderNo          string `json:"orderNo"`
 	TotalAmount      int64  `json:"totalAmount"`
+	Currency         string `json:"currency"`
+	AmountUnit       string `json:"amountUnit"`
 	SummaryHash      string `json:"summaryHash"`
 	Status           string `json:"status"`
 	SettleTime       string `json:"settleTime"`
@@ -21,6 +23,8 @@ type ReverseSettlementLedger struct {
 	ReverseNo        string `json:"reverseNo"`
 	SettleNo         string `json:"settleNo"`
 	ReverseAmount    int64  `json:"reverseAmount"`
+	Currency         string `json:"currency"`
+	AmountUnit       string `json:"amountUnit"`
 	Reason           string `json:"reason"`
 	Status           string `json:"status"`
 	ReverseTime      string `json:"reverseTime"`
@@ -33,6 +37,8 @@ type RegisterSettlementRequest struct {
 	SettleNo    string `json:"settleNo"`
 	OrderNo     string `json:"orderNo"`
 	TotalAmount int64  `json:"totalAmount"`
+	Currency    string `json:"currency"`
+	AmountUnit  string `json:"amountUnit"`
 	SummaryHash string `json:"summaryHash"`
 	SettleTime  string `json:"settleTime"`
 }
@@ -43,6 +49,8 @@ type RegisterReverseSettlementRequest struct {
 	ReverseNo     string `json:"reverseNo"`
 	SettleNo      string `json:"settleNo"`
 	ReverseAmount int64  `json:"reverseAmount"`
+	Currency      string `json:"currency"`
+	AmountUnit    string `json:"amountUnit"`
 	Reason        string `json:"reason"`
 	ReverseTime   string `json:"reverseTime"`
 }
