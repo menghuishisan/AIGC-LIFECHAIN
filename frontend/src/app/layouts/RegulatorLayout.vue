@@ -2,54 +2,82 @@
   <!-- Regulator 监管后台布局 -->
   <div class="regulator-layout">
     <!-- 侧边栏 -->
-    <aside class="regulator-sidebar">
-      <div class="regulator-sidebar__logo" @click="router.push('/regulator/dashboard')">
+    <aside
+      ref="navPanel"
+      :inert="mobileNavigation && !navOpen"
+      :aria-hidden="mobileNavigation && !navOpen ? true : undefined"
+      :role="mobileNavigation && navOpen ? 'dialog' : undefined"
+      :aria-modal="mobileNavigation && navOpen ? true : undefined"
+      aria-label="业务导航"
+      :class="['regulator-sidebar', { 'is-open': navOpen }]"
+    >
+      <button
+        class="regulator-sidebar__logo"
+        type="button"
+        @click="router.push('/regulator/dashboard')"
+      >
         <span class="regulator-sidebar__logo-icon">◈</span>
         <span class="regulator-sidebar__logo-text">LifeChain</span>
         <span class="regulator-sidebar__logo-sub">监管后台</span>
-      </div>
+      </button>
       <el-menu
         :default-active="route.path"
         router
-        background-color="#1B242B"
-        text-color="#96AAB3"
-        active-text-color="#FFFFFF"
         class="regulator-sidebar__menu"
+        @select="navOpen = false"
       >
-        <el-menu-item index="/regulator/dashboard">
+        <el-menu-item tabindex="0" index="/regulator/dashboard">
           <el-icon><Odometer /></el-icon>
           <span>工作台</span>
         </el-menu-item>
-        <el-menu-item index="/regulator/search">
+        <el-menu-item tabindex="0" index="/regulator/search">
           <el-icon><Search /></el-icon>
           <span>综合搜索</span>
         </el-menu-item>
-        <el-menu-item index="/regulator/verify">
+        <el-menu-item tabindex="0" index="/regulator/verify">
           <el-icon><CircleCheck /></el-icon>
           <span>验真核查</span>
         </el-menu-item>
-        <el-menu-item index="/regulator/risks">
+        <el-menu-item tabindex="0" index="/regulator/risks">
           <el-icon><WarningFilled /></el-icon>
           <span>风险事件</span>
         </el-menu-item>
-        <el-menu-item index="/regulator/freezes">
+        <el-menu-item tabindex="0" index="/regulator/freezes">
           <el-icon><Lock /></el-icon>
           <span>冻结与解冻</span>
         </el-menu-item>
-        <el-menu-item index="/regulator/disputes">
+        <el-menu-item tabindex="0" index="/regulator/disputes">
           <el-icon><ChatDotRound /></el-icon>
           <span>争议查看</span>
         </el-menu-item>
-        <el-menu-item index="/regulator/reports">
+        <el-menu-item tabindex="0" index="/regulator/reports">
           <el-icon><Tickets /></el-icon>
           <span>监管报告</span>
         </el-menu-item>
       </el-menu>
     </aside>
 
+    <button
+      v-if="navOpen"
+      class="regulator-scrim"
+      type="button"
+      aria-label="关闭导航"
+      @click="navOpen = false"
+    />
+
     <!-- 右侧区域 -->
     <div class="regulator-right">
       <header class="regulator-header">
+        <el-button
+          ref="navToggle"
+          class="regulator-header__menu-toggle"
+          circle
+          :aria-label="navOpen ? '关闭导航' : '打开导航'"
+          :aria-expanded="navOpen"
+          @click="navOpen = !navOpen"
+        >
+          <el-icon><Close v-if="navOpen" /><Menu v-else /></el-icon>
+        </el-button>
         <div class="regulator-header__left">
           <el-input
             v-model="searchKeyword"
@@ -63,7 +91,7 @@
         </div>
         <div class="regulator-header__right">
           <el-dropdown @command="handleCommand">
-            <div class="regulator-header__user">
+            <div class="regulator-header__user" aria-label="账户菜单">
               <el-avatar :size="30">{{ userStore.profile?.nickname?.charAt(0) || 'R' }}</el-avatar>
               <span>{{ userStore.profile?.nickname || '监管员' }}</span>
             </div>
@@ -77,31 +105,41 @@
       </header>
 
       <main class="regulator-main">
-        <router-view />
+        <router-view :key="route.path" />
       </main>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { useNavigationDrawer } from '@/shared/composables/useNavigationDrawer'
+import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ChatDotRound,
   CircleCheck,
+  Close,
   Lock,
+  Menu,
   Odometer,
   Search,
   Tickets,
   WarningFilled
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/app/store/user'
-
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
 const searchKeyword = ref('')
+const { navOpen, navPanel, navToggle, mobileNavigation } = useNavigationDrawer()
+
+watch(
+  () => route.fullPath,
+  () => {
+    navOpen.value = false
+  }
+)
 
 /** 跳转综合搜索 */
 function goSearch() {
@@ -110,10 +148,15 @@ function goSearch() {
   }
 }
 
-function handleCommand(command: string) {
+async function handleCommand(command: string) {
   if (command === 'logout') {
-    userStore.logout()
-    router.push('/login')
+    try {
+      await userStore.logout()
+    } catch {
+      // 撤销失败已由请求层提示，本地凭证仍须清理。
+    } finally {
+      await router.push('/login')
+    }
   }
 }
 </script>
@@ -123,7 +166,11 @@ function handleCommand(command: string) {
 
 .regulator-layout {
   display: flex;
-  height: 100%;
+  min-height: 100vh;
+  --lc-accent: #a55249;
+  --lc-accent-strong: #783e39;
+  --lc-accent-soft: #f4eae7;
+  --lc-canvas: #f2f0ed;
 }
 
 .regulator-sidebar {
@@ -137,17 +184,32 @@ function handleCommand(command: string) {
   z-index: 100;
 
   &__logo {
+    width: 100%;
     height: $admin-header-height;
     display: flex;
     align-items: center;
     padding: 0 20px;
     cursor: pointer;
     gap: 8px;
+    border: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: transparent;
+    text-align: left;
 
-    &-icon { font-size: 22px; color: #5CC1C9; }
-    &-text { font-size: 16px; font-weight: 700; color: #fff; }
-    &-sub { font-size: 11px; color: #6B8A94; margin-left: 4px; }
+    &-icon {
+      font-size: 22px;
+      color: #d28b70;
+    }
+    &-text {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+    &-sub {
+      font-size: 11px;
+      color: #93a9a3;
+      margin-left: 4px;
+    }
   }
 
   &__menu {
@@ -169,6 +231,7 @@ function handleCommand(command: string) {
 
 .regulator-right {
   flex: 1;
+  min-width: 0;
   margin-left: $admin-sidebar-width;
   display: flex;
   flex-direction: column;
@@ -176,9 +239,10 @@ function handleCommand(command: string) {
 }
 
 .regulator-header {
-  height: $admin-header-height;
+  min-height: $admin-header-height;
+  flex: 0 0 $admin-header-height;
   background: $content-white;
-  border-bottom: 1px solid #E8ECEF;
+  border-bottom: 1px solid $card-border;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -187,22 +251,116 @@ function handleCommand(command: string) {
   top: 0;
   z-index: 90;
 
-  &__left { display: flex; align-items: center; }
-  &__right { display: flex; align-items: center; gap: 16px; }
+  &__left {
+    display: flex;
+    align-items: center;
+  }
+  &__right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  &__menu-toggle {
+    display: none;
+  }
   &__user {
     display: flex;
     align-items: center;
     gap: 8px;
     cursor: pointer;
     font-size: 13px;
-    color: #17242A;
+    color: #17242a;
   }
 }
 
 .regulator-main {
   flex: 1;
+  min-width: 0;
   padding: $content-padding;
   overflow-y: auto;
   background: $regulator-content-bg;
+}
+
+.regulator-sidebar__menu {
+  background: transparent;
+
+  :deep(.el-menu-item) {
+    margin: 2px 8px;
+    border-radius: 3px;
+    color: #c7b9b5;
+  }
+
+  :deep(.el-menu-item.is-active) {
+    border-left: 2px solid #d28b70;
+    background: $regulator-sidebar-active !important;
+    color: #fff !important;
+  }
+}
+
+.regulator-scrim {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .regulator-sidebar {
+    z-index: 120;
+    width: min(280px, calc(100vw - 48px));
+    transform: translateX(-102%);
+    transition: transform 180ms ease;
+
+    &.is-open {
+      transform: translateX(0);
+    }
+  }
+
+  .regulator-header {
+    gap: 10px;
+    padding: 0 16px;
+
+    &__menu-toggle {
+      display: inline-flex;
+      flex: 0 0 auto;
+    }
+  }
+
+  .regulator-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    display: block;
+    border: 0;
+    background: rgba(34, 27, 26, 0.44);
+  }
+
+  .regulator-right {
+    margin-left: 0;
+  }
+
+  .regulator-main {
+    padding: 22px 18px;
+  }
+}
+
+@media (max-width: 560px) {
+  .regulator-header {
+    padding: 0 10px;
+
+    &__left {
+      min-width: 0;
+      flex: 1;
+    }
+
+    &__left .el-input {
+      width: 100% !important;
+    }
+
+    &__user span {
+      display: none;
+    }
+  }
+
+  .regulator-main {
+    padding: 18px 12px;
+  }
 }
 </style>

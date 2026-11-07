@@ -1,9 +1,10 @@
 <template>
   <!-- 我的作品列表页 -->
-  <div class="work-list-page">
+  <div data-page="WorkList" class="lc-page work-list-page">
+    <PageLoadFeedback :message="pageError" @retry="loadData" />
     <div class="page-header">
       <div>
-        <h2 class="page-header__title">我的作品</h2>
+        <h1 class="page-header__title">我的作品</h1>
         <p class="page-header__desc">管理上传、特征提取、确权、证书和上架状态</p>
       </div>
       <el-button type="primary" @click="router.push('/creator/works/create')">上传作品</el-button>
@@ -11,7 +12,13 @@
 
     <!-- 筛选栏 -->
     <div class="filter-bar">
-      <el-select v-model="query.status" placeholder="状态" clearable style="width: 160px">
+      <el-select
+        aria-label="状态"
+        v-model="query.status"
+        placeholder="状态"
+        clearable
+        style="width: 160px"
+      >
         <el-option v-for="(label, key) in WorkStatusMap" :key="key" :label="label" :value="key" />
       </el-select>
       <el-button type="primary" @click="loadData">筛选</el-button>
@@ -24,12 +31,29 @@
         <el-table-column label="封面" width="70">
           <template #default="{ row }">
             <img v-if="row.coverUrl" :src="row.coverUrl" class="cover-thumb" alt="封面" />
-            <div v-else style="width:48px;height:48px;border-radius:6px;background:#F0F3F5;display:flex;align-items:center;justify-content:center;font-size:11px;color:#8A9AA1">无</div>
+            <div
+              v-else
+              style="
+                width: 48px;
+                height: 48px;
+                border-radius: 6px;
+                background: #f0f3f5;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                color: #55645c;
+              "
+            >
+              无
+            </div>
           </template>
         </el-table-column>
         <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip />
         <el-table-column prop="workNo" label="作品编号" width="180">
-          <template #default="{ row }"><span class="font-mono">{{ row.workNo }}</span></template>
+          <template #default="{ row }"
+            ><span class="font-mono">{{ row.workNo }}</span></template
+          >
         </el-table-column>
         <el-table-column label="状态" width="140">
           <template #default="{ row }"><StatusTag :status="row.status" type="work" /></template>
@@ -42,24 +66,29 @@
         </el-table-column>
         <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="router.push(`/creator/works/${row.workNo}`)">查看</el-button>
+            <el-button link type="primary" @click="router.push(`/creator/works/${row.workNo}`)"
+              >查看</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
-      <el-pagination
+      <PagePagination
         v-model:current-page="query.pageNo"
         v-model:page-size="query.pageSize"
         :total="total"
         layout="total, prev, pager, next, sizes"
         :page-sizes="[10, 20, 50]"
         @change="loadData"
-        style="margin-top: 16px; justify-content: flex-end;"
+        style="margin-top: 16px; justify-content: flex-end"
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import PagePagination from '@/shared/components/PagePagination.vue'
+import { usePageLoad } from '@/shared/composables/usePageLoad'
+import PageLoadFeedback from '@/shared/components/PageLoadFeedback.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { workApi } from '@/shared/api'
@@ -67,6 +96,7 @@ import { StatusTag } from '@/shared/components'
 import { WorkStatusMap, WorkTypeMap } from '@/shared/constants'
 import { formatDate } from '@/shared/utils'
 import type { WorkListVO } from '@/shared/types'
+const { pageError, runPageLoad } = usePageLoad()
 
 const router = useRouter()
 const loading = ref(false)
@@ -76,18 +106,21 @@ const total = ref(0)
 const query = reactive({ status: '', pageNo: 1, pageSize: 20 })
 
 async function loadData() {
-  loading.value = true
-  try {
-    const res = await workApi.getMyWorks({
-      pageNo: query.pageNo,
-      pageSize: query.pageSize,
-      status: query.status || undefined
-    })
-    records.value = res.data?.records || []
-    total.value = res.data?.total || 0
-  } finally {
-    loading.value = false
-  }
+  await runPageLoad(async (isCurrent) => {
+    loading.value = true
+    try {
+      const res = await workApi.getMyWorks({
+        pageNo: query.pageNo,
+        pageSize: query.pageSize,
+        status: query.status || undefined
+      })
+      if (!isCurrent()) return
+      records.value = res.data?.records || []
+      total.value = res.data?.total || 0
+    } finally {
+      if (isCurrent()) loading.value = false
+    }
+  })
 }
 
 function resetQuery() {

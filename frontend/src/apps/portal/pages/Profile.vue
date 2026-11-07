@@ -1,17 +1,21 @@
 <template>
   <!-- 个人中心页 -->
-  <div class="profile-page" v-loading="loading">
+  <div data-page="Profile" class="lc-page profile-page" v-loading="loading">
+    <PageLoadFeedback :message="pageError" @retry="loadProfile" />
     <div class="page-header">
-      <h2>个人中心</h2>
+      <div>
+        <h1>个人中心</h1>
+        <p class="page-header__desc">管理个人资料、实名认证与数字身份。</p>
+      </div>
     </div>
 
     <template v-if="profile">
       <el-row :gutter="20">
         <!-- 基本信息 -->
-        <el-col :span="12">
+        <el-col :xs="24" :md="12">
           <div class="lc-card">
             <div class="lc-card__title">基本信息</div>
-            <el-form :model="editForm" label-width="80px">
+            <el-form :model="editForm" label-width="80px" label-position="top">
               <el-form-item label="昵称">
                 <el-input v-model="editForm.nickname" :disabled="!editing" />
               </el-form-item>
@@ -33,39 +37,59 @@
         </el-col>
 
         <!-- 账户状态 -->
-        <el-col :span="12">
+        <el-col :xs="24" :md="12">
           <div class="lc-card">
             <div class="lc-card__title">账户状态</div>
             <el-descriptions :column="1" border size="small">
-              <el-descriptions-item label="账户编号"><span class="font-mono">{{ profile.accountNo }}</span></el-descriptions-item>
-              <el-descriptions-item label="手机号">{{ maskMobile(profile.mobile) }}</el-descriptions-item>
-              <el-descriptions-item label="账户类型">{{ AccountTypeMap[profile.accountType] || profile.accountType }}</el-descriptions-item>
+              <el-descriptions-item label="账户编号"
+                ><span class="font-mono">{{ profile.accountNo }}</span></el-descriptions-item
+              >
+              <el-descriptions-item label="手机号">{{
+                maskMobile(profile.mobile)
+              }}</el-descriptions-item>
+              <el-descriptions-item label="账户类型">{{
+                AccountTypeMap[profile.accountType] || profile.accountType
+              }}</el-descriptions-item>
               <el-descriptions-item label="账户状态">
                 <StatusTag :status="profile.status" type="account" />
               </el-descriptions-item>
               <el-descriptions-item label="实名认证">
                 <StatusTag :status="profile.authStatus" type="auth" />
-                <el-button v-if="['NOT_AUTH', 'AUTH_REJECTED'].includes(profile.authStatus)" link type="primary" style="margin-left: 8px;" @click="router.push('/profile/auth')">
+                <el-button
+                  v-if="profile.allowedActions.includes('SUBMIT_AUTH')"
+                  link
+                  type="primary"
+                  style="margin-left: 8px"
+                  @click="router.push('/profile/auth')"
+                >
                   去认证
                 </el-button>
               </el-descriptions-item>
               <el-descriptions-item label="角色">
-                <el-tag v-for="r in profile.roles" :key="r" size="small" style="margin: 2px;">{{ RoleMap[r] || r }}</el-tag>
+                <el-tag v-for="r in profile.roles" :key="r" size="small" style="margin: 2px">{{
+                  RoleMap[r] || r
+                }}</el-tag>
               </el-descriptions-item>
             </el-descriptions>
           </div>
         </el-col>
       </el-row>
 
-      <el-row :gutter="20" style="margin-top: 20px;">
+      <el-row :gutter="20" style="margin-top: 20px">
         <!-- DID 信息 -->
-        <el-col :span="12">
+        <el-col :xs="24" :md="12">
           <div class="lc-card">
             <div class="lc-card__title">DID 信息</div>
             <template v-if="profile.didInfo">
               <el-descriptions :column="1" border size="small">
-                <el-descriptions-item label="DID 编号"><span class="font-mono">{{ profile.didInfo.didNo }}</span></el-descriptions-item>
-                <el-descriptions-item label="DID 值"><span class="font-mono">{{ profile.didInfo.didValue }}</span></el-descriptions-item>
+                <el-descriptions-item label="DID 编号"
+                  ><span class="font-mono">{{ profile.didInfo.didNo }}</span></el-descriptions-item
+                >
+                <el-descriptions-item label="DID 值"
+                  ><span class="font-mono">{{
+                    profile.didInfo.didValue
+                  }}</span></el-descriptions-item
+                >
                 <el-descriptions-item label="DID 状态">
                   <StatusTag :status="profile.didInfo.status" type="did" />
                 </el-descriptions-item>
@@ -76,27 +100,41 @@
             </template>
             <template v-else>
               <el-empty description="尚未申请 DID" :image-size="80">
-                <el-button type="primary" @click="router.push('/profile/did/apply')">申请 DID</el-button>
+                <el-button type="primary" @click="router.push('/profile/did/apply')"
+                  >申请 DID</el-button
+                >
               </el-empty>
             </template>
           </div>
         </el-col>
 
         <!-- 认证主体信息 -->
-        <el-col :span="12">
+        <el-col :xs="24" :md="12">
           <div class="lc-card">
             <div class="lc-card__title">认证主体</div>
             <template v-if="profile.subjectInfo">
               <el-descriptions :column="1" border size="small">
-                <el-descriptions-item label="主体类型">{{ profile.subjectInfo.subjectType === 'PERSONAL' ? '个人' : '企业' }}</el-descriptions-item>
-                <el-descriptions-item label="真实姓名">{{ profile.subjectInfo.realName }}</el-descriptions-item>
-                <el-descriptions-item label="证件类型">{{ profile.subjectInfo.idCardType }}</el-descriptions-item>
-                <el-descriptions-item label="证件号码">{{ maskIdCard(profile.subjectInfo.idCardNo) }}</el-descriptions-item>
+                <el-descriptions-item label="主体类型">{{
+                  profile.subjectInfo.subjectType === 'PERSONAL' ? '个人' : '企业'
+                }}</el-descriptions-item>
+                <el-descriptions-item label="真实姓名">{{
+                  profile.subjectInfo.realName
+                }}</el-descriptions-item>
+                <el-descriptions-item label="证件类型">{{
+                  profile.subjectInfo.idCardType
+                }}</el-descriptions-item>
+                <el-descriptions-item label="证件号码">{{
+                  maskIdCard(profile.subjectInfo.idCardNo)
+                }}</el-descriptions-item>
               </el-descriptions>
             </template>
             <template v-else>
               <el-empty description="尚未完成实名认证" :image-size="80">
-                <el-button v-if="['NOT_AUTH', 'AUTH_REJECTED'].includes(profile.authStatus)" type="primary" @click="router.push('/profile/auth')">
+                <el-button
+                  v-if="profile.allowedActions.includes('SUBMIT_AUTH')"
+                  type="primary"
+                  @click="router.push('/profile/auth')"
+                >
                   去认证
                 </el-button>
               </el-empty>
@@ -109,6 +147,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePageLoad } from '@/shared/composables/usePageLoad'
+import PageLoadFeedback from '@/shared/components/PageLoadFeedback.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -117,6 +157,9 @@ import { StatusTag } from '@/shared/components'
 import { AccountTypeMap, RoleMap } from '@/shared/constants'
 import { maskMobile } from '@/shared/utils'
 import type { AccountProfileVO } from '@/shared/types'
+const { pageError, runPageLoad } = usePageLoad()
+
+defineOptions({ name: 'PortalProfilePage' })
 
 const router = useRouter()
 const loading = ref(false)
@@ -137,14 +180,17 @@ function maskIdCard(idCard: string): string {
 }
 
 async function loadProfile() {
-  loading.value = true
-  try {
-    const res = await authApi.getProfile()
-    profile.value = res.data
-    resetEdit()
-  } finally {
-    loading.value = false
-  }
+  await runPageLoad(async (isCurrent) => {
+    loading.value = true
+    try {
+      const res = await authApi.getProfile()
+      if (!isCurrent()) return
+      profile.value = res.data
+      resetEdit()
+    } finally {
+      if (isCurrent()) loading.value = false
+    }
+  })
 }
 
 function resetEdit() {
@@ -157,6 +203,7 @@ function resetEdit() {
 }
 
 async function handleSave() {
+  if (saving.value) return
   saving.value = true
   try {
     await authApi.updateProfile({

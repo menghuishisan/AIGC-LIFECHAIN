@@ -31,7 +31,7 @@ AIGC-LifeChain 围绕 AI 生成内容（文本、图像、音视频等）构建�
 
 | 层级 | 技术栈 |
 |------|--------|
-| 前端 | Vue 3.4 + TypeScript 5 + Element Plus 2.6 + Vite 5 + Pinia + ECharts |
+| 前端 | Vue 3.5 + TypeScript 5 + Element Plus 2.14 + Vite 6 + Pinia + ECharts |
 | 后端 | Java 21 + Spring Boot 3.2 + MyBatis Plus 3.5 + SpringDoc OpenAPI |
 | 消息队列 | RabbitMQ 3.13（统一异步消息驱动） |
 | AI 特征服务 | Python 3.11 + FastAPI（PDQ / MinHash / D2 形状描述符，统一 256-bit 二进制指纹） |
@@ -91,8 +91,8 @@ AIGC-LifeChain/
 |------|------|------|
 | Java | 21+ | 后端编译运行 |
 | Maven | 3.9+ | 后端构建 |
-| Node.js | 18+ | 前端构建 |
-| pnpm | 8+ | 前端包管理 |
+| Node.js | 22.13+ / 24 / 26+ | 前端构建与静态检查 |
+| pnpm | 10.24.0 | 前端依赖管理 |
 | Go | 1.21+ | 链码编译 |
 | Docker | 24+ | 基础设施 & Fabric 网络 |
 | Docker Compose | v2 | 容器编排 |
@@ -173,7 +173,7 @@ MINIO_SECRET_KEY=<your-minio-password>
 # Fabric（gRPC 直连，TLS）
 FABRIC_CHANNEL=lifechainchannel
 FABRIC_MSP=Org1MSP
-FABRIC_PEER=localhost:7051
+FABRIC_PEERS=localhost:27051
 FABRIC_TLS_CERT=./runtime-config/fabric/org1/tls-ca.pem
 FABRIC_OVERRIDE_AUTH=peer0.org1.lifechain.com
 ```
@@ -196,13 +196,15 @@ FABRIC_OVERRIDE_AUTH=peer0.org1.lifechain.com
 
 金额在 API、数据库和 Fabric 中统一为 `CNY` 整数分；仅渠道边界转换为元。订单固定分账比例，尾分归平台；当前统一全额退款，并补偿授权撤销和逆分账。收益分配和链上存证不表示支付机构已向创作者实际打款。
 
+首次创建空白开发网络时，在项目根目录执行 `bash contracts/scripts/fabric-init.sh` 生成身份和通道素材，再启动 Compose。已有素材时脚本拒绝覆盖；现有证书、私钥、通道区块和账本须继续保留。生成物不入 Git，模板位于 `infra/fabric/crypto-config.yaml` 和 `infra/fabric/configtx.yaml`。
+
 ### 4. 部署区块链链码
 
-`infra/docker-compose.yml` 已经把 Orderer / 2 个 Peer / 2 个 CA 全部拉起（TLS 启用）。链码部署一次到位（自动建 channel + peer join + 安装/批准/提交 5 个链码）：
+`infra/docker-compose.yml` 管理 Orderer、2 个 Peer 和 2 个 CA。Peer 使用 TLS 与客户端证书，CA 仅向本机开放；各组织引导凭证通过 `FABRIC_CA_ORG1_BOOTSTRAP`、`FABRIC_CA_ORG2_BOOTSTRAP` 注入。所有开发端口仅绑定 `127.0.0.1`。链码部署一次到位（自动建 channel + peer join + 安装/批准/提交 5 个链码）：
 
 ```bash
 # 在 WSL 中执行（需要 peer / go / jq 已装）
-bash /mnt/e/code/AIGC-LifeChain/contracts/scripts/fabric-deploy.sh --init
+bash contracts/scripts/fabric-deploy.sh --init
 ```
 
 脚本会按需：
@@ -214,10 +216,10 @@ bash /mnt/e/code/AIGC-LifeChain/contracts/scripts/fabric-deploy.sh --init
 
 ```bash
 # WSL：升级全部 5 个链码（sequence 自动 +1）
-bash /mnt/e/code/AIGC-LifeChain/contracts/scripts/fabric-deploy.sh
+bash contracts/scripts/fabric-deploy.sh
 
 # 升级指定链码
-bash /mnt/e/code/AIGC-LifeChain/contracts/scripts/fabric-deploy.sh did claim
+bash contracts/scripts/fabric-deploy.sh did claim
 ```
 
 > 后端使用 `fabric-gateway` 1.7 SDK 通过 gRPC + TLS 直连 peer，证书与私钥放在 `backend/runtime-config/fabric/org1/`（cert/key/tls-ca），不入 git。
@@ -249,7 +251,7 @@ bash start.sh --skip-build  # 跳过编译，直接运行已有 JAR
 
 ```bash
 cd frontend
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
@@ -320,6 +322,7 @@ pnpm dev
 - **多应用**：`src/apps/` 下 portal / admin / regulator / verify 四个子应用共享 `src/shared/`
 - **UI 组件**：Element Plus 按需自动导入，无需手动 import
 - **构建**：`pnpm build` 产出到 `dist/`，自动分包（echarts / element-plus / vue 独立 chunk）
+- **检查**：`pnpm lint` 执行只读代码检查；`pnpm build` 执行类型检查并生成产物；`pnpm format:check` 校验格式
 
 ### 链码
 
@@ -328,6 +331,12 @@ pnpm dev
 - **首次部署 / 升级**：`bash contracts/scripts/fabric-deploy.sh`（在 WSL 中运行；脚本自动 channel 引导 → vendor → package → install → approve → commit）
 - **升级机制**：脚本自动检测当前 sequence 并 +1，无需手动管理版本号
 - **TLS**：所有 peer/orderer 都启用 TLS，CA 证书在 `infra/fabric/crypto-config/`，Java 端通过 `runtime-config/fabric/org1/tls-ca.pem` 校验
+
+## 更新后的配置
+
+前端 75 个页面统一了设计规范，并保留门户、管理、监管和公开验真的各端特点。构建方式为前端目录执行 `pnpm install --frozen-lockfile`、`pnpm build`，后端目录执行 `mvn clean package`。
+
+后端与 Python 特征服务应同时更新：特征提取请求改为 `object_name`，新增受管预览副本生成接口 `/preview`。市场预览不再返回原件地址。短信使用 `.env.example` 中的四项 `ALIYUN_SMS_*` 配置，模板参数为 `code`，不再提供日志验证码模式。
 
 ## License
 

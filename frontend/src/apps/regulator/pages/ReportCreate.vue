@@ -1,12 +1,15 @@
 <template>
   <!-- 创建监管报告页 -->
-  <div class="report-create-page">
+  <div data-page="ReportCreate" class="lc-page report-create-page">
     <div class="page-header">
-      <h2>创建监管报告</h2>
+      <div>
+        <h1>创建监管报告</h1>
+        <p class="page-header__desc">记录监管结论和关联对象，生成可追溯报告。</p>
+      </div>
     </div>
 
-    <div class="lc-card" style="max-width: 720px;">
-      <el-form :model="form" label-width="100px" :rules="rules" ref="formRef">
+    <div class="lc-card" style="max-width: 720px">
+      <el-form :model="form" label-width="100px" :rules="rules" ref="formRef" label-position="top">
         <el-form-item label="报告类型" prop="reportType">
           <el-select v-model="form.reportType" style="width: 100%">
             <el-option label="日常巡检报告" value="ROUTINE_INSPECTION" />
@@ -17,11 +20,27 @@
           </el-select>
         </el-form-item>
         <el-form-item label="报告标题" prop="reportTitle">
-          <el-input v-model="form.reportTitle" maxlength="200" show-word-limit placeholder="请输入报告标题" />
+          <el-input
+            v-model="form.reportTitle"
+            maxlength="200"
+            show-word-limit
+            placeholder="请输入报告标题"
+          />
         </el-form-item>
         <el-form-item label="关联目标类型">
-          <el-select v-model="form.targetType" clearable placeholder="可选" style="width: 100%">
-            <el-option v-for="(label, key) in TargetTypeMap" :key="key" :label="label" :value="key" />
+          <el-select
+            aria-label="可选"
+            v-model="form.targetType"
+            clearable
+            placeholder="可选"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="(label, key) in TargetTypeMap"
+              :key="key"
+              :label="label"
+              :value="key"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="关联目标编号" v-if="form.targetType">
@@ -38,8 +57,12 @@
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="submitLoading" @click="handleSubmit(false)">保存草稿</el-button>
-          <el-button type="success" :loading="generateLoading" @click="handleSubmit(true)">创建并生成</el-button>
+          <el-button type="primary" :loading="submitLoading" @click="handleSubmit(false)"
+            >保存草稿</el-button
+          >
+          <el-button type="success" :loading="generateLoading" @click="handleSubmit(true)"
+            >创建并生成</el-button
+          >
           <el-button @click="$router.back()">取消</el-button>
         </el-form-item>
       </el-form>
@@ -54,7 +77,6 @@ import { regulatorApi } from '@/shared/api'
 import { TargetTypeMap } from '@/shared/constants'
 import { generateRequestId } from '@/shared/utils'
 import type { FormInstance, FormRules } from 'element-plus'
-
 const router = useRouter()
 const formRef = ref<FormInstance>()
 const submitLoading = ref(false)
@@ -75,6 +97,7 @@ const rules: FormRules = {
 }
 
 async function handleSubmit(autoGenerate: boolean) {
+  if (generateLoading.value || submitLoading.value) return
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 

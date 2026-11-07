@@ -47,11 +47,11 @@ class PdqImageExtractor(Extractor):
         )
 
 
-def extract_image(file_url: str) -> dict:
+def extract_image(object_name: str) -> dict:
     """主流程入口：下载文件 → PDQ 提取 → 返回响应字典"""
-    logger.info("开始图片特征提取: %s", file_url[:100])
+    logger.info("开始图片特征提取: %s", object_name[:100])
     extractor = PdqImageExtractor()
-    with download_to_tempfile(file_url, suffix=".img") as path:
+    with download_to_tempfile(object_name, suffix=".img") as path:
         result = extractor.extract(path)
     logger.info("图片特征提取完成: hash=%s", result.perceptual_hash[:16])
     return {

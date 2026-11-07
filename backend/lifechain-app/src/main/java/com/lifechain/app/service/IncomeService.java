@@ -8,6 +8,10 @@ import com.lifechain.common.model.PageQuery;
 import com.lifechain.common.model.PageResult;
 import com.lifechain.settlement.entity.SettlementItemEntity;
 import com.lifechain.settlement.mapper.SettlementItemMapper;
+import com.lifechain.settlement.dto.IncomeTrendPoint;
+import com.lifechain.common.util.DateTimeUtil;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +20,20 @@ import org.springframework.stereotype.Service;
 public class IncomeService {
 
     private final SettlementItemMapper settlementItemMapper;
+
+    /** 最近三十个 UTC 自然日的净收益，空日期补零，避免把最近一页明细误作整月趋势。 */
+    public List<IncomeTrendPoint> getIncomeTrend(Long accountId) {
+        var end = DateTimeUtil.nowUtc().toLocalDate().plusDays(1);
+        var start = end.minusDays(30);
+        var points = settlementItemMapper.selectConfirmedIncomeTrend(accountId, start.atStartOfDay(), end.atStartOfDay());
+        var amounts = points.stream().collect(Collectors.toMap(IncomeTrendPoint::getDate, IncomeTrendPoint::getAmount));
+        return start.datesUntil(end).map(date -> {
+            var point = new IncomeTrendPoint();
+            point.setDate(date);
+            point.setAmount(amounts.getOrDefault(date, 0L));
+            return point;
+        }).toList();
+    }
 
     public IncomeSummaryVO getIncomeSummary(Long accountId) {
         LambdaQueryWrapper<SettlementItemEntity> wrapper = new LambdaQueryWrapper<SettlementItemEntity>()

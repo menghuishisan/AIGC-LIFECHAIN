@@ -2,6 +2,8 @@ package com.lifechain.app.controller;
 
 import com.lifechain.app.dto.IncomeItemVO;
 import com.lifechain.app.dto.IncomeSummaryVO;
+import com.lifechain.settlement.dto.IncomeTrendPoint;
+import java.util.List;
 import com.lifechain.app.service.IncomeService;
 import com.lifechain.common.context.UserContext;
 import com.lifechain.common.model.ApiResponse;
@@ -22,6 +24,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class IncomeController {
 
     private final IncomeService incomeService;
+
+    @GetMapping("/api/income/trend")
+    @Operation(summary = "收益趋势", description = "最近三十个 UTC 自然日的已确认净收益，金额单位为分")
+    public ApiResponse<List<IncomeTrendPoint>> incomeTrend() {
+        return ApiResponse.success(incomeService.getIncomeTrend(UserContext.getUserId()));
+    }
 
     @GetMapping("/api/income/summary")
     @Operation(summary = "收益汇总", description = "查询当前用户的收益汇总数据")

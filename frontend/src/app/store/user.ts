@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { LoginResponse, AccountProfileVO } from '@/shared/types'
 import { authApi } from '@/shared/api'
+import { waitForTokenRenewal } from '@/shared/api/http'
 
 /** 系统内全部角色（与后端 RoleCodeEnum 对齐） */
 export type RoleCode = 'CREATOR' | 'BUYER' | 'PLATFORM_ADMIN' | 'REGULATOR'
@@ -27,6 +28,7 @@ export const useUserStore = defineStore('user', () => {
   const token = ref<string>(sessionStorage.getItem('access_token') || '')
   const refreshToken = ref<string>(sessionStorage.getItem('refresh_token') || '')
   const profile = ref<AccountProfileVO | null>(null)
+  const sessionVersion = ref(0)
 
   /* ========== 计算属性 ========== */
 
@@ -58,14 +60,19 @@ export const useUserStore = defineStore('user', () => {
   const authStatus = computed(() => profile.value?.authStatus || '')
 
   /** 默认主页：登录跳转、根路径分发、越权回退共用 */
-  const defaultHome = computed<string>(
-    () => ROLE_HOME[HOME_PRIORITY.find(r => roles.value.includes(r))!]
-  )
+  const defaultHome = computed<string>(() => {
+    const role = HOME_PRIORITY.find((r) => roles.value.includes(r))
+    return role ? ROLE_HOME[role] : '/login'
+  })
 
   /* ========== 方法 ========== */
 
   /** 设置登录信息 */
-  function setLogin(data: LoginResponse) {
+  function setLogin(data: LoginResponse, keepSession = false) {
+    if (!keepSession) {
+      sessionVersion.value += 1
+      profile.value = null
+    }
     token.value = data.accessToken
     refreshToken.value = data.refreshToken
     sessionStorage.setItem('access_token', data.accessToken)
@@ -74,12 +81,19 @@ export const useUserStore = defineStore('user', () => {
 
   /** 加载用户资料 */
   async function loadProfile() {
+    const expectedSession = sessionVersion.value
     const res = await authApi.getProfile()
+    if (sessionVersion.value !== expectedSession) throw new Error('登录状态已变更')
+    if (!res.data || !HOME_PRIORITY.some((role) => res.data.roles?.includes(role))) {
+      clearSession()
+      throw new Error('账户缺少可用角色，请联系平台管理员')
+    }
     profile.value = res.data
   }
 
-  /** 退出登录 */
-  function logout() {
+  /** 清理当前浏览器登录态；失效处理不再触发网络请求。 */
+  function clearSession() {
+    sessionVersion.value += 1
     token.value = ''
     refreshToken.value = ''
     profile.value = null
@@ -87,18 +101,30 @@ export const useUserStore = defineStore('user', () => {
     sessionStorage.removeItem('refresh_token')
   }
 
+  /** 等待已开始的令牌轮换结束，再撤销最新的一对令牌。 */
+  async function logout() {
+    await waitForTokenRenewal()
+    const accessToken = token.value
+    const currentRefresh = refreshToken.value
+    clearSession()
+    if (accessToken && currentRefresh) {
+      await authApi.logout(accessToken, currentRefresh)
+    }
+  }
+
   /**
    * 判断当前账号是否拥有指定角色之一。
    * 路由 meta.roles 通过此方法做唯一判定。
    */
   function hasAnyRole(required: RoleCode[]): boolean {
-    return required.some(r => roles.value.includes(r))
+    return required.some((r) => roles.value.includes(r))
   }
 
   return {
     token,
     refreshToken,
     profile,
+    sessionVersion,
     isLoggedIn,
     roles,
     isCreator,
@@ -112,6 +138,7 @@ export const useUserStore = defineStore('user', () => {
     setLogin,
     loadProfile,
     logout,
+    clearSession,
     hasAnyRole
   }
 })

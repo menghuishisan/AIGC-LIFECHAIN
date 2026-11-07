@@ -1,22 +1,23 @@
 <template>
   <!-- 验真帮助页 -->
-  <div class="verify-help-page">
+  <div data-page="VerifyHelp" class="lc-page verify-help-page">
     <h1>验真帮助中心</h1>
 
     <el-collapse v-model="activeNames" accordion>
       <el-collapse-item title="什么是 AIGC 作品版权验真？" name="1">
         <p>
-          AIGC 作品版权验真是 LifeChain 平台提供的公共服务，任何人无需登录即可通过证书编号、作品编号、
-          作品哈希或交易哈希等方式，查验 AIGC 作品的版权登记信息。系统会与区块链上的存证记录进行比对，
-          确保版权信息真实有效、不可篡改。
+          AIGC 作品版权验真是 LifeChain
+          平台提供的公共服务，任何人无需登录即可通过证书编号、作品编号、
+          作品哈希或交易哈希等方式，查验 AIGC
+          作品的版权登记信息。系统会与区块链上的存证记录进行比对， 确保版权信息真实有效、不可篡改。
         </p>
       </el-collapse-item>
 
       <el-collapse-item title="支持哪些查询方式？" name="2">
         <ul>
-          <li><strong>证书编号</strong>：通过版权证书上的唯一编号进行查询，如 CERT-2024XXXX</li>
-          <li><strong>作品编号</strong>：通过作品在平台上的唯一编号进行查询，如 WORK-2024XXXX</li>
-          <li><strong>作品哈希</strong>：通过作品内容的 SHA-256 摘要哈希进行查询</li>
+          <li><strong>证书编号</strong>：输入证书上显示的完整编号</li>
+          <li><strong>作品编号</strong>：输入作品详情中显示的完整编号</li>
+          <li><strong>文件哈希</strong>：输入原始作品文件的 SHA-256 摘要</li>
           <li><strong>交易哈希</strong>：通过区块链上链交易的哈希值进行查询</li>
         </ul>
       </el-collapse-item>
@@ -34,7 +35,7 @@
           <li>输入的编号或哈希有误</li>
           <li>查询方式选择不正确</li>
           <li>作品尚未完成确权上链</li>
-          <li>证书已被撤销</li>
+          <li>作品尚未生成证书登记</li>
         </ul>
       </el-collapse-item>
 
@@ -42,7 +43,7 @@
         <p>根据查询来源不同，验真分为以下级别：</p>
         <ul>
           <li><strong>PUBLIC</strong>：公共验真 — 任何人可访问，基础验证</li>
-          <li><strong>USER</strong>：用户验真 — 登录用户发起，可关联身份</li>
+          <li><strong>LOGIN</strong>：用户验真 — 登录用户发起，可关联身份</li>
           <li><strong>REGULATOR</strong>：监管验真 — 监管机构发起，最高权限</li>
         </ul>
       </el-collapse-item>
@@ -50,7 +51,7 @@
       <el-collapse-item title="如何联系我们？" name="6">
         <p>
           如有任何疑问或需要人工协助，请通过平台客服通道联系我们。
-          对于版权争议等法律事务，请通过监管入口提交争议申请。
+          已登录用户可从订单详情发起与该笔交易相关的争议。
         </p>
       </el-collapse-item>
     </el-collapse>
@@ -63,7 +64,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-
 const activeNames = ref('1')
 </script>
 
@@ -76,13 +76,14 @@ const activeNames = ref('1')
   h1 {
     font-size: 28px;
     margin-bottom: 32px;
-    color: #1a1a1a;
+    color: var(--lc-ink);
     text-align: center;
   }
 
-  p, li {
+  p,
+  li {
     line-height: 1.8;
-    color: #555;
+    color: var(--lc-muted);
     font-size: 14px;
   }
 

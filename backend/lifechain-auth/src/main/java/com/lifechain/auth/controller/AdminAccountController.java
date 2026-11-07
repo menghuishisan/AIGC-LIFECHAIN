@@ -102,9 +102,13 @@ public class AdminAccountController {
      */
     @GetMapping("/list")
     @Operation(summary = "分页查询账户列表", description = "管理员查看所有注册账户的分页列表")
-    public ApiResponse<PageResult<AccountProfileVO>> listAccounts(@Valid PageQuery query) {
+    public ApiResponse<PageResult<AccountProfileVO>> listAccounts(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String accountType,
+            @RequestParam(required = false) String keyword,
+            @Valid PageQuery query) {
         log.info("管理员查询账户列表，pageNo={}, pageSize={}", query.getPageNo(), query.getPageSize());
-        PageResult<AccountProfileVO> result = accountService.listAccounts(query);
+        PageResult<AccountProfileVO> result = accountService.listAccounts(status, accountType, keyword, query);
         return ApiResponse.success(result);
     }
 

@@ -29,23 +29,29 @@ func reverseKey(reverseSettleNo string) string {
 	return fmt.Sprintf("REVERSE_SETTLE#%s", reverseSettleNo)
 }
 
-func txTime(ctx contractapi.TransactionContextInterface) string {
+// txTime 仅使用交易提案时间；无法读取时拒绝交易，避免各背书节点使用本地时钟。
+func txTime(ctx contractapi.TransactionContextInterface) (string, error) {
 	t, err := ctx.GetStub().GetTxTimestamp()
 	if err != nil {
-		return time.Now().UTC().Format(time.RFC3339)
+		return "", fmt.Errorf("failed to read transaction timestamp: %w", err)
 	}
-	return time.Unix(t.Seconds, int64(t.Nanos)).UTC().Format(time.RFC3339)
+	if t == nil || t.Nanos < 0 || t.Nanos >= 1000000000 {
+		return "", fmt.Errorf("invalid transaction timestamp")
+	}
+	return time.Unix(t.Seconds, int64(t.Nanos)).UTC().Format(time.RFC3339), nil
 }
 
-func emitEvent(ctx contractapi.TransactionContextInterface, eventName, bizType, bizNo, status string) {
-	payload := EventPayload{
-		BizType: bizType,
-		BizNo:   bizNo,
-		TxTime:  txTime(ctx),
-		Status:  status,
+func emitEvent(ctx contractapi.TransactionContextInterface, eventName, bizType, bizNo, status string) error {
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
 	}
-	b, _ := json.Marshal(payload)
-	_ = ctx.GetStub().SetEvent(eventName, b)
+	payload := EventPayload{BizType: bizType, BizNo: bizNo, TxTime: now, Status: status}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+	return ctx.GetStub().SetEvent(eventName, b)
 }
 
 // RegisterSettlement 注册结算摘要到账本
@@ -82,7 +88,10 @@ func (c *SettlementContract) RegisterSettlement(ctx contractapi.TransactionConte
 		return fmt.Errorf("CONFLICT: settlement already exists with different payload: %s", req.SettleNo)
 	}
 
-	now := txTime(ctx)
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
+	}
 	settleTime := req.SettleTime
 	if settleTime == "" {
 		settleTime = now
@@ -110,8 +119,7 @@ func (c *SettlementContract) RegisterSettlement(ctx contractapi.TransactionConte
 		return fmt.Errorf("failed to put state: %w", err)
 	}
 
-	emitEvent(ctx, "SettlementRegistered", "SETTLEMENT", req.SettleNo, StatusSettled)
-	return nil
+	return emitEvent(ctx, "SettlementRegistered", "SETTLEMENT", req.SettleNo, StatusSettled)
 }
 
 // RegisterReverseSettlement 注册逆分账摘要到账本
@@ -174,7 +182,10 @@ func (c *SettlementContract) RegisterReverseSettlement(ctx contractapi.Transacti
 		return fmt.Errorf("CONFLICT: settlement already reversed: %s", req.SettleNo)
 	}
 
-	now := txTime(ctx)
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
+	}
 	reverseTime := req.ReverseTime
 	if reverseTime == "" {
 		reverseTime = now
@@ -212,8 +223,7 @@ func (c *SettlementContract) RegisterReverseSettlement(ctx contractapi.Transacti
 	if err = ctx.GetStub().PutState(settleKeyStr, settleUpdated); err != nil {
 		return err
 	}
-	emitEvent(ctx, "ReverseSettlementRegistered", "REVERSE_SETTLEMENT", req.ReverseNo, StatusReversed)
-	return nil
+	return emitEvent(ctx, "ReverseSettlementRegistered", "REVERSE_SETTLEMENT", req.ReverseNo, StatusReversed)
 }
 
 // QuerySettlement 查询结算账本状态

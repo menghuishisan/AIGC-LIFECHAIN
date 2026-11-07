@@ -1,6 +1,12 @@
 /** 付款上下文只定位本人的订单，支付结果始终由后端确认。 */
 const PENDING_ORDER_KEY = 'alipay_pending_order'
-const PAID_ORDER_STATES = ['PAY_CONFIRMED', 'AUTH_GRANTING', 'AUTH_GRANTED', 'SETTLEMENT_PENDING', 'ORDER_COMPLETED']
+const PAID_ORDER_STATES = [
+  'PAY_CONFIRMED',
+  'AUTH_GRANTING',
+  'AUTH_GRANTED',
+  'SETTLEMENT_PENDING',
+  'ORDER_COMPLETED'
+]
 
 export function isPaymentConfirmed(status: string): boolean {
   return PAID_ORDER_STATES.includes(status)
@@ -9,10 +15,17 @@ export function isPaymentConfirmed(status: string): boolean {
 export function readPendingPayment(): string {
   try {
     const value = JSON.parse(sessionStorage.getItem(PENDING_ORDER_KEY) || 'null')
-    if (typeof value?.orderNo === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value.orderNo)
-      && Number.isFinite(value.createdAt) && Date.now() - value.createdAt >= 0
-      && Date.now() - value.createdAt < 2 * 60 * 60 * 1000) return value.orderNo
-  } catch { /* 无有效上下文时展示中性结果页。 */ }
+    if (
+      typeof value?.orderNo === 'string' &&
+      /^[A-Za-z0-9_-]{1,64}$/.test(value.orderNo) &&
+      Number.isFinite(value.createdAt) &&
+      Date.now() - value.createdAt >= 0 &&
+      Date.now() - value.createdAt < 2 * 60 * 60 * 1000
+    )
+      return value.orderNo
+  } catch {
+    /* 无有效上下文时展示中性结果页。 */
+  }
   return ''
 }
 
@@ -23,10 +36,17 @@ export function submitAlipayForm(formHtml: string, orderNo: string): void {
   if (forms.length !== 1) throw new Error('支付表单无效，请重新发起支付')
   const source = forms[0]!
   const action = new URL(source.getAttribute('action') || '')
-  if (source.getAttribute('method')?.toLowerCase() !== 'post'
-    || action.protocol !== 'https:' || action.username || action.password || action.port || action.hash
-    || !['openapi.alipay.com', 'openapi-sandbox.dl.alipaydev.com'].includes(action.hostname)
-    || action.pathname !== '/gateway.do') throw new Error('支付表单地址无效')
+  if (
+    source.getAttribute('method')?.toLowerCase() !== 'post' ||
+    action.protocol !== 'https:' ||
+    action.username ||
+    action.password ||
+    action.port ||
+    action.hash ||
+    !['openapi.alipay.com', 'openapi-sandbox.dl.alipaydev.com'].includes(action.hostname) ||
+    action.pathname !== '/gateway.do'
+  )
+    throw new Error('支付表单地址无效')
   const form = document.createElement('form')
   form.method = 'POST'
   form.action = action.href
@@ -46,6 +66,9 @@ export function submitAlipayForm(formHtml: string, orderNo: string): void {
   if (!names.size) throw new Error('支付表单缺少字段')
   sessionStorage.setItem(PENDING_ORDER_KEY, JSON.stringify({ orderNo, createdAt: Date.now() }))
   document.body.appendChild(form)
-  try { HTMLFormElement.prototype.submit.call(form) }
-  finally { form.remove() }
+  try {
+    HTMLFormElement.prototype.submit.call(form)
+  } finally {
+    form.remove()
+  }
 }

@@ -1,4 +1,4 @@
-.PHONY: all build-did build-claim build-license build-settlement build-regulatory tidy test clean
+.PHONY: all build tidy test vet clean
 
 CHAINCODES := did-chaincode claim-chaincode license-chaincode settlement-chaincode regulatory-chaincode
 
@@ -11,19 +11,19 @@ build-%:
 	cd $* && go build -v ./...
 
 tidy:
-	@for cc in $(CHAINCODES); do \
+	@set -e; for cc in $(CHAINCODES); do \
 		echo ">>> go mod tidy: $$cc"; \
 		(cd $$cc && go mod tidy); \
 	done
 
 test:
-	@for cc in $(CHAINCODES); do \
+	@set -e; for cc in $(CHAINCODES); do \
 		echo ">>> Testing $$cc"; \
 		(cd $$cc && go test ./...); \
 	done
 
 vet:
-	@for cc in $(CHAINCODES); do \
+	@set -e; for cc in $(CHAINCODES); do \
 		echo ">>> go vet: $$cc"; \
 		(cd $$cc && go vet ./...); \
 	done

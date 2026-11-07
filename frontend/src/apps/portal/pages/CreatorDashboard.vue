@@ -1,11 +1,40 @@
 <template>
   <!-- 创作者工作台首页 -->
-  <div class="creator-dashboard">
+  <div data-page="CreatorDashboard" class="lc-page creator-dashboard" v-loading="loading">
+    <header class="creator-heading">
+      <div>
+        <p class="creator-heading__eyebrow">CREATOR STUDIO / LIFECHAIN</p>
+        <h1>创作工作台</h1>
+        <p>管理作品、权属证明与授权进度。</p>
+      </div>
+      <el-button
+        type="primary"
+        :icon="Upload"
+        :disabled="loading"
+        @click="router.push('/creator/works/create')"
+        >上传新作品</el-button
+      >
+    </header>
+
+    <el-alert
+      v-if="loadError"
+      class="creator-load-error"
+      type="warning"
+      title="部分工作台数据暂时未能加载。"
+      show-icon
+      :closable="false"
+    >
+      <template #default
+        ><el-button text type="primary" @click="loadDashboard">重新加载</el-button></template
+      >
+    </el-alert>
+
     <!-- 身份状态横条 -->
     <div class="status-bar">
       <div class="status-bar__item" v-for="item in statusItems" :key="item.label">
         <span class="status-bar__label">{{ item.label }}：</span>
-        <StatusTag :status="item.value" :type="item.type as any" />
+        <StatusTag v-if="item.value" :status="item.value" :type="item.type" />
+        <span v-else class="status-tag status-tag--draft">未提交</span>
       </div>
     </div>
 
@@ -19,7 +48,7 @@
 
     <!-- 最近作品 + 快捷入口 -->
     <el-row :gutter="20">
-      <el-col :span="16">
+      <el-col :xs="24" :lg="16">
         <div class="lc-card">
           <div class="lc-card__title">最近作品</div>
           <el-table :data="recentWorks" stripe style="width: 100%" size="default">
@@ -47,17 +76,21 @@
             </el-table-column>
             <el-table-column label="操作" width="80">
               <template #default="{ row }">
-                <el-button link type="primary" @click="router.push(`/creator/works/${row.workNo}`)">查看</el-button>
+                <el-button link type="primary" @click="router.push(`/creator/works/${row.workNo}`)"
+                  >查看</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
         </div>
       </el-col>
-      <el-col :span="8">
+      <el-col :xs="24" :lg="8">
         <div class="lc-card">
           <div class="lc-card__title">快捷入口</div>
           <div class="quick-actions">
-            <el-button type="primary" @click="router.push('/creator/works/create')">上传作品</el-button>
+            <el-button type="primary" @click="router.push('/creator/works/create')"
+              >上传作品</el-button
+            >
             <el-button @click="router.push('/creator/claims')">提交确权</el-button>
             <el-button @click="router.push('/creator/listings')">申请上架</el-button>
             <el-button @click="router.push('/creator/income')">查看收益</el-button>
@@ -67,24 +100,31 @@
     </el-row>
 
     <!-- 通知 + 收益趋势 -->
-    <el-row :gutter="20" style="margin-top: 20px;">
-      <el-col :span="12">
+    <el-row :gutter="20" style="margin-top: 20px">
+      <el-col :xs="24" :lg="12">
         <!-- 通知卡 -->
         <div class="lc-card">
           <div class="lc-card__title">最近通知</div>
           <div v-if="notices.length" class="notice-list">
-            <div class="notice-item" v-for="n in notices" :key="n.noticeNo" @click="router.push(`/notices/${n.noticeNo}`)">
+            <button
+              class="notice-item"
+              type="button"
+              v-for="n in notices"
+              :key="n.noticeNo"
+              @click="router.push(`/notices/${n.noticeNo}`)"
+            >
               <div class="notice-item__title">{{ n.title }}</div>
               <div class="notice-item__time">{{ formatTime(n.createdAt) }}</div>
-            </div>
+            </button>
           </div>
           <el-empty v-else description="暂无通知" :image-size="60" />
         </div>
       </el-col>
-      <el-col :span="12">
+      <el-col :xs="24" :lg="12">
         <div class="lc-card">
-          <div class="lc-card__title">收益趋势（近30天）</div>
-          <div ref="incomeTrendRef" style="height: 260px;" />
+          <div class="lc-card__title">净收益趋势 · 最近30日（UTC）</div>
+          <div v-if="hasIncomeTrend" ref="incomeTrendRef" class="income-chart" />
+          <el-empty v-else-if="!loading" description="暂无收益记录" :image-size="48" />
         </div>
       </el-col>
     </el-row>
@@ -94,6 +134,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { Upload } from '@element-plus/icons-vue'
 import echarts from '@/shared/lib/echarts'
 import type { ECharts } from '@/shared/lib/echarts'
 import { useUserStore } from '@/app/store/user'
@@ -101,10 +142,13 @@ import { workApi, tradeApi, appApi } from '@/shared/api'
 import { StatusTag } from '@/shared/components'
 import { formatDate, formatTime, formatAmount } from '@/shared/utils'
 import type { WorkListVO, MessageNoticeVO, IncomeSummaryVO } from '@/shared/types'
-
 const router = useRouter()
 const userStore = useUserStore()
 
+const loading = ref(false)
+let active = true
+const loadError = ref(false)
+const hasIncomeTrend = ref(false)
 const recentWorks = ref<WorkListVO[]>([])
 const notices = ref<MessageNoticeVO[]>([])
 const incomeSummary = ref<IncomeSummaryVO>({ totalIncome: 0, totalSuccessCount: 0, totalCount: 0 })
@@ -118,9 +162,9 @@ let incomeChart: ECharts | null = null
 
 /** 身份状态横条数据 */
 const statusItems = computed(() => [
-  { label: '账户状态', value: userStore.accountStatus, type: 'account' },
-  { label: '实名状态', value: userStore.authStatus || 'REGISTERED', type: 'account' },
-  { label: 'DID', value: userStore.didStatus, type: 'did' }
+  { label: '账户状态', value: userStore.accountStatus, type: 'account' as const },
+  { label: '实名状态', value: userStore.authStatus, type: 'account' as const },
+  { label: 'DID', value: userStore.didStatus, type: 'did' as const }
 ])
 
 /** 指标卡数据 */
@@ -133,71 +177,83 @@ const metrics = computed(() => [
   { label: '未读通知', value: unreadNotices.value }
 ])
 
-onMounted(async () => {
-  /* 并行加载工作台数据 */
-  const [worksRes, noticesRes] = await Promise.all([
+async function loadDashboard() {
+  if (loading.value) return
+  loading.value = true
+  loadError.value = false
+  hasIncomeTrend.value = false
+  incomeChart?.dispose()
+  incomeChart = null
+  const results = await Promise.allSettled([
     workApi.getMyWorks({ pageNo: 1, pageSize: 5 }),
-    appApi.getNotices({ pageNo: 1, pageSize: 5 })
+    appApi.getNotices({ pageNo: 1, pageSize: 5 }),
+    workApi.getMyWorks({ pageNo: 1, pageSize: 1, status: 'READY_FOR_CLAIM' }),
+    tradeApi.getMyListings({ pageNo: 1, pageSize: 1, status: 'LISTED' }),
+    tradeApi.getMyOrders({ pageNo: 1, pageSize: 1, role: 'CREATOR', status: 'ORDER_CREATED' }),
+    appApi.getIncomeSummary(),
+    appApi.getNotices({ pageNo: 1, pageSize: 1, readFlag: false }),
+    appApi.getIncomeTrend()
   ])
 
-  recentWorks.value = worksRes.data?.records || []
-  totalWorks.value = worksRes.data?.total || 0
-  notices.value = noticesRes.data?.records || []
+  const [works, noticeList, readyClaims, listings, orders, income, unread, incomeTrend] = results
+  if (!active) return
+  loadError.value = results.some((result) => result.status === 'rejected')
+  if (works.status === 'fulfilled') {
+    recentWorks.value = works.value.data?.records || []
+    totalWorks.value = works.value.data?.total || 0
+  }
+  if (noticeList.status === 'fulfilled') notices.value = noticeList.value.data?.records || []
+  if (readyClaims.status === 'fulfilled')
+    pendingClaimWorks.value = readyClaims.value.data?.total || 0
+  if (listings.status === 'fulfilled') listedWorks.value = listings.value.data?.total || 0
+  if (orders.status === 'fulfilled') pendingOrders.value = orders.value.data?.total || 0
+  if (income.status === 'fulfilled') incomeSummary.value = income.value.data
+  if (unread.status === 'fulfilled') unreadNotices.value = unread.value.data?.total || 0
 
-  /* 统计待确权数量 */
-  try {
-    const readyRes = await workApi.getMyWorks({ pageNo: 1, pageSize: 1, status: 'READY_FOR_CLAIM' })
-    pendingClaimWorks.value = readyRes.data?.total || 0
-  } catch { /* 忽略 */ }
-
-  /* 统计已上架数量 */
-  try {
-    const listingRes = await tradeApi.getMyListings({ pageNo: 1, pageSize: 1, status: 'LISTED' })
-    listedWorks.value = listingRes.data?.total || 0
-  } catch { /* 忽略 */ }
-
-  /* 统计待处理订单数量 */
-  try {
-    const orderRes = await tradeApi.getMyOrders({ pageNo: 1, pageSize: 1, role: 'CREATOR', status: 'ORDER_CREATED' })
-    pendingOrders.value = orderRes.data?.total || 0
-  } catch { /* 忽略 */ }
-
-  /* 加载收益汇总 */
-  try {
-    const incomeRes = await appApi.getIncomeSummary()
-    incomeSummary.value = incomeRes.data
-  } catch { /* 忽略 */ }
-
-  /* 加载未读通知数 */
-  try {
-    const unreadRes = await appApi.getNotices({ pageNo: 1, pageSize: 1, readFlag: false })
-    unreadNotices.value = unreadRes.data?.total || 0
-  } catch { /* 忽略 */ }
-
-  /* 加载收益趋势 */
-  try {
-    const detailRes = await appApi.getIncomeDetails({ pageNo: 1, pageSize: 100 })
-    const records = detailRes.data?.records || []
-    // 按日期聚合
+  if (incomeTrend.status === 'fulfilled') {
     const dateMap: Record<string, number> = {}
-    for (const r of records) {
-      const day = r.createdAt?.substring(0, 10)
-      if (day) dateMap[day] = (dateMap[day] || 0) + r.amount
+    for (const record of incomeTrend.value.data || []) {
+      const day = record.date
+      if (day) dateMap[day] = (dateMap[day] || 0) + record.amount
     }
     const sortedDates = Object.keys(dateMap).sort()
+    hasIncomeTrend.value = Object.values(dateMap).some((amount) => amount > 0)
     await nextTick()
+    if (!active) return
     if (incomeTrendRef.value && sortedDates.length) {
-      incomeChart = echarts.init(incomeTrendRef.value)
-      incomeChart.setOption({
+      const chart = echarts.init(incomeTrendRef.value)
+      chart.setOption({
+        color: ['#38684c'],
+        aria: { enabled: true },
+        animation: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
         tooltip: { trigger: 'axis' },
-        xAxis: { type: 'category', data: sortedDates },
-        yAxis: { type: 'value' },
-        series: [{ name: '收益', type: 'line', data: sortedDates.map(d => dateMap[d]), smooth: true, areaStyle: {} }],
-        grid: { top: 20, right: 20, bottom: 30, left: 60 }
+        xAxis: { type: 'category', data: sortedDates, axisLabel: { color: '#55645c' } },
+        yAxis: {
+          type: 'value',
+          name: '元',
+          axisLabel: { color: '#55645c' },
+          splitLine: { lineStyle: { color: '#e4e8e3' } }
+        },
+        series: [
+          {
+            name: '收益',
+            type: 'line',
+            data: sortedDates.map((day) => dateMap[day] / 100),
+            smooth: true,
+            areaStyle: { opacity: 0.08 }
+          }
+        ],
+        grid: { top: 20, right: 16, bottom: 30, left: 48 }
       })
+      incomeChart = chart
     }
-  } catch { /* 忽略 */ }
-})
+  } else {
+    hasIncomeTrend.value = false
+  }
+  loading.value = false
+}
+
+onMounted(loadDashboard)
 
 function handleResize() {
   incomeChart?.resize()
@@ -208,6 +264,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  active = false
   window.removeEventListener('resize', handleResize)
   incomeChart?.dispose()
 })
@@ -217,12 +274,43 @@ onUnmounted(() => {
 @use '@/shared/styles/variables' as *;
 
 .creator-dashboard {
+  min-width: 0;
+
+  .creator-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+
+    h1 {
+      margin: 3px 0 2px;
+      color: $text-primary;
+      font-size: 24px;
+      font-weight: 650;
+    }
+
+    p {
+      color: $text-secondary;
+      font-size: 12px;
+    }
+
+    &__eyebrow {
+      color: $brand-dark;
+      font: 600 10px/1.4 $font-family-mono;
+    }
+  }
+
+  .creator-load-error {
+    margin-bottom: 16px;
+  }
+
   .status-bar {
     display: flex;
     gap: 16px;
     padding: 16px 20px;
     background: $content-white;
-    border-radius: $border-radius-md;
+    border-radius: $border-radius-sm;
     margin-bottom: $card-gap;
     box-shadow: $card-shadow;
 
@@ -252,12 +340,19 @@ onUnmounted(() => {
 
 .notice-list {
   .notice-item {
+    display: block;
+    width: 100%;
     padding: 10px 0;
-    border-bottom: 1px solid #F0F3F5;
+    border-bottom: 1px solid #f0f3f5;
+    border-top: 0;
+    border-right: 0;
+    border-left: 0;
+    background: transparent;
     cursor: pointer;
+    text-align: left;
 
     &:hover {
-      background: #FAFBFC;
+      background: #fafbfc;
     }
 
     &__title {
@@ -268,20 +363,32 @@ onUnmounted(() => {
 
     &__time {
       font-size: 11px;
-      color: #8A9AA1;
+      color: #55645c;
     }
   }
+}
+
+.income-chart {
+  width: 100%;
+  height: 260px;
 }
 
 .cover-thumb-placeholder {
   width: 48px;
   height: 48px;
   border-radius: 6px;
-  background: #F0F3F5;
+  background: #f0f3f5;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  color: #8A9AA1;
+  color: #55645c;
+}
+
+@media (max-width: 640px) {
+  .creator-dashboard .creator-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 </style>

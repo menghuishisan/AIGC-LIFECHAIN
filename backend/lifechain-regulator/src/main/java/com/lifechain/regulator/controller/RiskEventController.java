@@ -66,15 +66,17 @@ public class RiskEventController {
     }
 
     /**
-     * 分页查询待处理风险事件
+     * 按状态分页查询风险事件
      *
      * @param query 分页参数
      * @return 分页风险事件列表
      */
     @GetMapping("/api/regulator/risk")
-    @Operation(summary = "查询待处理风险事件", description = "分页查询状态为已标记或审查中的风险事件")
-    public ApiResponse<PageResult<RiskEventVO>> listPendingEvents(@Valid PageQuery query) {
-        PageResult<RiskEventVO> result = riskEventService.listPendingEvents(query);
+    @Operation(summary = "查询风险事件", description = "可按精确状态筛选，不传状态时查询全部风险事件")
+    public ApiResponse<PageResult<RiskEventVO>> listPendingEvents(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String status,
+            @Valid PageQuery query) {
+        PageResult<RiskEventVO> result = riskEventService.listEvents(status, query);
         return ApiResponse.success(result);
     }
 

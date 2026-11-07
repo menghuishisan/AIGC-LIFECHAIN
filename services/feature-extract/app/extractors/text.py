@@ -150,11 +150,11 @@ class MinhashTextExtractor(Extractor):
         )
 
 
-def extract_text(file_url: str) -> dict:
+def extract_text(object_name: str) -> dict:
     """主流程入口：下载 → 抽文本 → shingle → MinHash → 返回响应字典"""
-    logger.info("开始文本特征提取: %s", file_url[:100])
+    logger.info("开始文本特征提取: %s", object_name[:100])
     extractor = MinhashTextExtractor()
-    with download_to_tempfile(file_url, suffix=".doc") as path:
+    with download_to_tempfile(object_name, suffix=".doc") as path:
         result = extractor.extract(path)
     logger.info("文本特征提取完成: hash=%s, chars=%s",
                 result.perceptual_hash[:16], result.extra.get("char_count"))

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 class ExtractRequest(BaseModel):
     """特征提取请求"""
-    file_url: str = Field(description="文件的签名访问URL")
+    object_name: str = Field(min_length=1, max_length=1024, description="受管 MinIO 私有桶内的对象键")
     work_type: str = Field(description="作品类型（IMAGE/VIDEO/AUDIO/TEXT/MODEL）")
 
 

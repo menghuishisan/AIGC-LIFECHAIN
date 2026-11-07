@@ -23,23 +23,29 @@ func ledgerKey(licenseNo string) string {
 	return fmt.Sprintf("LICENSE#%s", licenseNo)
 }
 
-func txTime(ctx contractapi.TransactionContextInterface) string {
+// txTime 仅使用交易提案时间；无法读取时拒绝交易，避免各背书节点使用本地时钟。
+func txTime(ctx contractapi.TransactionContextInterface) (string, error) {
 	t, err := ctx.GetStub().GetTxTimestamp()
 	if err != nil {
-		return time.Now().UTC().Format(time.RFC3339)
+		return "", fmt.Errorf("failed to read transaction timestamp: %w", err)
 	}
-	return time.Unix(t.Seconds, int64(t.Nanos)).UTC().Format(time.RFC3339)
+	if t == nil || t.Nanos < 0 || t.Nanos >= 1000000000 {
+		return "", fmt.Errorf("invalid transaction timestamp")
+	}
+	return time.Unix(t.Seconds, int64(t.Nanos)).UTC().Format(time.RFC3339), nil
 }
 
-func emitEvent(ctx contractapi.TransactionContextInterface, eventName, bizType, bizNo, status string) {
-	payload := EventPayload{
-		BizType: bizType,
-		BizNo:   bizNo,
-		TxTime:  txTime(ctx),
-		Status:  status,
+func emitEvent(ctx contractapi.TransactionContextInterface, eventName, bizType, bizNo, status string) error {
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
 	}
-	b, _ := json.Marshal(payload)
-	_ = ctx.GetStub().SetEvent(eventName, b)
+	payload := EventPayload{BizType: bizType, BizNo: bizNo, TxTime: now, Status: status}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+	return ctx.GetStub().SetEvent(eventName, b)
 }
 
 // RegisterLicense 注册授权许可到账本
@@ -73,7 +79,10 @@ func (c *LicenseContract) RegisterLicense(ctx contractapi.TransactionContextInte
 		return fmt.Errorf("CONFLICT: license already exists with different payload: %s", req.LicenseNo)
 	}
 
-	now := txTime(ctx)
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
+	}
 	effectiveTime := req.EffectiveTime
 	if effectiveTime == "" {
 		effectiveTime = now
@@ -101,8 +110,7 @@ func (c *LicenseContract) RegisterLicense(ctx contractapi.TransactionContextInte
 		return fmt.Errorf("failed to put state: %w", err)
 	}
 
-	emitEvent(ctx, "LicenseRegistered", "LICENSE", req.LicenseNo, StatusSuccess)
-	return nil
+	return emitEvent(ctx, "LicenseRegistered", "LICENSE", req.LicenseNo, StatusSuccess)
 }
 
 // RevokeLicense 退款后撤销授权；相同载荷幂等，保留原授权存证与撤销历史。
@@ -141,8 +149,7 @@ func (c *LicenseContract) RevokeLicense(ctx contractapi.TransactionContextInterf
 	if err = ctx.GetStub().PutState(ledgerKey(req.LicenseNo), b); err != nil {
 		return err
 	}
-	emitEvent(ctx, "LicenseRevoked", "LICENSE", req.LicenseNo, ledger.Status)
-	return nil
+	return emitEvent(ctx, "LicenseRevoked", "LICENSE", req.LicenseNo, ledger.Status)
 }
 
 // QueryLicense 查询授权许可账本状态

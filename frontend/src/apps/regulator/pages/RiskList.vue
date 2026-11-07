@@ -1,14 +1,25 @@
 <template>
   <!-- 风险事件列表页 -->
-  <div class="risk-list-page" v-loading="loading">
+  <div data-page="RiskList" class="lc-page risk-list-page" v-loading="loading">
+    <PageLoadFeedback :message="pageError" @retry="loadList" />
     <div class="page-header">
-      <h2>风险事件管理</h2>
+      <div>
+        <h1>风险事件管理</h1>
+        <p class="page-header__desc">登记风险事件，按等级和状态跟踪处置进展。</p>
+      </div>
       <el-button type="danger" @click="showMarkDialog = true">标记风险</el-button>
     </div>
 
     <!-- 筛选栏 -->
     <div class="filter-bar">
-      <el-select v-model="query.status" placeholder="风险状态" clearable @change="loadList" style="width: 160px">
+      <el-select
+        aria-label="风险状态"
+        v-model="query.status"
+        placeholder="风险状态"
+        clearable
+        @change="searchFromFirstPage"
+        style="width: 160px"
+      >
         <el-option v-for="(label, key) in RiskStatusMap" :key="key" :label="label" :value="key" />
       </el-select>
     </div>
@@ -17,11 +28,15 @@
     <el-table :data="list" stripe>
       <el-table-column prop="riskNo" label="风险编号" width="200">
         <template #default="{ row }">
-          <router-link :to="`/regulator/risks/${row.riskNo}`" class="link">{{ row.riskNo }}</router-link>
+          <router-link :to="`/regulator/risks/${row.riskNo}`" class="link">{{
+            row.riskNo
+          }}</router-link>
         </template>
       </el-table-column>
       <el-table-column label="目标类型" width="100">
-        <template #default="{ row }">{{ TargetTypeMap[row.targetType] || row.targetType }}</template>
+        <template #default="{ row }">{{
+          TargetTypeMap[row.targetType] || row.targetType
+        }}</template>
       </el-table-column>
       <el-table-column prop="targetNo" label="目标编号" width="200" />
       <el-table-column prop="riskType" label="风险类型" width="120" />
@@ -39,22 +54,32 @@
     </el-table>
 
     <!-- 分页 -->
-    <el-pagination
+    <PagePagination
       v-if="total > 0"
       layout="total, prev, pager, next"
       :total="total"
       :page-size="query.pageSize"
       :current-page="query.pageNo"
-      @current-change="p => { query.pageNo = p; loadList() }"
-      style="margin-top: 16px; justify-content: flex-end;"
+      @change="
+        (p) => {
+          query.pageNo = p
+          loadList()
+        }
+      "
+      style="margin-top: 16px; justify-content: flex-end"
     />
 
     <!-- 标记风险对话框 -->
     <el-dialog v-model="showMarkDialog" title="标记风险事件" width="520px">
-      <el-form :model="markForm" label-width="100px">
+      <el-form :model="markForm" label-width="100px" label-position="top">
         <el-form-item label="目标类型" required>
           <el-select v-model="markForm.targetType" style="width: 100%">
-            <el-option v-for="(label, key) in TargetTypeMap" :key="key" :label="label" :value="key" />
+            <el-option
+              v-for="(label, key) in TargetTypeMap"
+              :key="key"
+              :label="label"
+              :value="key"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="目标编号" required>
@@ -72,7 +97,12 @@
           <el-input v-model="markForm.riskType" placeholder="如 PLAGIARISM、FRAUD 等" />
         </el-form-item>
         <el-form-item label="风险描述" required>
-          <el-input v-model="markForm.riskDescription" type="textarea" :rows="3" placeholder="请描述风险详情" />
+          <el-input
+            v-model="markForm.riskDescription"
+            type="textarea"
+            :rows="3"
+            placeholder="请描述风险详情"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -84,12 +114,16 @@
 </template>
 
 <script setup lang="ts">
+import PagePagination from '@/shared/components/PagePagination.vue'
+import { usePageLoad } from '@/shared/composables/usePageLoad'
+import PageLoadFeedback from '@/shared/components/PageLoadFeedback.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { regulatorApi } from '@/shared/api'
 import { RiskStatusMap, TargetTypeMap } from '@/shared/constants'
 import { formatTime, generateRequestId } from '@/shared/utils'
 import StatusTag from '@/shared/components/StatusTag.vue'
 import type { RiskEventVO } from '@/shared/types'
+const { pageError, runPageLoad } = usePageLoad()
 
 const loading = ref(false)
 const list = ref<RiskEventVO[]>([])
@@ -98,21 +132,31 @@ const query = reactive({ pageNo: 1, pageSize: 20, status: '' })
 
 /** 风险等级标签颜色 */
 function riskLevelType(level: string): 'success' | 'warning' | 'danger' | 'info' | undefined {
-  const map: Record<string, 'success' | 'warning' | 'danger' | 'info'> = { LOW: 'info', MEDIUM: 'warning', HIGH: 'danger', CRITICAL: 'danger' }
+  const map: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
+    LOW: 'info',
+    MEDIUM: 'warning',
+    HIGH: 'danger',
+    CRITICAL: 'danger'
+  }
   return map[level]
 }
 
 async function loadList() {
-  loading.value = true
-  try {
-    const params: Record<string, unknown> = { pageNo: query.pageNo, pageSize: query.pageSize }
-    if (query.status) params.status = query.status
-    const res = await regulatorApi.getRiskList(params as any)
-    list.value = res.data.records
-    total.value = res.data.total
-  } finally {
-    loading.value = false
-  }
+  await runPageLoad(async (isCurrent) => {
+    loading.value = true
+    try {
+      const res = await regulatorApi.getRiskList({
+        pageNo: query.pageNo,
+        pageSize: query.pageSize,
+        status: query.status || undefined
+      })
+      if (!isCurrent()) return
+      list.value = res.data.records
+      total.value = res.data.total
+    } finally {
+      if (isCurrent()) loading.value = false
+    }
+  })
 }
 
 /* ========== 标记风险表单 ========== */
@@ -127,7 +171,11 @@ const markForm = reactive({
 })
 
 async function handleMark() {
-  if (!markForm.targetNo || !markForm.riskType || !markForm.riskDescription) return
+  if (markLoading.value) return
+  if (!markForm.targetNo.trim() || !markForm.riskType.trim() || !markForm.riskDescription.trim()) {
+    ElMessage.warning('请填写目标编号、风险类型和风险描述')
+    return
+  }
   markLoading.value = true
   try {
     await regulatorApi.markRisk({ ...markForm, requestId: generateRequestId() })
@@ -141,4 +189,9 @@ async function handleMark() {
 }
 
 onMounted(loadList)
+/** 改变筛选条件后从第一页重新读取。 */
+function searchFromFirstPage() {
+  query.pageNo = 1
+  void loadList()
+}
 </script>

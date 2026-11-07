@@ -1,29 +1,39 @@
 <template>
   <!-- 系统配置页（管理员） -->
-  <div class="sys-config-page">
+  <div data-page="SysConfig" class="lc-page sys-config-page">
+    <PageLoadFeedback :message="pageError" @retry="loadData" />
     <div class="page-header">
-      <h2>系统配置</h2>
+      <div>
+        <h1>系统配置</h1>
+        <p class="page-header__desc">维护平台业务配置，保存后以服务端记录为准。</p>
+      </div>
       <el-button type="primary" @click="openAdd">新增配置</el-button>
     </div>
 
     <el-table :data="configs" v-loading="loading" stripe>
       <el-table-column prop="configKey" label="配置键" min-width="200">
-        <template #default="{ row }"><span class="font-mono">{{ row.configKey }}</span></template>
+        <template #default="{ row }"
+          ><span class="font-mono">{{ row.configKey }}</span></template
+        >
       </el-table-column>
       <el-table-column prop="configValue" label="配置值" min-width="240" show-overflow-tooltip />
       <el-table-column prop="configType" label="类型" width="120" />
       <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
       <el-table-column label="操作" width="140" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
-          <el-button link type="danger" size="small" @click="handleDelete(row.configKey)">删除</el-button>
+          <el-button link type="primary" size="small" @click="openEdit(row.configKey)"
+            >编辑</el-button
+          >
+          <el-button link type="danger" size="small" @click="handleDelete(row.configKey)"
+            >删除</el-button
+          >
         </template>
       </el-table-column>
     </el-table>
 
     <!-- 新增/编辑对话框 -->
     <el-dialog v-model="showDialog" :title="isEdit ? '编辑配置' : '新增配置'" width="520px">
-      <el-form :model="form" label-width="80px">
+      <el-form :model="form" label-width="80px" label-position="top">
         <el-form-item label="配置键" required>
           <el-input v-model="form.configKey" :disabled="isEdit" />
         </el-form-item>
@@ -46,10 +56,13 @@
 </template>
 
 <script setup lang="ts">
+import { usePageLoad } from '@/shared/composables/usePageLoad'
+import PageLoadFeedback from '@/shared/components/PageLoadFeedback.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { appApi } from '@/shared/api'
 import type { SysConfigVO } from '@/shared/types'
+const { pageError, runPageLoad } = usePageLoad()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -65,13 +78,16 @@ const form = reactive({
 })
 
 async function loadData() {
-  loading.value = true
-  try {
-    const res = await appApi.getConfigs()
-    configs.value = res.data
-  } finally {
-    loading.value = false
-  }
+  await runPageLoad(async (isCurrent) => {
+    loading.value = true
+    try {
+      const res = await appApi.getConfigs()
+      if (!isCurrent()) return
+      configs.value = res.data
+    } finally {
+      if (isCurrent()) loading.value = false
+    }
+  })
 }
 
 function openAdd() {
@@ -83,7 +99,9 @@ function openAdd() {
   showDialog.value = true
 }
 
-function openEdit(row: SysConfigVO) {
+function openEdit(configKey: string) {
+  const row = configs.value.find((config) => config.configKey === configKey)
+  if (!row) return
   isEdit.value = true
   form.configKey = row.configKey
   form.configValue = row.configValue
@@ -93,6 +111,11 @@ function openEdit(row: SysConfigVO) {
 }
 
 async function handleSave() {
+  if (saving.value) return
+  if (!form.configKey.trim() || !form.configValue.trim()) {
+    ElMessage.warning('请填写配置键与配置值')
+    return
+  }
   saving.value = true
   try {
     await appApi.upsertConfig({
@@ -110,7 +133,12 @@ async function handleSave() {
 }
 
 async function handleDelete(key: string) {
-  await ElMessageBox.confirm(`确定要删除配置 "${key}" 吗？`, '删除配置', { type: 'warning' })
+  if (
+    !(await ElMessageBox.confirm(`确定要删除配置 "${key}" 吗？`, '删除配置', { type: 'warning' })
+      .then(() => true)
+      .catch(() => false))
+  )
+    return
   await appApi.deleteConfig(key)
   ElMessage.success('已删除')
   loadData()

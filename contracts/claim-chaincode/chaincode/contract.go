@@ -23,23 +23,29 @@ func ledgerKey(claimNo string) string {
 	return fmt.Sprintf("CLAIM#%s", claimNo)
 }
 
-func txTime(ctx contractapi.TransactionContextInterface) string {
+// txTime 仅使用交易提案时间；无法读取时拒绝交易，避免各背书节点使用本地时钟。
+func txTime(ctx contractapi.TransactionContextInterface) (string, error) {
 	t, err := ctx.GetStub().GetTxTimestamp()
 	if err != nil {
-		return time.Now().UTC().Format(time.RFC3339)
+		return "", fmt.Errorf("failed to read transaction timestamp: %w", err)
 	}
-	return time.Unix(t.Seconds, int64(t.Nanos)).UTC().Format(time.RFC3339)
+	if t == nil || t.Nanos < 0 || t.Nanos >= 1000000000 {
+		return "", fmt.Errorf("invalid transaction timestamp")
+	}
+	return time.Unix(t.Seconds, int64(t.Nanos)).UTC().Format(time.RFC3339), nil
 }
 
-func emitEvent(ctx contractapi.TransactionContextInterface, eventName, bizType, bizNo, status string) {
-	payload := EventPayload{
-		BizType: bizType,
-		BizNo:   bizNo,
-		TxTime:  txTime(ctx),
-		Status:  status,
+func emitEvent(ctx contractapi.TransactionContextInterface, eventName, bizType, bizNo, status string) error {
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
 	}
-	b, _ := json.Marshal(payload)
-	_ = ctx.GetStub().SetEvent(eventName, b)
+	payload := EventPayload{BizType: bizType, BizNo: bizNo, TxTime: now, Status: status}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+	return ctx.GetStub().SetEvent(eventName, b)
 }
 
 // RegisterClaim 注册确权记录到账本
@@ -74,7 +80,10 @@ func (c *ClaimContract) RegisterClaim(ctx contractapi.TransactionContextInterfac
 		return fmt.Errorf("CONFLICT: claim already exists with different payload: %s", req.ClaimNo)
 	}
 
-	now := txTime(ctx)
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
+	}
 	claimTime := req.ClaimTime
 	if claimTime == "" {
 		claimTime = now
@@ -102,8 +111,7 @@ func (c *ClaimContract) RegisterClaim(ctx contractapi.TransactionContextInterfac
 		return fmt.Errorf("failed to put state: %w", err)
 	}
 
-	emitEvent(ctx, "ClaimRegistered", "CLAIM", req.ClaimNo, StatusSuccess)
-	return nil
+	return emitEvent(ctx, "ClaimRegistered", "CLAIM", req.ClaimNo, StatusSuccess)
 }
 
 // QueryClaim 查询确权账本状态

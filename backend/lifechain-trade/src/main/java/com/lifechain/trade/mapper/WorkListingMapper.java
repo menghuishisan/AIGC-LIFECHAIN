@@ -21,6 +21,12 @@ import java.util.List;
 @Mapper
 public interface WorkListingMapper extends BaseMapper<WorkListingEntity> {
 
+    /** 下单事务持有上架记录行锁，锁随事务提交或回滚释放。 */
+    default WorkListingEntity selectByListingNoForUpdate(String listingNo) {
+        return selectOne(new LambdaQueryWrapper<WorkListingEntity>()
+                .eq(WorkListingEntity::getListingNo, listingNo).last("FOR UPDATE"));
+    }
+
     /**
      * 根据上架编号查询
      *

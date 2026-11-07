@@ -4,12 +4,24 @@
  */
 import { get, post } from './http'
 import type {
-  CreateDisputeRequest, AddEvidenceRequest, DisputeProcessRequest,
-  DisputeCaseVO, RegulatorDisputeQuery, RegulatorDisputeListVO,
-  FreezeRequest, UnfreezeRequest, ReviewFreezeRequest, FreezeRecordVO,
-  CreateRiskEventRequest, HandleRiskEventRequest, RiskEventVO,
-  CreateReportRequest, HandleReportRequest, ReportVO,
-  PageResult, PageQuery
+  CreateDisputeRequest,
+  AddEvidenceRequest,
+  DisputeProcessRequest,
+  DisputeCaseVO,
+  RegulatorDisputeQuery,
+  RegulatorDisputeListVO,
+  FreezeRequest,
+  UnfreezeRequest,
+  ReviewFreezeRequest,
+  FreezeRecordVO,
+  CreateRiskEventRequest,
+  HandleRiskEventRequest,
+  RiskEventVO,
+  CreateReportRequest,
+  HandleReportRequest,
+  ReportVO,
+  PageResult,
+  PageQuery
 } from '@/shared/types'
 
 /* ========== 争议接口 ========== */
@@ -27,8 +39,7 @@ export const processDispute = (data: DisputeProcessRequest) =>
   post<DisputeCaseVO>('/api/admin/disputes/process', data)
 
 /** 争议详情 */
-export const getDisputeDetail = (caseNo: string) =>
-  get<DisputeCaseVO>(`/api/disputes/${caseNo}`)
+export const getDisputeDetail = (caseNo: string) => get<DisputeCaseVO>(`/api/disputes/${caseNo}`)
 
 /** 我的争议列表 */
 export const getMyDisputes = (params: PageQuery & { status?: string }) =>
@@ -79,12 +90,11 @@ export const handleRisk = (data: HandleRiskEventRequest) =>
   post<RiskEventVO>('/api/regulator/risk/handle', data)
 
 /** 风险事件列表 */
-export const getRiskList = (params: PageQuery) =>
+export const getRiskList = (params: PageQuery & { status?: string }) =>
   get<PageResult<RiskEventVO>>('/api/regulator/risk', params)
 
 /** 风险事件详情 */
-export const getRiskDetail = (riskNo: string) =>
-  get<RiskEventVO>(`/api/regulator/risk/${riskNo}`)
+export const getRiskDetail = (riskNo: string) => get<RiskEventVO>(`/api/regulator/risk/${riskNo}`)
 
 /* ========== 监管报告接口 ========== */
 

@@ -1,27 +1,44 @@
 <template>
   <!-- 授权模板列表页 -->
-  <div class="license-template-list-page">
+  <div data-page="LicenseTemplateList" class="lc-page license-template-list-page">
+    <PageLoadFeedback :message="pageError" @retry="loadData" />
     <div class="page-header">
-      <h2>授权模板</h2>
-      <el-button type="primary" @click="router.push('/creator/license-templates/create')">新建模板</el-button>
+      <div>
+        <h1>授权模板</h1>
+        <p class="page-header__desc">管理作品上架时可选用的授权条款。</p>
+      </div>
+      <el-button type="primary" @click="router.push('/creator/license-templates/create')"
+        >新建模板</el-button
+      >
     </div>
 
     <!-- 表格 -->
     <el-table :data="list" v-loading="loading" stripe>
       <el-table-column prop="templateCode" label="模板编号" min-width="180">
         <template #default="{ row }">
-          <el-button link type="primary" @click="router.push(`/creator/license-templates/${row.templateCode}`)">{{ row.templateCode }}</el-button>
+          <el-button
+            link
+            type="primary"
+            @click="router.push(`/creator/license-templates/${row.templateCode}`)"
+            >{{ row.templateCode }}</el-button
+          >
         </template>
       </el-table-column>
       <el-table-column prop="templateName" label="模板名称" min-width="160" show-overflow-tooltip />
       <el-table-column prop="licenseType" label="授权类型" width="120">
-        <template #default="{ row }">{{ LicenseTypeMap[row.licenseType] || row.licenseType }}</template>
+        <template #default="{ row }">{{
+          LicenseTypeMap[row.licenseType] || row.licenseType
+        }}</template>
       </el-table-column>
       <el-table-column prop="priceAmount" label="建议价格" width="120">
-        <template #default="{ row }">{{ row.priceAmount ? formatCurrency(row.priceAmount) : '-' }}</template>
+        <template #default="{ row }">{{
+          row.priceAmount ? formatCurrency(row.priceAmount) : '-'
+        }}</template>
       </el-table-column>
       <el-table-column prop="durationDays" label="授权天数" width="100">
-        <template #default="{ row }">{{ row.durationDays ? `${row.durationDays}天` : '永久' }}</template>
+        <template #default="{ row }">{{
+          row.durationDays ? `${row.durationDays}天` : '永久'
+        }}</template>
       </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="180">
         <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
@@ -30,26 +47,29 @@
 
     <!-- 分页 -->
     <div class="pagination-wrap">
-      <el-pagination
+      <PagePagination
         v-model:current-page="query.pageNo"
         v-model:page-size="query.pageSize"
         :total="total"
         layout="total, sizes, prev, pager, next"
         :page-sizes="[10, 20, 50]"
-        @size-change="loadData"
-        @current-change="loadData"
+        @change="loadData"
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import PagePagination from '@/shared/components/PagePagination.vue'
+import { usePageLoad } from '@/shared/composables/usePageLoad'
+import PageLoadFeedback from '@/shared/components/PageLoadFeedback.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { tradeApi } from '@/shared/api'
 import { LicenseTypeMap } from '@/shared/constants'
 import { formatTime, formatCurrency } from '@/shared/utils'
 import type { LicenseTemplateVO } from '@/shared/types'
+const { pageError, runPageLoad } = usePageLoad()
 
 const router = useRouter()
 const loading = ref(false)
@@ -58,14 +78,17 @@ const total = ref(0)
 const query = reactive({ pageNo: 1, pageSize: 10 })
 
 async function loadData() {
-  loading.value = true
-  try {
-    const res = await tradeApi.getLicenseTemplates(query)
-    list.value = res.data.records
-    total.value = res.data.total
-  } finally {
-    loading.value = false
-  }
+  await runPageLoad(async (isCurrent) => {
+    loading.value = true
+    try {
+      const res = await tradeApi.getLicenseTemplates(query)
+      if (!isCurrent()) return
+      list.value = res.data.records
+      total.value = res.data.total
+    } finally {
+      if (isCurrent()) loading.value = false
+    }
+  })
 }
 
 onMounted(loadData)

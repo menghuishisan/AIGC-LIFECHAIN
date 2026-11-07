@@ -4,10 +4,21 @@
  */
 import { get, post, put } from './http'
 import type {
-  LoginRequest, LoginResponse, RegisterRequest, CreateAccountRequest,
-  AccountProfileVO, UpdateProfileRequest, AuthSubmitRequest,
-  AuthReviewRequest, AccountFreezeRequest, DidApplyRequest,
-  DidInfoVO, DidReviewRequest, DidOperationRequest, PageResult, PageQuery
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+  CreateAccountRequest,
+  AccountProfileVO,
+  UpdateProfileRequest,
+  AuthSubmitRequest,
+  AuthReviewRequest,
+  AccountFreezeRequest,
+  DidApplyRequest,
+  DidInfoVO,
+  DidReviewRequest,
+  DidOperationRequest,
+  PageResult,
+  PageQuery
 } from '@/shared/types'
 
 /* ========== 公开认证接口 ========== */
@@ -17,30 +28,33 @@ export const sendSmsCode = (mobile: string) =>
   post<void>(`/api/auth/sms/send?mobile=${encodeURIComponent(mobile)}`)
 
 /** 用户注册 */
-export const register = (data: RegisterRequest) =>
-  post<LoginResponse>('/api/auth/register', data)
+export const register = (data: RegisterRequest) => post<LoginResponse>('/api/auth/register', data)
 
 /** 用户登录 */
-export const login = (data: LoginRequest) =>
-  post<LoginResponse>('/api/auth/login', data)
+export const login = (data: LoginRequest) => post<LoginResponse>('/api/auth/login', data)
 
 /** 刷新访问令牌 */
 export const refreshTokenApi = (refreshToken: string) =>
   post<LoginResponse>('/api/auth/refresh', { refreshToken })
 
+/** 撤销本次登录的访问令牌和刷新令牌。 */
+export const logout = (accessToken: string, refreshToken: string) =>
+  post<void>(
+    '/api/auth/logout',
+    { refreshToken },
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  )
+
 /* ========== 账户接口 ========== */
 
 /** 获取当前用户资料 */
-export const getProfile = () =>
-  get<AccountProfileVO>('/api/account/profile')
+export const getProfile = () => get<AccountProfileVO>('/api/account/profile')
 
 /** 更新个人资料 */
-export const updateProfile = (data: UpdateProfileRequest) =>
-  put<void>('/api/account/profile', data)
+export const updateProfile = (data: UpdateProfileRequest) => put<void>('/api/account/profile', data)
 
 /** 提交实名认证 */
-export const submitAuth = (data: AuthSubmitRequest) =>
-  post<void>('/api/account/auth/submit', data)
+export const submitAuth = (data: AuthSubmitRequest) => post<void>('/api/account/auth/submit', data)
 
 /* ========== 管理员账户接口 ========== */
 
@@ -61,8 +75,9 @@ export const getAccountDetail = (accountNo: string) =>
   get<AccountProfileVO>(`/api/admin/account/${accountNo}`)
 
 /** 管理员分页查询账户列表 */
-export const getAccountList = (params: PageQuery & { status?: string; accountType?: string; keyword?: string }) =>
-  get<PageResult<AccountProfileVO>>('/api/admin/account/list', params)
+export const getAccountList = (
+  params: PageQuery & { status?: string; accountType?: string; keyword?: string }
+) => get<PageResult<AccountProfileVO>>('/api/admin/account/list', params)
 
 /** 创建平台管理员账户 */
 export const createPlatformAccount = (data: CreateAccountRequest) =>
@@ -75,25 +90,20 @@ export const createRegulatorAccount = (data: CreateAccountRequest) =>
 /* ========== DID 接口 ========== */
 
 /** 申请 DID */
-export const applyDid = (data: DidApplyRequest) =>
-  post<void>('/api/did/apply', data)
+export const applyDid = (data: DidApplyRequest) => post<void>('/api/did/apply', data)
 
 /** 查询 DID 信息 */
-export const getDidInfo = (didNo: string) =>
-  get<DidInfoVO>(`/api/did/${didNo}`)
+export const getDidInfo = (didNo: string) => get<DidInfoVO>(`/api/did/${didNo}`)
 
 /** 管理员 DID 列表 */
 export const getDidList = (params: PageQuery & { status?: string; accountNo?: string }) =>
   get<PageResult<DidInfoVO>>('/api/admin/did/list', params)
 
 /** 审核 DID */
-export const reviewDid = (data: DidReviewRequest) =>
-  post<void>('/api/admin/did/review', data)
+export const reviewDid = (data: DidReviewRequest) => post<void>('/api/admin/did/review', data)
 
 /** 挂起 DID */
-export const suspendDid = (data: DidOperationRequest) =>
-  post<void>('/api/admin/did/suspend', data)
+export const suspendDid = (data: DidOperationRequest) => post<void>('/api/admin/did/suspend', data)
 
 /** 吊销 DID */
-export const revokeDid = (data: DidOperationRequest) =>
-  post<void>('/api/admin/did/revoke', data)
+export const revokeDid = (data: DidOperationRequest) => post<void>('/api/admin/did/revoke', data)

@@ -50,12 +50,12 @@ public interface RiskEventService {
     RiskEventVO handleRiskEvent(Long operatorId, HandleRiskEventRequest request);
 
     /**
-     * 分页查询待处理的风险事件
+     * 按状态分页查询风险事件
      *
      * @param query 分页参数
      * @return 分页风险事件列表
      */
-    PageResult<RiskEventVO> listPendingEvents(PageQuery query);
+    PageResult<RiskEventVO> listEvents(String status, PageQuery query);
 
     /**
      * 根据风险编号查询风险事件详情

@@ -1,0 +1,18 @@
+/** 状态组件与详情标题共用的业务类别，避免页面绕过类型校验。 */
+export type StatusType =
+  | 'account'
+  | 'did'
+  | 'work'
+  | 'claim'
+  | 'cert'
+  | 'order'
+  | 'license'
+  | 'settlement'
+  | 'dispute'
+  | 'freeze'
+  | 'risk'
+  | 'chain'
+  | 'pay'
+  | 'auth'
+  | 'listing'
+  | 'refund'

@@ -2,13 +2,13 @@ package com.lifechain.work.service;
 
 import com.lifechain.common.enums.ErrorCodeEnum;
 import com.lifechain.common.exception.BizException;
-import com.lifechain.infra.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -28,8 +28,15 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class FeatureExtractServiceImpl implements FeatureExtractService {
 
-    private final StorageService storageService;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    /** 远端提取失败必须在有限时间内返回，不能无限占用业务线程。 */
+    private static RestTemplate createRestTemplate() {
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10_000);
+        factory.setReadTimeout(180_000);
+        return new RestTemplate(factory);
+    }
 
     @Value("${feature-service.url}")
     private String featureServiceUrl;
@@ -44,14 +51,11 @@ public class FeatureExtractServiceImpl implements FeatureExtractService {
             throw new BizException(ErrorCodeEnum.PARAM_INVALID, "作品类型不能为空");
         }
 
-        // 生成文件的签名访问URL，有效期30分钟
-        String signedUrl = storageService.getPresignedUrl(filePath, 30);
-
         log.info("调用特征提取服务: workType={}, filePath={}", workType, filePath);
 
-        // 构建HTTP请求体，传递签名URL和作品类型
+        // 仅传受管对象键，由特征服务使用内部 MinIO 客户端读取，禁止任意 URL 下载。
         Map<String, String> request = Map.of(
-                "file_url", signedUrl,
+                "object_name", filePath,
                 "work_type", workType
         );
 

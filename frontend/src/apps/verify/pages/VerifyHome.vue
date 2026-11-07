@@ -1,73 +1,77 @@
 <template>
-  <!-- 公共验真首页 -->
   <div class="verify-home-page">
-    <div class="verify-hero">
-      <h1>AIGC 作品版权验真</h1>
-      <p class="verify-sub">输入证书编号、作品编号或作品哈希，即可查询版权登记信息</p>
-    </div>
+    <section class="verify-hero">
+      <div class="verify-copy">
+        <p class="verify-eyebrow"><span class="verify-eyebrow__mark" />PUBLIC RECORD / LIFECHAIN</p>
+        <h1>作品权属，<br /><span>有据可查。</span></h1>
+        <p class="verify-sub">按证书编号、作品编号或文件哈希，查询平台登记摘要。</p>
 
-    <div class="verify-form-card">
-      <el-form :model="form" @submit.prevent="handleVerify">
-        <el-form-item>
-          <el-select v-model="form.queryType" style="width: 160px; margin-right: 12px;">
+        <el-form class="verify-form" :model="form" @submit.prevent="handleVerify">
+          <label for="verify-query-type">查询方式</label>
+          <el-select
+            id="verify-query-type"
+            v-model="form.queryType"
+            size="large"
+            aria-label="查询方式"
+          >
             <el-option label="证书编号" value="CERT_NO" />
             <el-option label="作品编号" value="WORK_NO" />
-            <el-option label="作品哈希" value="WORK_HASH" />
-            <el-option label="交易哈希" value="TX_HASH" />
+            <el-option label="文件哈希" value="FILE_HASH" />
           </el-select>
-          <el-input
-            v-model="form.queryValue"
-            placeholder="请输入查询值"
-            style="flex: 1; margin-right: 12px;"
-            @keyup.enter="handleVerify"
-            clearable
-          />
-          <el-button type="primary" :loading="loading" @click="handleVerify">
-            <el-icon style="margin-right: 4px;"><Search /></el-icon>
-            验真查询
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </div>
-
-    <!-- 使用说明 -->
-    <div class="verify-tips">
-      <h3>如何验真？</h3>
-      <div class="tips-grid">
-        <div class="tip-item">
-          <div class="tip-number">1</div>
-          <div class="tip-content">
-            <strong>选择查询方式</strong>
-            <p>支持通过证书编号、作品编号、作品哈希或交易哈希进行查询</p>
+          <label for="verify-query-value">编号或哈希</label>
+          <div class="verify-form__entry">
+            <el-input
+              id="verify-query-value"
+              v-model="form.queryValue"
+              placeholder="粘贴证书编号或哈希"
+              size="large"
+              clearable
+              autocomplete="off"
+            />
+            <el-button type="primary" size="large" @click="handleVerify">
+              <el-icon><Search /></el-icon>
+              <span>核验记录</span>
+            </el-button>
           </div>
-        </div>
-        <div class="tip-item">
-          <div class="tip-number">2</div>
-          <div class="tip-content">
-            <strong>输入查询值</strong>
-            <p>在输入框中粘贴或输入对应的编号/哈希值</p>
-          </div>
-        </div>
-        <div class="tip-item">
-          <div class="tip-number">3</div>
-          <div class="tip-content">
-            <strong>查看验真结果</strong>
-            <p>系统将与区块链记录比对，返回版权登记详情</p>
-          </div>
-        </div>
+        </el-form>
+        <p class="verify-query-note">公开查询仅返回登记摘要，不展示原始作品或个人身份信息</p>
       </div>
-    </div>
+
+      <aside class="verify-artifact" aria-label="公开登记记录示意">
+        <div class="verify-artifact__top"><span>RIGHTS REGISTER</span><span>LC / PUBLIC</span></div>
+        <div class="verify-artifact__seal">
+          <el-icon><CircleCheckFilled /></el-icon>
+        </div>
+        <div class="verify-artifact__heading">
+          <span>RECORD STATUS</span>
+          <strong>登记摘要</strong>
+        </div>
+        <div class="verify-artifact__rows">
+          <div>
+            <span>登记索引</span><strong><i />可查询</strong>
+          </div>
+          <div><span>公开信息</span><strong>脱敏展示</strong></div>
+          <div><span>证据索引</span><strong class="font-mono">SHA-256</strong></div>
+        </div>
+        <div class="verify-artifact__foot">
+          <span>CONTENT AUTHENTICITY</span><span>01 — 04</span>
+        </div>
+      </aside>
+    </section>
+
+    <section class="verify-assurances" aria-label="核验信息">
+      <div><strong>公开摘要</strong><span>仅展示核验所需的脱敏字段</span></div>
+      <div><strong>证据比对</strong><span>登记信息与对应链上记录关联</span></div>
+      <div><strong>结果可追溯</strong><span>记录编号与交易摘要可供复核</span></div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { workApi } from '@/shared/api'
-import { Search } from '@element-plus/icons-vue'
-
+import { CircleCheckFilled, Search } from '@element-plus/icons-vue'
 const router = useRouter()
-const loading = ref(false)
 const form = reactive({ queryType: 'CERT_NO', queryValue: '' })
 
 /** 提交验真查询 */
@@ -76,116 +80,260 @@ async function handleVerify() {
     ElMessage.warning('请输入查询值')
     return
   }
-  loading.value = true
-  try {
-    const res = await workApi.publicVerify({
-      queryType: form.queryType,
-      queryValue: form.queryValue.trim()
-    })
-    // 验真成功，跳转结果页
-    if (res.data?.verified) {
-      router.push({ path: '/verify/result', query: { queryType: form.queryType, queryValue: form.queryValue } })
-    } else {
-      router.push({ path: '/verify/not-found', query: { queryType: form.queryType, queryValue: form.queryValue } })
-    }
-  } catch {
-    // 接口报错也跳转未找到页
-    router.push({ path: '/verify/not-found', query: { queryType: form.queryType, queryValue: form.queryValue } })
-  } finally {
-    loading.value = false
-  }
+  await router.push({
+    path: '/verify/result',
+    query: { queryType: form.queryType, queryValue: form.queryValue.trim() }
+  })
 }
 </script>
 
 <style lang="scss" scoped>
-@use '@/shared/styles/variables' as *;
-
 .verify-home-page {
-  max-width: 800px;
+  width: min(1120px, 100%);
   margin: 0 auto;
-  padding: 40px 20px;
+  padding: 28px 0 0;
 }
 
 .verify-hero {
-  text-align: center;
-  margin-bottom: 40px;
-
-  h1 {
-    font-size: 32px;
-    color: #132126;
-    margin-bottom: 12px;
-  }
-
-  .verify-sub {
-    font-size: 16px;
-    color: #6B7D84;
-  }
-}
-
-.verify-form-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 24px 32px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  margin-bottom: 40px;
-
-  :deep(.el-form-item) {
-    margin-bottom: 0;
-  }
-
-  :deep(.el-form-item__content) {
-    display: flex;
-    align-items: center;
-  }
-}
-
-.verify-tips {
-  h3 {
-    font-size: 18px;
-    margin-bottom: 20px;
-    color: #333;
-  }
-}
-
-.tips-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  align-items: center;
+  gap: clamp(32px, 7vw, 88px);
+  padding: 24px 0 44px;
+  border-bottom: 1px solid var(--lc-line);
 }
 
-.tip-item {
-  display: flex;
-  gap: 12px;
-  padding: 16px;
-  background: #f9fafb;
-  border-radius: 8px;
-}
-
-.tip-number {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: $brand-primary;
-  color: #fff;
+.verify-eyebrow {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  flex-shrink: 0;
+  gap: 9px;
+  color: var(--lc-accent-strong);
+  font: 600 11px/1.4 var(--lc-mono);
 }
 
-.tip-content {
-  strong {
-    display: block;
-    margin-bottom: 4px;
-    color: #132126;
+.verify-eyebrow__mark {
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--lc-accent);
+  border-radius: 50%;
+}
+
+.verify-copy h1 {
+  margin: 20px 0 10px;
+  color: var(--lc-ink);
+  font-size: 40px;
+  font-weight: 620;
+  line-height: 1.18;
+}
+
+.verify-copy h1 span {
+  color: var(--lc-accent-strong);
+}
+
+.verify-sub {
+  max-width: 480px;
+  color: var(--lc-muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.verify-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 28px;
+}
+
+.verify-form > label {
+  margin-top: 8px;
+  color: var(--lc-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.verify-form > .el-select {
+  width: 100%;
+}
+
+.verify-form__entry {
+  display: flex;
+  gap: 8px;
+}
+
+.verify-form__entry .el-input {
+  min-width: 0;
+}
+
+.verify-form__entry .el-button {
+  flex: 0 0 auto;
+}
+
+.verify-query-note {
+  margin-top: 10px;
+  color: var(--lc-muted);
+  font-size: 11px;
+}
+
+.verify-query-error {
+  margin-top: 12px;
+}
+
+.verify-artifact {
+  position: relative;
+  display: flex;
+  min-height: 352px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 22px;
+  overflow: hidden;
+  background: #e5eee6;
+  border: 1px solid #cbd9cf;
+  color: var(--lc-ink);
+}
+
+.verify-artifact::before {
+  position: absolute;
+  top: 46px;
+  right: -44px;
+  width: 220px;
+  height: 220px;
+  border: 1px solid rgba(31, 81, 70, 0.18);
+  border-radius: 50%;
+  content: '';
+}
+
+.verify-artifact::after {
+  position: absolute;
+  top: 64px;
+  right: -26px;
+  width: 184px;
+  height: 184px;
+  border: 1px solid rgba(31, 81, 70, 0.14);
+  border-radius: 50%;
+  content: '';
+}
+
+.verify-artifact__top,
+.verify-artifact__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: #485f53;
+  font: 600 10px/1.4 var(--lc-mono);
+}
+
+.verify-artifact__seal {
+  display: grid;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  border: 1px solid #6b9480;
+  border-radius: 50%;
+  color: var(--lc-accent-strong);
+  font-size: 36px;
+}
+
+.verify-artifact__heading {
+  display: grid;
+  gap: 4px;
+}
+
+.verify-artifact__heading span {
+  color: #485f53;
+  font: 600 10px/1.4 var(--lc-mono);
+}
+
+.verify-artifact__heading strong {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.verify-artifact__rows {
+  display: grid;
+  border-top: 1px solid #c6d7cb;
+}
+
+.verify-artifact__rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #c6d7cb;
+  font-size: 12px;
+}
+
+.verify-artifact__rows span {
+  color: #485f53;
+}
+
+.verify-artifact__rows strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.verify-artifact__rows i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #437e5c;
+}
+
+.verify-assurances {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  padding: 20px 0;
+}
+
+.verify-assurances > div {
+  display: grid;
+  gap: 4px;
+}
+
+.verify-assurances strong {
+  color: var(--lc-ink);
+  font-size: 12px;
+}
+
+.verify-assurances span {
+  color: var(--lc-muted);
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .verify-hero {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding-top: 8px;
   }
 
-  p {
-    font-size: 13px;
-    color: #6B7D84;
-    margin: 0;
-    line-height: 1.5;
+  .verify-copy h1 {
+    font-size: 34px;
+  }
+
+  .verify-artifact {
+    min-height: 300px;
+  }
+
+  .verify-assurances {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 420px) {
+  .verify-form__entry {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .verify-form__entry .el-button {
+    width: 100%;
+  }
+
+  .verify-copy h1 {
+    font-size: 30px;
   }
 }
 </style>

@@ -60,7 +60,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME:-lifechain}
     ports:
-      - "3307:3306"
+      - "127.0.0.1:3307:3306"
     volumes:
       - lifechain-mysql-data:/var/lib/mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
@@ -77,7 +77,7 @@ services:
     container_name: lifechain-redis
     image: aigc-lifechain/redis:7-alpine
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - lifechain-redis-data:/data
     command: redis-server --appendonly yes
@@ -97,8 +97,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     ports:
-      - "9020:9000"
-      - "9021:9001"
+      - "127.0.0.1:9020:9000"
+      - "127.0.0.1:9021:9001"
     volumes:
       - lifechain-minio-data:/data
     command: server /data --console-address ":9001"
@@ -118,8 +118,8 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-lifechain}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-lifechain123}
     ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "15672:15672"
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:15672:15672"
     volumes:
       - lifechain-rabbitmq-data:/var/lib/rabbitmq
     networks:
@@ -161,8 +161,8 @@ services:
       MINIO_ACCESSKEYID: ${MINIO_ACCESS_KEY}
       MINIO_SECRETACCESSKEY: ${MINIO_SECRET_KEY}
     ports:
-      - "${MILVUS_PORT:-19530}:19530"
-      - "9091:9091"
+      - "127.0.0.1:${MILVUS_PORT:-19530}:19530"
+      - "127.0.0.1:9091:9091"
     volumes:
       - lifechain-milvus-data:/var/lib/milvus
     networks:
@@ -187,7 +187,7 @@ services:
       context: ../services/feature-extract
       dockerfile: Dockerfile
     ports:
-      - "${FEATURE_SERVICE_PORT:-8090}:8090"
+      - "127.0.0.1:${FEATURE_SERVICE_PORT:-8090}:8090"
     environment:
       MINIO_ENDPOINT: http://lifechain-minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
@@ -229,7 +229,7 @@ services:
       - ./fabric/crypto-config/ordererOrganizations/lifechain.com/orderers/orderer.lifechain.com/tls:/var/hyperledger/orderer/tls
       - lifechain-orderer-data:/var/hyperledger/production/orderer
     ports:
-      - "27050:7050"
+      - "127.0.0.1:27050:7050"
     networks:
       - lifechain-net
     restart: unless-stopped
@@ -264,9 +264,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - lifechain-peer0-org1-data:/var/hyperledger/production
     ports:
-      - "27051:7051"
-      - "17051:17051"
-      - "27052:7052"
+      - "127.0.0.1:27051:7051"
+      - "127.0.0.1:17051:17051"
+      - "127.0.0.1:27052:7052"
     networks:
       - lifechain-net
     depends_on:
@@ -303,9 +303,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - lifechain-peer0-org2-data:/var/hyperledger/production
     ports:
-      - "29051:9051"
-      - "19051:19051"
-      - "29052:9052"
+      - "127.0.0.1:29051:9051"
+      - "127.0.0.1:19051:19051"
+      - "127.0.0.1:29052:9052"
     networks:
       - lifechain-net
     depends_on:
@@ -322,8 +322,8 @@ services:
       - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/priv_sk
       - FABRIC_CA_SERVER_TLS_ENABLED=false
     ports:
-      - "27054:7054"
-    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+      - "127.0.0.1:27054:7054"
+    command: ["fabric-ca-server", "start", "-b", "${FABRIC_CA_ORG1_BOOTSTRAP:?请在 backend/.env 配置组织一的 CA 引导凭证}"]
     volumes:
       - ./fabric/crypto-config/peerOrganizations/org1.lifechain.com/ca/:/etc/hyperledger/fabric-ca-server-config
     networks:
@@ -340,8 +340,8 @@ services:
       - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/priv_sk
       - FABRIC_CA_SERVER_TLS_ENABLED=false
     ports:
-      - "29054:9054"
-    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+      - "127.0.0.1:29054:9054"
+    command: ["fabric-ca-server", "start", "-b", "${FABRIC_CA_ORG2_BOOTSTRAP:?请在 backend/.env 配置组织二的 CA 引导凭证}"]
     volumes:
       - ./fabric/crypto-config/peerOrganizations/org2.lifechain.com/ca/:/etc/hyperledger/fabric-ca-server-config
     networks:
@@ -365,9 +365,9 @@ services:
     volumes:
       - ./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
     ports:
-      - "4319:4317"   # OTLP gRPC（宿主 4319 -> 容器 4317，避开 Jaeger 占用过的 4317）
-      - "4320:4318"   # OTLP HTTP/protobuf（宿主 4320 -> 容器 4318）
-      - "13133:13133" # health_check
+      - "127.0.0.1:4319:4317"   # OTLP gRPC（宿主 4319 -> 容器 4317，避开 Jaeger 占用过的 4317）
+      - "127.0.0.1:4320:4318"   # OTLP HTTP/protobuf（宿主 4320 -> 容器 4318）
+      - "127.0.0.1:13133:13133" # health_check
     networks:
       - lifechain-net
     depends_on:
@@ -380,7 +380,7 @@ services:
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
-      - "16686:16686"   # Jaeger UI
+      - "127.0.0.1:16686:16686"   # Jaeger UI
     networks:
       - lifechain-net
     restart: unless-stopped
@@ -389,7 +389,7 @@ services:
     container_name: lifechain-prometheus
     image: aigc-lifechain/prometheus:v2.52.0
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - lifechain-prometheus-data:/prometheus

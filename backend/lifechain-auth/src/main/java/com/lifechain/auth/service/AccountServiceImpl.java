@@ -15,9 +15,9 @@ import com.lifechain.common.util.DateTimeUtil;
 import com.lifechain.auth.assembler.AccountVoAssembler;
 import com.lifechain.common.util.MaskUtil;
 import com.lifechain.infra.redis.RedisService;
+import com.lifechain.infra.sms.SmsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +26,7 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -53,6 +54,7 @@ public class AccountServiceImpl implements AccountService {
     private final JwtService jwtService;
     private final AuditService auditService;
     private final RedisService redisService;
+    private final SmsService smsService;
 
     /** 登录失败限流：5分钟内最多10次 */
     private static final int LOGIN_MAX_ATTEMPTS = 10;
@@ -78,9 +80,6 @@ public class AccountServiceImpl implements AccountService {
     private static final Random SMS_CODE_RANDOM = new SecureRandom();
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
-
-    @Value("${lifechain.sms.dev-mode}")
-    private boolean smsDevMode;
 
     /**
      * {@inheritDoc}
@@ -323,6 +322,19 @@ public class AccountServiceImpl implements AccountService {
     @Transactional(rollbackFor = Exception.class)
     public void submitAuth(Long accountId, AuthSubmitRequest request) {
         log.info("提交实名认证，accountId={}", accountId);
+        if (!Set.of("PERSONAL", "ENTERPRISE").contains(request.getSubjectType())) {
+            throw new BizException(ErrorCodeEnum.PARAM_INVALID, "主体类型无效");
+        }
+        boolean enterprise = "ENTERPRISE".equals(request.getSubjectType());
+        if (enterprise && (request.getEnterpriseCode() == null || request.getEnterpriseCode().isBlank()
+                || request.getContactName() == null || request.getContactName().isBlank()
+                || request.getContactPhone() == null || !request.getContactPhone().matches("^1[3-9]\\d{9}$"))) {
+            throw new BizException(ErrorCodeEnum.PARAM_INVALID, "企业认证须填写信用代码、联系人和有效手机号");
+        }
+        if (enterprise ? !"BUSINESS_LICENSE".equals(request.getIdCardType())
+                : !Set.of("ID_CARD", "PASSPORT").contains(request.getIdCardType())) {
+            throw new BizException(ErrorCodeEnum.PARAM_INVALID, "证件类型与主体类型不匹配");
+        }
 
         AccountEntity account = accountMapper.selectById(accountId);
         if (account == null) {
@@ -350,9 +362,9 @@ public class AccountServiceImpl implements AccountService {
         subject.setRealName(request.getRealName());
         subject.setIdCardType(request.getIdCardType());
         subject.setIdCardNo(request.getIdCardNo());
-        subject.setEnterpriseCode(request.getEnterpriseCode());
-        subject.setContactName(request.getContactName());
-        subject.setContactPhone(request.getContactPhone());
+        subject.setEnterpriseCode(enterprise ? request.getEnterpriseCode() : null);
+        subject.setContactName(enterprise ? request.getContactName() : null);
+        subject.setContactPhone(enterprise ? request.getContactPhone() : null);
         subject.setAuthMaterialUrl(request.getAuthMaterialUrl());
 
         if (subject.getId() == null) {
@@ -524,8 +536,9 @@ public class AccountServiceImpl implements AccountService {
 
         // 恢复到冻结前的真实状态
         String restoreStatus = account.getPreviousStatus();
-        if (restoreStatus == null || restoreStatus.isBlank()) {
-            restoreStatus = AccountStatusEnum.AUTH_APPROVED.getCode();
+        if (restoreStatus == null || restoreStatus.isBlank()
+                || AccountStatusEnum.ACCOUNT_FROZEN.getCode().equals(restoreStatus)) {
+            throw new BizException(ErrorCodeEnum.STATUS_INVALID, "缺少有效的冻结前状态，请核实状态历史后处理");
         }
         account.setStatus(restoreStatus);
         account.setPreviousStatus(null);
@@ -567,11 +580,18 @@ public class AccountServiceImpl implements AccountService {
      * {@inheritDoc}
      */
     @Override
-    public PageResult<AccountProfileVO> listAccounts(PageQuery query) {
+    public PageResult<AccountProfileVO> listAccounts(String status, String accountType, String keyword, PageQuery query) {
         log.info("分页查询账户列表，pageNo={}, pageSize={}", query.getPageNo(), query.getPageSize());
 
         Page<AccountEntity> page = new Page<>(query.getPageNo(), query.getPageSize());
         LambdaQueryWrapper<AccountEntity> wrapper = new LambdaQueryWrapper<>();
+        if (status != null && !status.isBlank()) wrapper.eq(AccountEntity::getStatus, status);
+        if (accountType != null && !accountType.isBlank()) wrapper.eq(AccountEntity::getAccountType, accountType);
+        if (keyword != null && !keyword.isBlank()) {
+            String search = keyword.trim();
+            wrapper.and(filters -> filters.like(AccountEntity::getMobile, search)
+                    .or().like(AccountEntity::getNickname, search));
+        }
         wrapper.orderByDesc(AccountEntity::getCreatedAt);
 
         Page<AccountEntity> result = accountMapper.selectPage(page, wrapper);
@@ -783,7 +803,10 @@ public class AccountServiceImpl implements AccountService {
      * {@inheritDoc}
      */
     @Override
-    public void logout(String token) {
+    public void logout(String token, String refreshToken) {
+        Long accountId = jwtService.parseToken(token).getUserId();
+        // 比较与删除在 Redis 内原子执行，不能撤销其他账户的刷新凭证。
+        redisService.deleteIfValueMatches(REFRESH_TOKEN_KEY_PREFIX + refreshToken, String.valueOf(accountId));
         long remainSeconds = jwtService.getRemainingSeconds(token);
         if (remainSeconds > 0) {
             // 将 Token 加入黑名单，TTL 与令牌剩余有效期一致
@@ -828,10 +851,9 @@ public class AccountServiceImpl implements AccountService {
     public void sendSmsCode(String mobile, String clientIp) {
         // 频率限制：每60秒只能发一次
         String rateKey = SMS_RATE_KEY_PREFIX + mobile;
-        if (redisService.getString(rateKey) != null) {
+        if (!Boolean.TRUE.equals(redisService.setIfAbsent(rateKey, "1", SMS_RATE_LIMIT_SECONDS, TimeUnit.SECONDS))) {
             throw new BizException(ErrorCodeEnum.RATE_LIMIT_EXCEEDED, "发送过于频繁，请稍后再试");
         }
-        redisService.set(rateKey, "1", SMS_RATE_LIMIT_SECONDS, TimeUnit.SECONDS);
 
         String normalizedClientIp = clientIp == null || clientIp.isBlank() ? "unknown" : clientIp.trim();
         String ipRateKey = SMS_IP_RATE_KEY_PREFIX + normalizedClientIp;
@@ -847,14 +869,12 @@ public class AccountServiceImpl implements AccountService {
         // 生成6位数字验证码
         String code = String.format("%06d", SMS_CODE_RANDOM.nextInt(1_000_000));
         redisService.set(SMS_CODE_KEY_PREFIX + mobile, code, SMS_CODE_TTL_SECONDS, TimeUnit.SECONDS);
-        if (!smsDevMode) {
-            log.error("短信服务尚未接入正式通道，当前环境禁止发送真实短信，mobile={}", MaskUtil.maskMobile(mobile));
-            throw new BizException(ErrorCodeEnum.NOTIFICATION_FAILED, "短信服务尚未接入正式发送通道");
+        try {
+            smsService.sendCode(mobile, code);
+        } catch (RuntimeException e) {
+            redisService.delete(SMS_CODE_KEY_PREFIX + mobile);
+            throw e;
         }
-
-        // TODO: 接入真实短信服务商（阿里云SMS/腾讯云SMS），当前仅打印日志用于开发测试
-        log.info("[SMS] 手机号={} 验证码={}（仅开发模式可见，生产环境必须接入真实短信发送）",
-                MaskUtil.maskMobile(mobile), code);
     }
 
     /**
@@ -867,10 +887,9 @@ public class AccountServiceImpl implements AccountService {
         if (storedCode == null) {
             throw new BizException(ErrorCodeEnum.PARAM_INVALID, "验证码已过期，请重新获取");
         }
-        if (!storedCode.equals(code)) {
+        if (!storedCode.equals(code) || !redisService.deleteIfValueMatches(smsKey, code)) {
             throw new BizException(ErrorCodeEnum.PARAM_INVALID, "验证码错误");
         }
-        redisService.delete(smsKey);
     }
 
     /**
@@ -879,7 +898,7 @@ public class AccountServiceImpl implements AccountService {
     @Override
     public LoginResponse refreshToken(String refreshToken) {
         String key = REFRESH_TOKEN_KEY_PREFIX + refreshToken;
-        String accountIdStr = redisService.getString(key);
+        String accountIdStr = redisService.consumeString(key);
         if (accountIdStr == null) {
             throw new BizException(ErrorCodeEnum.UNAUTHORIZED, "refreshToken已过期或无效");
         }
@@ -904,7 +923,6 @@ public class AccountServiceImpl implements AccountService {
         // 生成新 accessToken，同时轮换 refreshToken（Refresh Token Rotation）
         String newAccessToken = jwtService.generateToken(
                 account.getId(), account.getAccountNo(), account.getAccountType(), roles);
-        redisService.delete(key);
         String newRefreshToken = generateAndStoreRefreshToken(account.getId());
 
         log.info("refreshToken 轮换成功，accountId={}", accountId);

@@ -19,6 +19,19 @@ import java.util.List;
 @Mapper
 public interface WorkMapper extends BaseMapper<WorkEntity> {
 
+    /** 公开文件哈希查询匹配原始文件摘要，不与作品的多文件组合摘要混用。 */
+    @Select("""
+            SELECT w.* FROM work w
+            WHERE w.deleted_flag = 0
+              AND EXISTS (SELECT 1 FROM work_file f
+                  WHERE f.work_id = w.id AND f.deleted_flag = 0
+                    AND f.purpose = 'ORIGINAL' AND f.file_hash = #{fileHash})
+              AND EXISTS (SELECT 1 FROM certificate c WHERE c.work_id = w.id AND c.deleted_flag = 0)
+            ORDER BY w.created_at DESC, w.id DESC
+            LIMIT 1
+            """)
+    WorkEntity selectByOriginalFileHash(@Param("fileHash") String fileHash);
+
     /**
      * 根据作品编号查询作品
      *

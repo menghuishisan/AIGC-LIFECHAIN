@@ -1,25 +1,29 @@
 <template>
   <!-- 购买者工作台 -->
-  <div class="buyer-dashboard-page">
+  <div data-page="BuyerDashboard" class="lc-page buyer-dashboard-page">
+    <PageLoadFeedback :message="pageError" @retry="loadData" />
     <div class="page-header">
-      <h2>购买者工作台</h2>
+      <div>
+        <h1>购买者工作台</h1>
+        <p class="page-header__desc">查看待支付订单与已获授权，继续采购流程。</p>
+      </div>
     </div>
 
     <!-- 概览指标 -->
     <el-row :gutter="16" class="metrics-row">
-      <el-col :span="8">
+      <el-col :xs="24" :md="8">
         <div class="metric-card">
           <div class="metric-card__label">我的订单</div>
           <div class="metric-card__value">{{ stats.orderCount }}</div>
         </div>
       </el-col>
-      <el-col :span="8">
+      <el-col :xs="24" :md="8">
         <div class="metric-card">
           <div class="metric-card__label">已获授权</div>
           <div class="metric-card__value">{{ stats.licenseCount }}</div>
         </div>
       </el-col>
-      <el-col :span="8">
+      <el-col :xs="24" :md="8">
         <div class="metric-card">
           <div class="metric-card__label">待支付</div>
           <div class="metric-card__value pending">{{ stats.pendingPayCount }}</div>
@@ -28,7 +32,7 @@
     </el-row>
 
     <!-- 快捷入口 -->
-    <div class="lc-card" style="margin-top: 20px;">
+    <div class="lc-card" style="margin-top: 20px">
       <div class="lc-card__title">快捷操作</div>
       <div class="quick-actions">
         <el-button type="primary" @click="router.push('/market')">浏览市场</el-button>
@@ -37,12 +41,14 @@
     </div>
 
     <!-- 最近订单 -->
-    <div class="lc-card" style="margin-top: 20px;">
+    <div class="lc-card" style="margin-top: 20px">
       <div class="lc-card__title">最近订单</div>
       <el-table :data="recentOrders" v-loading="loading" stripe>
         <el-table-column prop="orderNo" label="订单编号" min-width="180">
           <template #default="{ row }">
-            <el-button link type="primary" @click="router.push(`/orders/${row.orderNo}`)">{{ row.orderNo }}</el-button>
+            <el-button link type="primary" @click="router.push(`/orders/${row.orderNo}`)">{{
+              row.orderNo
+            }}</el-button>
           </template>
         </el-table-column>
         <el-table-column prop="workTitle" label="作品名称" min-width="160" show-overflow-tooltip />
@@ -59,17 +65,26 @@
         </el-table-column>
         <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.orderStatus === 'ORDER_CREATED'" link type="primary" size="small" @click="router.push(`/orders/${row.orderNo}/pay`)">去支付</el-button>
+            <el-button
+              v-if="row.orderStatus === 'ORDER_CREATED'"
+              link
+              type="primary"
+              size="small"
+              @click="router.push(`/orders/${row.orderNo}/pay`)"
+              >去支付</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
     </div>
 
     <!-- 最新通知 -->
-    <div class="lc-card" style="margin-top: 20px;">
+    <div class="lc-card" style="margin-top: 20px">
       <div class="lc-card__title">
         最新通知
-        <el-button link type="primary" style="float: right;" @click="router.push('/notices')">查看全部</el-button>
+        <el-button link type="primary" style="float: right" @click="router.push('/notices')"
+          >查看全部</el-button
+        >
       </div>
       <el-table :data="notices" stripe size="small">
         <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
@@ -89,12 +104,15 @@
 </template>
 
 <script setup lang="ts">
+import { usePageLoad } from '@/shared/composables/usePageLoad'
+import PageLoadFeedback from '@/shared/components/PageLoadFeedback.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { tradeApi, appApi } from '@/shared/api'
 import { StatusTag } from '@/shared/components'
 import { formatCurrency, formatTime } from '@/shared/utils'
 import type { OrderListVO, MessageNoticeVO } from '@/shared/types'
+const { pageError, runPageLoad } = usePageLoad()
 
 const router = useRouter()
 const loading = ref(false)
@@ -108,27 +126,31 @@ const stats = reactive({
 })
 
 async function loadData() {
-  loading.value = true
-  try {
-    /* 并行加载订单、通知、待支付数 */
-    const [orderRes, noticeRes, pendingRes] = await Promise.all([
-      tradeApi.getMyOrders({ pageNo: 1, pageSize: 5, role: 'BUYER' }),
-      appApi.getNotices({ pageNo: 1, pageSize: 5 }),
-      tradeApi.getMyOrders({ pageNo: 1, pageSize: 1, role: 'BUYER', status: 'ORDER_CREATED' })
-    ])
-    recentOrders.value = orderRes.data.records
-    stats.orderCount = orderRes.data.total
-    stats.pendingPayCount = pendingRes.data.total
-    notices.value = noticeRes.data.records
-
-    /* 加载授权统计 */
+  await runPageLoad(async (isCurrent) => {
+    loading.value = true
     try {
-      const licRes = await tradeApi.getMyLicenses({ pageNo: 1, pageSize: 1 })
-      stats.licenseCount = licRes.data.total
-    } catch { /* 忽略 */ }
-  } finally {
-    loading.value = false
-  }
+      /* 并行加载订单、通知、待支付数 */
+      const [orderRes, noticeRes, pendingRes] = await Promise.all([
+        tradeApi.getMyOrders({ pageNo: 1, pageSize: 5, role: 'BUYER' }),
+        appApi.getNotices({ pageNo: 1, pageSize: 5 }),
+        tradeApi.getMyOrders({ pageNo: 1, pageSize: 1, role: 'BUYER', status: 'ORDER_CREATED' })
+      ])
+      if (!isCurrent()) return
+      recentOrders.value = orderRes.data.records
+      stats.orderCount = orderRes.data.total
+      stats.pendingPayCount = pendingRes.data.total
+      notices.value = noticeRes.data.records
+
+      /* 加载授权统计 */
+      {
+        const licRes = await tradeApi.getMyLicenses({ pageNo: 1, pageSize: 1 })
+        if (!isCurrent()) return
+        stats.licenseCount = licRes.data.total
+      }
+    } finally {
+      if (isCurrent()) loading.value = false
+    }
+  })
 }
 
 onMounted(loadData)

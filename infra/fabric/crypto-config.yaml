@@ -1,0 +1,25 @@
+# 本地开发网络的身份模板；生成后的证书和私钥不进入版本控制。
+OrdererOrgs:
+  - Name: Orderer
+    Domain: lifechain.com
+    EnableNodeOUs: true
+    Specs:
+      - Hostname: orderer
+        SANS: [localhost, 127.0.0.1]
+PeerOrgs:
+  - Name: Org1
+    Domain: org1.lifechain.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+      SANS: [localhost, 127.0.0.1]
+    Users:
+      Count: 1
+  - Name: Org2
+    Domain: org2.lifechain.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+      SANS: [localhost, 127.0.0.1]
+    Users:
+      Count: 1

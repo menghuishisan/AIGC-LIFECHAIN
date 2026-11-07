@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onBeforeUnmount, watch } from 'vue'
 import { Headset } from '@element-plus/icons-vue'
 import { getPreviewUrl, getMarketPreviewUrl } from '@/shared/api/work'
 import type { WorkFileVO, PreviewUrlVO } from '@/shared/types'
-
 const props = defineProps<{
   workNo: string
   workType: string
@@ -15,12 +14,12 @@ const props = defineProps<{
 
 const preview = ref<PreviewUrlVO | null>(null)
 const loading = ref(false)
-const audioRef = ref<HTMLAudioElement | null>(null)
-const videoRef = ref<HTMLVideoElement | null>(null)
 const timeLimitReached = ref(false)
+const previewError = ref('')
+let loadVersion = 0
 
-const primaryFile = computed(() =>
-  props.files?.find(f => f.purpose === 'ORIGINAL') ?? props.files?.[0]
+const primaryFile = computed(
+  () => props.files?.find((f) => f.purpose === 'ORIGINAL') ?? props.files?.[0]
 )
 
 const mediaCategory = computed(() => {
@@ -40,35 +39,41 @@ const formatFileSize = (bytes: number) => {
 }
 
 async function loadPreview() {
+  const version = ++loadVersion
+  // 切换作品或文件时立即丢弃旧预览，迟到的响应不能覆盖新作品。
+  preview.value = null
+  previewError.value = ''
+  timeLimitReached.value = false
   const file = primaryFile.value
+  loading.value = false
   if (!file) return
   loading.value = true
   try {
     const api = props.isMarket ? getMarketPreviewUrl : getPreviewUrl
     const res = await api(props.workNo, file.fileId)
-    preview.value = res.data
-  } catch {
-    preview.value = null
+    if (version === loadVersion) preview.value = res.data
+  } catch (error) {
+    if (version === loadVersion)
+      previewError.value = error instanceof Error ? error.message : '预览加载失败'
   } finally {
-    loading.value = false
-  }
-}
-
-function onTimeUpdate(el: HTMLAudioElement | HTMLVideoElement) {
-  if (preview.value?.previewDurationSeconds && el.currentTime >= preview.value.previewDurationSeconds) {
-    el.pause()
-    timeLimitReached.value = true
+    if (version === loadVersion) loading.value = false
   }
 }
 
 function openDownload() {
   if (preview.value?.previewUrl) {
-    window.open(preview.value.previewUrl, '_blank')
+    window.open(preview.value.previewUrl, '_blank', 'noopener,noreferrer')
   }
 }
 
-onMounted(loadPreview)
-watch(() => props.workNo, loadPreview)
+watch(
+  () => [props.workNo, primaryFile.value?.fileId, props.isMarket, props.accessLevel],
+  loadPreview,
+  { immediate: true }
+)
+onBeforeUnmount(() => {
+  loadVersion += 1
+})
 </script>
 
 <template>
@@ -77,37 +82,56 @@ watch(() => props.workNo, loadPreview)
       <el-skeleton :rows="4" animated />
     </div>
 
-    <!-- IMAGE -->
+    <div v-else-if="previewError" class="preview-error" role="alert">
+      <p>{{ previewError }}</p>
+      <el-button @click="loadPreview">重新加载预览</el-button>
+    </div>
+
+    <el-empty
+      v-else-if="mediaCategory === 'image' && !preview?.previewUrl && !coverUrl"
+      description="暂无预览图片"
+      :image-size="48"
+    />
+
+    <!-- 图片水印由服务端写入像素，前端仅展示生成后的副本。 -->
     <template v-else-if="mediaCategory === 'image'">
       <div class="preview-image-wrapper">
         <el-image
+          alt="作品预览"
           :src="preview?.previewUrl || coverUrl"
-          :preview-src-list="preview?.accessLevel === 'FULL' && preview?.previewUrl ? [preview.previewUrl] : undefined"
+          :preview-src-list="
+            preview?.accessLevel === 'FULL' && preview?.previewUrl
+              ? [preview.previewUrl]
+              : undefined
+          "
           fit="contain"
           class="preview-image"
         />
-        <div v-if="preview?.accessLevel === 'LIMITED'" class="watermark-overlay">
-          <span v-for="i in 6" :key="i">PREVIEW</span>
-        </div>
       </div>
     </template>
 
-    <!-- AUDIO -->
+    <!-- 音频预览 -->
     <template v-else-if="mediaCategory === 'audio'">
       <div class="preview-audio">
         <div class="audio-cover">
-          <el-image v-if="coverUrl" :src="coverUrl" fit="cover" class="audio-cover-img" />
+          <el-image
+            v-if="coverUrl"
+            :src="coverUrl"
+            alt="音频封面"
+            fit="cover"
+            class="audio-cover-img"
+          />
           <el-icon v-else :size="64" class="audio-icon"><Headset /></el-icon>
         </div>
         <div v-if="preview?.previewUrl" class="audio-player">
           <audio
-            ref="audioRef"
             :src="preview.previewUrl"
             controls
-            @timeupdate="onTimeUpdate(audioRef!)"
+            aria-label="作品音频预览"
+            @ended="timeLimitReached = preview?.accessLevel === 'LIMITED'"
           />
           <div v-if="timeLimitReached" class="time-limit-notice">
-            <el-tag type="warning">试听结束（{{ preview.previewDurationSeconds }}秒），购买后可收听完整版</el-tag>
+            <el-tag type="warning">试听片段已结束，购买后可收听完整版</el-tag>
           </div>
         </div>
         <div v-else class="no-preview">
@@ -116,19 +140,19 @@ watch(() => props.workNo, loadPreview)
       </div>
     </template>
 
-    <!-- VIDEO -->
+    <!-- 视频预览 -->
     <template v-else-if="mediaCategory === 'video'">
       <div class="preview-video">
         <div v-if="preview?.previewUrl" class="video-player">
           <video
-            ref="videoRef"
             :src="preview.previewUrl"
             controls
+            aria-label="作品视频预览"
             :poster="coverUrl"
-            @timeupdate="onTimeUpdate(videoRef!)"
+            @ended="timeLimitReached = preview?.accessLevel === 'LIMITED'"
           />
           <div v-if="timeLimitReached" class="time-limit-notice">
-            <el-tag type="warning">预览结束（{{ preview.previewDurationSeconds }}秒），购买后可观看完整版</el-tag>
+            <el-tag type="warning">预览片段已结束，购买后可观看完整版</el-tag>
           </div>
         </div>
         <div v-else class="no-preview">
@@ -138,12 +162,14 @@ watch(() => props.workNo, loadPreview)
       </div>
     </template>
 
-    <!-- TEXT / MODEL / OTHER -->
+    <!-- 文本、模型及其他文件 -->
     <template v-else>
       <div class="preview-file-info">
         <el-image v-if="coverUrl" :src="coverUrl" fit="contain" class="preview-image" />
         <div v-if="primaryFile" class="file-meta">
-          <p><strong>{{ primaryFile.fileName }}</strong></p>
+          <p>
+            <strong>{{ primaryFile.fileName }}</strong>
+          </p>
           <p>类型：{{ primaryFile.fileType }} | 大小：{{ formatFileSize(primaryFile.fileSize) }}</p>
           <el-button
             v-if="preview?.accessLevel === 'FULL' && preview?.previewUrl"
@@ -177,24 +203,6 @@ watch(() => props.workNo, loadPreview)
 .preview-image {
   width: 100%;
   max-height: 500px;
-}
-
-.watermark-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 40px;
-  pointer-events: none;
-  span {
-    font-size: 24px;
-    font-weight: bold;
-    color: rgba(0, 0, 0, 0.08);
-    transform: rotate(-30deg);
-    user-select: none;
-  }
 }
 
 .preview-audio {

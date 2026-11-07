@@ -1,36 +1,72 @@
 <template>
   <!-- 新建授权模板页 -->
-  <div class="license-template-create-page">
+  <div data-page="LicenseTemplateCreate" class="lc-page license-template-create-page">
     <div class="page-header">
-      <h2>新建授权模板</h2>
+      <div>
+        <h1>新建授权模板</h1>
+        <p class="page-header__desc">保存授权类型、范围与价格，供上架时使用。</p>
+      </div>
     </div>
 
-    <div class="lc-card" style="max-width: 720px;">
+    <div class="lc-card" style="max-width: 720px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" label-position="top">
         <el-form-item label="模板名称" prop="templateName">
           <el-input v-model="form.templateName" placeholder="请输入模板名称" />
         </el-form-item>
 
         <el-form-item label="授权类型" prop="licenseType">
-          <el-select v-model="form.licenseType" placeholder="请选择授权类型" style="width: 100%">
-            <el-option v-for="(label, value) in LicenseTypeMap" :key="value" :label="label" :value="value" />
+          <el-select
+            aria-label="请选择授权类型"
+            v-model="form.licenseType"
+            placeholder="请选择授权类型"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="(label, value) in LicenseTypeMap"
+              :key="value"
+              :label="label"
+              :value="value"
+            />
           </el-select>
         </el-form-item>
 
         <el-form-item label="授权范围描述" prop="scopeDescription">
-          <el-input v-model="form.scopeDescription" type="textarea" :rows="3" placeholder="请描述授权范围" />
+          <el-input
+            v-model="form.scopeDescription"
+            type="textarea"
+            :rows="3"
+            placeholder="请描述授权范围"
+          />
         </el-form-item>
 
         <el-form-item label="授权天数">
-          <el-input-number v-model="form.durationDays" :min="1" :max="3650" style="width: 100%" placeholder="永久授权不填" />
+          <el-input-number
+            v-model="form.durationDays"
+            :min="1"
+            :max="3650"
+            style="width: 100%"
+            placeholder="永久授权不填"
+          />
         </el-form-item>
 
         <el-form-item label="建议价格（元）">
-          <el-input-number v-model="priceYuan" :min="0" :max="MAX_AMOUNT_YUAN" :precision="2" :step="1" style="width: 100%" />
+          <el-input-number
+            v-model="priceYuan"
+            :min="0"
+            :max="MAX_AMOUNT_YUAN"
+            :precision="2"
+            :step="1"
+            style="width: 100%"
+          />
         </el-form-item>
 
         <el-form-item label="描述说明">
-          <el-input v-model="form.description" type="textarea" :rows="2" placeholder="备注说明（可选）" />
+          <el-input
+            v-model="form.description"
+            type="textarea"
+            :rows="2"
+            placeholder="备注说明（可选）"
+          />
         </el-form-item>
 
         <el-form-item>
@@ -50,7 +86,6 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { tradeApi } from '@/shared/api'
 import { LicenseTypeMap } from '@/shared/constants'
 import { generateRequestId, yuanToFen, MAX_AMOUNT_YUAN } from '@/shared/utils'
-
 const router = useRouter()
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
@@ -71,7 +106,9 @@ const rules: FormRules = {
 }
 
 async function handleSubmit() {
-  await formRef.value?.validate()
+  if (submitting.value) return
+  const valid = await formRef.value?.validate().catch(() => false)
+  if (!valid) return
   submitting.value = true
   try {
     await tradeApi.createLicenseTemplate({

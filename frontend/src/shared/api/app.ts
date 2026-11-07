@@ -4,22 +4,38 @@
  */
 import { get, post, del } from './http'
 import type {
-  StatsOverviewVO, TrendPointVO, StatsCountVO, DistributionVO,
-  IncomeSummaryVO, IncomeDetailVO, MessageNoticeVO,
-  TraceEventVO, StatusHistoryVO, AuditLogVO,
-  SysConfigVO, UpsertSysConfigRequest, AttachmentVO, FileCallbackRequest,
-  ChainReceiptVO, ChainRetryRequest, SettlementDetailVO,
-  UploadPolicyVO, ScreenRealtimeVO,
-  CreateSettleTemplateRequest, SettleTemplateVO,
-  RegulatorSearchResultVO, WorkSettleRuleVO, BindSettleRuleRequest,
-  PageResult, PageQuery
+  StatsOverviewVO,
+  TrendPointVO,
+  StatsCountVO,
+  DistributionVO,
+  IncomeSummaryVO,
+  IncomeDetailVO,
+  MessageNoticeVO,
+  TraceEventVO,
+  StatusHistoryVO,
+  AuditLogVO,
+  SysConfigVO,
+  UpsertSysConfigRequest,
+  AttachmentVO,
+  FileCallbackRequest,
+  ChainReceiptVO,
+  ChainRetryRequest,
+  SettlementDetailVO,
+  UploadPolicyVO,
+  ScreenRealtimeVO,
+  CreateSettleTemplateRequest,
+  SettleTemplateVO,
+  RegulatorSearchResultVO,
+  WorkSettleRuleVO,
+  BindSettleRuleRequest,
+  PageResult,
+  PageQuery
 } from '@/shared/types'
 
 /* ========== 统计接口 ========== */
 
 /** 平台概览 */
-export const getStatsOverview = () =>
-  get<StatsOverviewVO>('/api/stats/overview')
+export const getStatsOverview = () => get<StatsOverviewVO>('/api/stats/overview')
 
 /** 确权趋势 */
 export const getClaimsTrend = (days?: number) =>
@@ -30,30 +46,28 @@ export const getOrdersTrend = (days?: number) =>
   get<TrendPointVO[]>('/api/stats/orders/trend', { days })
 
 /** 结算统计 */
-export const getSettlementsStats = () =>
-  get<StatsCountVO>('/api/stats/settlements')
+export const getSettlementsStats = () => get<StatsCountVO>('/api/stats/settlements')
 
 /** 验真统计 */
-export const getVerifyStats = () =>
-  get<StatsCountVO>('/api/stats/verify')
+export const getVerifyStats = () => get<StatsCountVO>('/api/stats/verify')
 
 /** 风险统计 */
-export const getRiskStats = () =>
-  get<StatsCountVO>('/api/stats/risk')
+export const getRiskStats = () => get<StatsCountVO>('/api/stats/risk')
 
 /** 分布统计 */
-export const getDistribution = () =>
-  get<DistributionVO>('/api/stats/distribution')
+export const getDistribution = () => get<DistributionVO>('/api/stats/distribution')
 
 /** 大屏实时数据 */
-export const getScreenRealtime = () =>
-  get<ScreenRealtimeVO>('/api/screen/realtime')
+export const getScreenRealtime = () => get<ScreenRealtimeVO>('/api/screen/realtime')
 
 /* ========== 收益接口 ========== */
 
 /** 收益汇总 */
-export const getIncomeSummary = () =>
-  get<IncomeSummaryVO>('/api/income/summary')
+export const getIncomeSummary = () => get<IncomeSummaryVO>('/api/income/summary')
+
+/** 最近三十日已确认净收益，金额单位为分。 */
+export const getIncomeTrend = () =>
+  get<import('@/shared/types').IncomeTrendPoint[]>('/api/income/trend')
 
 /** 收益明细 */
 export const getIncomeDetails = (params: PageQuery) =>
@@ -62,7 +76,9 @@ export const getIncomeDetails = (params: PageQuery) =>
 /* ========== 通知接口 ========== */
 
 /** 通知列表 */
-export const getNotices = (params: PageQuery & { noticeType?: string; readFlag?: boolean | number }) =>
+export const getNotices = (
+  params: PageQuery & { noticeType?: string; readFlag?: boolean | number }
+) =>
   get<PageResult<MessageNoticeVO>>('/api/notices', {
     ...params,
     readFlag: params.readFlag !== undefined ? (params.readFlag ? 1 : 0) : undefined
@@ -79,8 +95,7 @@ export const markNoticeRead = (noticeNo: string, requestId: string) =>
 /* ========== 轨迹接口 ========== */
 
 /** 作品全链路追踪 */
-export const getWorkTraces = (workNo: string) =>
-  get<TraceEventVO[]>(`/api/traces/work/${workNo}`)
+export const getWorkTraces = (workNo: string) => get<TraceEventVO[]>(`/api/traces/work/${workNo}`)
 
 /** 订单全链路追踪 */
 export const getOrderTraces = (orderNo: string) =>
@@ -103,16 +118,13 @@ export const getConfigs = (configType?: string) =>
   get<SysConfigVO[]>('/api/admin/configs', { configType })
 
 /** 查询单个配置（返回配置值字符串） */
-export const getConfig = (configKey: string) =>
-  get<string>(`/api/admin/configs/${configKey}`)
+export const getConfig = (configKey: string) => get<string>(`/api/admin/configs/${configKey}`)
 
 /** 创建/更新配置 */
-export const upsertConfig = (data: UpsertSysConfigRequest) =>
-  post<void>('/api/admin/configs', data)
+export const upsertConfig = (data: UpsertSysConfigRequest) => post<void>('/api/admin/configs', data)
 
 /** 删除配置 */
-export const deleteConfig = (configKey: string) =>
-  del<void>(`/api/admin/configs/${configKey}`)
+export const deleteConfig = (configKey: string) => del<void>(`/api/admin/configs/${configKey}`)
 
 /* ========== 文件接口 ========== */
 
@@ -179,8 +191,7 @@ export const createSettleTemplate = (data: CreateSettleTemplateRequest) =>
   post<SettleTemplateVO>('/api/admin/settle/templates', data)
 
 /** 查询分账模板列表 */
-export const getSettleTemplates = () =>
-  get<SettleTemplateVO[]>('/api/admin/settle/templates')
+export const getSettleTemplates = () => get<SettleTemplateVO[]>('/api/admin/settle/templates')
 
 /** 查询分账模板详情 */
 export const getSettleTemplate = (templateCode: string) =>

@@ -17,6 +17,7 @@ from fastapi import FastAPI, HTTPException
 
 from app.extractors import base, image, video, audio, text, model
 from app.models import ExtractRequest, ExtractResponse
+from app.preview import generate_preview
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -38,6 +39,18 @@ _HANDLERS = {
 }
 
 app = FastAPI(title="LifeChain Feature Extract Service", version="2.0.0")
+
+
+@app.post("/preview")
+def preview(request: ExtractRequest):
+    """生成独立预览文件，响应仅包含受管对象键，不返回原件。"""
+    try:
+        return generate_preview(request.object_name, request.work_type.upper())
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        logger.exception("受限预览生成失败")
+        raise HTTPException(status_code=500, detail="预览生成失败，请稍后重试") from error
 
 
 @app.get("/health")
@@ -66,7 +79,7 @@ def extract(request: ExtractRequest):
         )
 
     try:
-        return handler(request.file_url)
+        return handler(request.object_name)
     except HTTPException:
         raise
     except Exception as e:

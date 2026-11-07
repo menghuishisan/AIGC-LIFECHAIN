@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lifechain.trade.entity.LicenseRecordEntity;
+import com.lifechain.common.util.DateTimeUtil;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -61,6 +62,10 @@ public interface LicenseRecordMapper extends BaseMapper<LicenseRecordEntity> {
         return selectCount(new LambdaQueryWrapper<LicenseRecordEntity>()
                 .eq(LicenseRecordEntity::getWorkId, workId)
                 .eq(LicenseRecordEntity::getLicenseeAccountId, licenseeAccountId)
-                .eq(LicenseRecordEntity::getLicenseStatus, "LICENSE_ACTIVE")) > 0;
+                .eq(LicenseRecordEntity::getLicenseStatus, "LICENSE_ACTIVE")
+                .eq(LicenseRecordEntity::getChainStatus, "CHAIN_SUCCESS")
+                .le(LicenseRecordEntity::getEffectiveTime, DateTimeUtil.nowUtc())
+                .and(expiry -> expiry.isNull(LicenseRecordEntity::getExpireTime)
+                        .or().gt(LicenseRecordEntity::getExpireTime, DateTimeUtil.nowUtc()))) > 0;
     }
 }

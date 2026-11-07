@@ -25,6 +25,7 @@ backend/logs/
 # === Node / Frontend ===
 frontend/node_modules/
 frontend/dist/
+*.tsbuildinfo
 frontend/.env.local
 frontend/.env.*.local
 
@@ -37,6 +38,10 @@ contracts/settlement-chaincode/settlement-chaincode
 contracts/regulatory-chaincode/regulatory-chaincode
 
 # === Fabric runtime assets (certs, keys, packages) ===
+infra/fabric/crypto-config/
+infra/fabric/channel-artifacts/
+infra/fabric/.assets-*/
+backend/runtime-config/fabric/
 backend/runtime-config/fabric/org1/admin-cert.pem
 backend/runtime-config/fabric/org1/admin-key.pem
 backend/runtime-config/fabric/org1/connection-org1.json
@@ -60,6 +65,7 @@ docs/
 旋律歌词表达深度Suno新歌方案.md
 英文与中英混搭Suno歌曲方案.md
 前端测试报告.md
+QUALITY_REVIEW.md
 
 # === Environment & Secrets ===
 .alipay-sandbox.json
@@ -74,6 +80,10 @@ docs/
 !contracts/scripts/*.sh
 
 # === Build & Temp ===
+.playwright-mcp/
+frontend/.audit/
+__pycache__/
+*.pyc
 *.swp
 *.swo
 *~

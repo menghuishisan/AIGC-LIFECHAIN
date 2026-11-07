@@ -1,45 +1,84 @@
 <template>
   <!-- 争议处理页（管理员） -->
-  <div class="dispute-process-page" v-loading="loading">
+  <div data-page="DisputeProcess" class="lc-page dispute-process-page" v-loading="loading">
+    <PageLoadFeedback :message="pageError" @retry="loadData" />
     <template v-if="detail">
-      <DetailHeader :title="`争议案件 ${detail.basicInfo.caseNo}`" :biz-no="detail.basicInfo.caseNo" :status="detail.statusInfo.status" status-type="dispute">
+      <DetailHeader
+        :title="`争议案件 ${detail.basicInfo.caseNo}`"
+        :biz-no="detail.basicInfo.caseNo"
+        :status="detail.statusInfo.status"
+        status-type="dispute"
+      >
         <template #actions>
-          <el-button v-if="detail.allowedActions.includes('PROCESS')" type="primary" @click="showProcessDialog = true">处理</el-button>
+          <el-button
+            v-if="detail.allowedActions.includes('PROCESS')"
+            type="primary"
+            @click="showProcessDialog = true"
+            >处理</el-button
+          >
         </template>
       </DetailHeader>
 
       <el-row :gutter="20">
-        <el-col :span="12">
+        <el-col :xs="24" :md="12">
           <div class="lc-card">
             <div class="lc-card__title">争议信息</div>
             <el-descriptions :column="1" border size="small">
-              <el-descriptions-item label="案件编号"><span class="font-mono">{{ detail.basicInfo.caseNo }}</span></el-descriptions-item>
-              <el-descriptions-item label="争议类型">{{ detail.basicInfo.disputeType }}</el-descriptions-item>
-              <el-descriptions-item label="描述">{{ detail.basicInfo.description }}</el-descriptions-item>
-              <el-descriptions-item label="处理结果">{{ detail.basicInfo.resultSummary || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="案件编号"
+                ><span class="font-mono">{{ detail.basicInfo.caseNo }}</span></el-descriptions-item
+              >
+              <el-descriptions-item label="争议类型">{{
+                detail.basicInfo.disputeType
+              }}</el-descriptions-item>
+              <el-descriptions-item label="描述">{{
+                detail.basicInfo.description
+              }}</el-descriptions-item>
+              <el-descriptions-item label="处理结果">{{
+                detail.basicInfo.resultSummary || '-'
+              }}</el-descriptions-item>
             </el-descriptions>
           </div>
         </el-col>
-        <el-col :span="12">
+        <el-col :xs="24" :md="12">
           <div class="lc-card">
             <div class="lc-card__title">关联信息</div>
             <el-descriptions :column="1" border size="small">
-              <el-descriptions-item label="申请人"><span class="font-mono">{{ detail.relationInfo.applicantAccountNo }}</span></el-descriptions-item>
-              <el-descriptions-item label="被申请人"><span class="font-mono">{{ detail.relationInfo.respondentAccountNo }}</span></el-descriptions-item>
-              <el-descriptions-item label="关联订单"><span class="font-mono">{{ detail.relationInfo.orderNo || '-' }}</span></el-descriptions-item>
-              <el-descriptions-item label="关联作品"><span class="font-mono">{{ detail.relationInfo.workNo || '-' }}</span></el-descriptions-item>
+              <el-descriptions-item label="申请人"
+                ><span class="font-mono">{{
+                  detail.relationInfo.applicantAccountNo
+                }}</span></el-descriptions-item
+              >
+              <el-descriptions-item label="被申请人"
+                ><span class="font-mono">{{
+                  detail.relationInfo.respondentAccountNo
+                }}</span></el-descriptions-item
+              >
+              <el-descriptions-item label="关联订单"
+                ><span class="font-mono">{{
+                  detail.relationInfo.orderNo || '-'
+                }}</span></el-descriptions-item
+              >
+              <el-descriptions-item label="关联作品"
+                ><span class="font-mono">{{
+                  detail.relationInfo.workNo || '-'
+                }}</span></el-descriptions-item
+              >
             </el-descriptions>
           </div>
         </el-col>
       </el-row>
 
       <!-- 证据列表 -->
-      <div class="lc-card" style="margin-top: 20px;" v-if="detail.basicInfo.evidences.length">
+      <div class="lc-card" style="margin-top: 20px" v-if="detail.basicInfo.evidences.length">
         <div class="lc-card__title">证据材料</div>
         <el-table :data="detail.basicInfo.evidences" size="small" stripe>
           <el-table-column prop="description" label="说明" min-width="200" show-overflow-tooltip />
           <el-table-column prop="evidenceUrl" label="附件" min-width="200">
-            <template #default="{ row }"><a :href="row.evidenceUrl" target="_blank" rel="noopener noreferrer">查看</a></template>
+            <template #default="{ row }"
+              ><a :href="row.evidenceUrl" target="_blank" rel="noopener noreferrer"
+                >查看</a
+              ></template
+            >
           </el-table-column>
           <el-table-column prop="uploaderAccountNo" label="上传人" width="160" />
           <el-table-column prop="uploadTime" label="上传时间" width="170">
@@ -49,22 +88,28 @@
       </div>
 
       <!-- 处理记录 -->
-      <div class="lc-card" style="margin-top: 20px;" v-if="detail.basicInfo.processRecords.length">
+      <div class="lc-card" style="margin-top: 20px" v-if="detail.basicInfo.processRecords.length">
         <div class="lc-card__title">处理记录</div>
         <el-timeline>
-          <el-timeline-item v-for="(r, i) in detail.basicInfo.processRecords" :key="i" :timestamp="formatTime(r.processTime)">
-            <p><strong>{{ r.action }}</strong> — {{ r.operatorAccountNo }}</p>
+          <el-timeline-item
+            v-for="(r, i) in detail.basicInfo.processRecords"
+            :key="i"
+            :timestamp="formatTime(r.processTime)"
+          >
+            <p>
+              <strong>{{ r.action }}</strong> — {{ r.operatorAccountNo }}
+            </p>
             <p v-if="r.comment">{{ r.comment }}</p>
           </el-timeline-item>
         </el-timeline>
       </div>
 
-      <div style="margin-top: 20px;"><ChainInfoCard :chain-info="detail.chainInfo" /></div>
+      <div style="margin-top: 20px"><ChainInfoCard :chain-info="detail.chainInfo" /></div>
     </template>
 
     <!-- 处理对话框 -->
     <el-dialog v-model="showProcessDialog" title="处理争议" width="520px">
-      <el-form :model="processForm" label-width="80px">
+      <el-form :model="processForm" label-width="80px" label-position="top">
         <el-form-item label="操作" required>
           <el-select v-model="processForm.action" style="width: 100%">
             <el-option label="受理" value="ACCEPT" />
@@ -90,6 +135,8 @@
 </template>
 
 <script setup lang="ts">
+import { usePageLoad } from '@/shared/composables/usePageLoad'
+import PageLoadFeedback from '@/shared/components/PageLoadFeedback.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -97,6 +144,7 @@ import { regulatorApi } from '@/shared/api'
 import { DetailHeader, ChainInfoCard } from '@/shared/components'
 import { formatTime, generateRequestId } from '@/shared/utils'
 import type { DisputeCaseVO } from '@/shared/types'
+const { pageError, runPageLoad } = usePageLoad()
 
 const props = defineProps<{ caseNo: string }>()
 const router = useRouter()
@@ -107,13 +155,16 @@ const showProcessDialog = ref(false)
 const processForm = reactive({ action: 'ACCEPT', reviewComment: '', resultSummary: '' })
 
 async function loadData() {
-  loading.value = true
-  try {
-    const res = await regulatorApi.getDisputeDetail(props.caseNo)
-    detail.value = res.data
-  } finally {
-    loading.value = false
-  }
+  await runPageLoad(async (isCurrent) => {
+    loading.value = true
+    try {
+      const res = await regulatorApi.getDisputeDetail(props.caseNo)
+      if (!isCurrent()) return
+      detail.value = res.data
+    } finally {
+      if (isCurrent()) loading.value = false
+    }
+  })
 }
 
 async function handleProcess() {

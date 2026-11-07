@@ -25,7 +25,6 @@
 <script setup lang="ts">
 import type { TraceEventVO } from '@/shared/types'
 import { formatTime } from '@/shared/utils'
-
 defineProps<{
   /** 时间线标题 */
   title?: string
@@ -34,9 +33,21 @@ defineProps<{
 }>()
 
 /** 根据事件类型返回时间线节点样式 */
-function getTimelineType(eventType: string): '' | 'primary' | 'success' | 'warning' | 'danger' | 'info' {
-  if (eventType.includes('SUCCESS') || eventType.includes('CONFIRMED') || eventType.includes('ACTIVE')) return 'success'
-  if (eventType.includes('FAILED') || eventType.includes('REJECTED') || eventType.includes('FROZEN')) return 'danger'
+function getTimelineType(
+  eventType: string
+): '' | 'primary' | 'success' | 'warning' | 'danger' | 'info' {
+  if (
+    eventType.includes('SUCCESS') ||
+    eventType.includes('CONFIRMED') ||
+    eventType.includes('ACTIVE')
+  )
+    return 'success'
+  if (
+    eventType.includes('FAILED') ||
+    eventType.includes('REJECTED') ||
+    eventType.includes('FROZEN')
+  )
+    return 'danger'
   if (eventType.includes('PENDING') || eventType.includes('REVIEWING')) return 'warning'
   return 'primary'
 }
@@ -60,7 +71,7 @@ function getTimelineType(eventType: string): '' | 'primary' | 'success' | 'warni
     &-operator,
     &-tx {
       font-size: 12px;
-      color: #5E727A;
+      color: #5e727a;
       margin-top: 2px;
     }
   }

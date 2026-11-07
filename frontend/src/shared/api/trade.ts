@@ -5,11 +5,24 @@
 import { get, post, del } from './http'
 import { generateRequestId } from '@/shared/utils'
 import type {
-  CreateListingRequest, ListingReviewRequest, ListingDetailVO,
-  CreateOrderRequest, OrderDetailVO, OrderListVO, AdminOrderListVO, AdminOrderQuery,
-  PayRequest, PayResultVO, RefundApplyRequest, RefundProcessRequest, RefundDetailVO,
-  CreateLicenseTemplateRequest, LicenseTemplateVO, LicenseDetailVO,
-  PageResult, PageQuery
+  CreateListingRequest,
+  ListingReviewRequest,
+  ListingDetailVO,
+  CreateOrderRequest,
+  OrderDetailVO,
+  OrderListVO,
+  AdminOrderListVO,
+  AdminOrderQuery,
+  PayRequest,
+  PayResultVO,
+  RefundApplyRequest,
+  RefundProcessRequest,
+  RefundDetailVO,
+  CreateLicenseTemplateRequest,
+  LicenseTemplateVO,
+  LicenseDetailVO,
+  PageResult,
+  PageQuery
 } from '@/shared/types'
 
 /* ========== 上架接口 ========== */
@@ -41,12 +54,10 @@ export const removeListing = (listingNo: string, requestId: string) =>
 /* ========== 订单接口 ========== */
 
 /** 创建订单 */
-export const createOrder = (data: CreateOrderRequest) =>
-  post<OrderDetailVO>('/api/orders', data)
+export const createOrder = (data: CreateOrderRequest) => post<OrderDetailVO>('/api/orders', data)
 
 /** 订单详情 */
-export const getOrderDetail = (orderNo: string) =>
-  get<OrderDetailVO>(`/api/orders/${orderNo}`)
+export const getOrderDetail = (orderNo: string) => get<OrderDetailVO>(`/api/orders/${orderNo}`)
 
 /** 我的订单列表 */
 export const getMyOrders = (params: PageQuery & { role?: string; status?: string }) =>
@@ -62,11 +73,15 @@ export const payOrder = (orderNo: string, data: PayRequest) =>
 
 /** 服务端主动查询渠道交易并补偿本人的订单状态 */
 export const refreshPayment = (orderNo: string) =>
-  post<OrderDetailVO>(`/api/orders/${encodeURIComponent(orderNo)}/payment-status`, { requestId: generateRequestId() })
+  post<OrderDetailVO>(`/api/orders/${encodeURIComponent(orderNo)}/payment-status`, {
+    requestId: generateRequestId()
+  })
 
 /** 查询已批准退款的渠道结果，不发起新退款 */
 export const refreshRefund = (refundNo: string) =>
-  post<RefundDetailVO>(`/api/admin/refunds/${encodeURIComponent(refundNo)}/refresh`, { requestId: generateRequestId() })
+  post<RefundDetailVO>(`/api/admin/refunds/${encodeURIComponent(refundNo)}/refresh`, {
+    requestId: generateRequestId()
+  })
 
 /** 取消订单 */
 export const cancelOrder = (orderNo: string, requestId: string) =>

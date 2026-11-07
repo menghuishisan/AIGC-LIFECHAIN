@@ -179,8 +179,10 @@ lifechain:
       serverUrl: ${ALIPAY_SERVER_URL:}
 
   sms:
-    # 仅开发联调时开启，开启后验证码会写入日志，生产环境必须保持关闭
-    dev-mode: ${SMS_DEV_MODE}
+    access-key-id: ${ALIYUN_SMS_ACCESS_KEY_ID:}
+    access-key-secret: ${ALIYUN_SMS_ACCESS_KEY_SECRET:}
+    sign-name: ${ALIYUN_SMS_SIGN_NAME:}
+    template-code: ${ALIYUN_SMS_TEMPLATE_CODE:}
 
   # Hyperledger Fabric 区块链配置（基于新版 fabric-gateway SDK，gRPC 直连 peer + mTLS）
   fabric:

@@ -6,9 +6,11 @@ import com.lifechain.common.exception.BizException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.TimeUnit;
+import java.util.List;
 
 /**
  * Redis缓存服务
@@ -45,17 +47,44 @@ public class RedisService {
     }
 
     /**
-     * 获取原始字符串缓存值（不做JSON反序列化）
+     * 读取通过 set 写入的字符串，使用相同的 JSON 序列化契约。
      *
      * @param key 缓存键
-     * @return 原始字符串，不存在返回null
+     * @return 反序列化后的字符串，不存在返回null
      */
     public String getString(String key) {
         try {
-            return redisTemplate.opsForValue().get(key);
+            String json = redisTemplate.opsForValue().get(key);
+            return json == null ? null : objectMapper.readValue(json, String.class);
         } catch (Exception e) {
             log.error("Redis GET_STRING失败, key: {}, 错误: {}", key, e.getMessage(), e);
             throw new BizException(ErrorCodeEnum.CACHE_ERROR, "缓存读取失败: " + e.getMessage());
+        }
+    }
+
+    /** 原子读取并删除字符串，保证刷新令牌等一次性凭证不能被并发消费。 */
+    public String consumeString(String key) {
+        try {
+            String json = redisTemplate.opsForValue().getAndDelete(key);
+            return json == null ? null : objectMapper.readValue(json, String.class);
+        } catch (Exception e) {
+            throw new BizException(ErrorCodeEnum.CACHE_ERROR, "一次性缓存凭证读取失败");
+        }
+    }
+
+    /** 仅当值属于预期账户时删除，比较值遵循统一的 JSON 序列化契约。 */
+    public boolean deleteIfValueMatches(String key, String expectedValue) {
+        try {
+            var script = new DefaultRedisScript<Long>("""
+                    if redis.call('get', KEYS[1]) == ARGV[1] then
+                        return redis.call('del', KEYS[1])
+                    end
+                    return 0
+                    """, Long.class);
+            Long deleted = redisTemplate.execute(script, List.of(key), objectMapper.writeValueAsString(expectedValue));
+            return Long.valueOf(1).equals(deleted);
+        } catch (Exception e) {
+            throw new BizException(ErrorCodeEnum.CACHE_ERROR, "缓存凭证撤销失败");
         }
     }
 

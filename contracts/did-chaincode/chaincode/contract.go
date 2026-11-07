@@ -27,24 +27,30 @@ func ledgerKey(didNo string) string {
 }
 
 // txTime 获取当前交易时间（UTC ISO8601）
-func txTime(ctx contractapi.TransactionContextInterface) string {
+// txTime 仅使用交易提案时间；无法读取时拒绝交易，避免各背书节点使用本地时钟。
+func txTime(ctx contractapi.TransactionContextInterface) (string, error) {
 	t, err := ctx.GetStub().GetTxTimestamp()
 	if err != nil {
-		return time.Now().UTC().Format(time.RFC3339)
+		return "", fmt.Errorf("failed to read transaction timestamp: %w", err)
 	}
-	return time.Unix(t.Seconds, int64(t.Nanos)).UTC().Format(time.RFC3339)
+	if t == nil || t.Nanos < 0 || t.Nanos >= 1000000000 {
+		return "", fmt.Errorf("invalid transaction timestamp")
+	}
+	return time.Unix(t.Seconds, int64(t.Nanos)).UTC().Format(time.RFC3339), nil
 }
 
 // emitEvent 发送链码事件
-func emitEvent(ctx contractapi.TransactionContextInterface, eventName, bizType, bizNo, status string) {
-	payload := EventPayload{
-		BizType: bizType,
-		BizNo:   bizNo,
-		TxTime:  txTime(ctx),
-		Status:  status,
+func emitEvent(ctx contractapi.TransactionContextInterface, eventName, bizType, bizNo, status string) error {
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
 	}
-	b, _ := json.Marshal(payload)
-	_ = ctx.GetStub().SetEvent(eventName, b)
+	payload := EventPayload{BizType: bizType, BizNo: bizNo, TxTime: now, Status: status}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+	return ctx.GetStub().SetEvent(eventName, b)
 }
 
 // RegisterDID 注册DID到账本
@@ -75,7 +81,10 @@ func (c *DidContract) RegisterDID(ctx contractapi.TransactionContextInterface, p
 		return fmt.Errorf("CONFLICT: DID already exists with different payload: %s", req.DidNo)
 	}
 
-	now := txTime(ctx)
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
+	}
 	activeTime := req.ActiveTime
 	if activeTime == "" {
 		activeTime = now
@@ -101,8 +110,7 @@ func (c *DidContract) RegisterDID(ctx contractapi.TransactionContextInterface, p
 		return fmt.Errorf("failed to put state: %w", err)
 	}
 
-	emitEvent(ctx, "DidRegistered", "DID", req.DidNo, StatusActive)
-	return nil
+	return emitEvent(ctx, "DidRegistered", "DID", req.DidNo, StatusActive)
 }
 
 // SuspendDID 挂起DID
@@ -132,7 +140,10 @@ func (c *DidContract) SuspendDID(ctx contractapi.TransactionContextInterface, pa
 		return fmt.Errorf("DID is not active, current status: %s", ledger.Status)
 	}
 
-	now := txTime(ctx)
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
+	}
 	ledger.Status = StatusSuspended
 	ledger.SuspendTime = req.SuspendTime
 	if ledger.SuspendTime == "" {
@@ -149,8 +160,7 @@ func (c *DidContract) SuspendDID(ctx contractapi.TransactionContextInterface, pa
 		return fmt.Errorf("failed to put state: %w", err)
 	}
 
-	emitEvent(ctx, "DidSuspended", "DID", req.DidNo, StatusSuspended)
-	return nil
+	return emitEvent(ctx, "DidSuspended", "DID", req.DidNo, StatusSuspended)
 }
 
 // RevokeDID 吊销DID
@@ -180,7 +190,10 @@ func (c *DidContract) RevokeDID(ctx contractapi.TransactionContextInterface, pay
 		return fmt.Errorf("DID is already revoked: %s", req.DidNo)
 	}
 
-	now := txTime(ctx)
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
+	}
 	ledger.Status = StatusRevoked
 	ledger.RevokeTime = req.RevokeTime
 	if ledger.RevokeTime == "" {
@@ -197,8 +210,7 @@ func (c *DidContract) RevokeDID(ctx contractapi.TransactionContextInterface, pay
 		return fmt.Errorf("failed to put state: %w", err)
 	}
 
-	emitEvent(ctx, "DidRevoked", "DID", req.DidNo, StatusRevoked)
-	return nil
+	return emitEvent(ctx, "DidRevoked", "DID", req.DidNo, StatusRevoked)
 }
 
 // QueryDID 查询DID账本状态

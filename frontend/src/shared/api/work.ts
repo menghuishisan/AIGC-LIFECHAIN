@@ -4,10 +4,23 @@
  */
 import { get, post, put, download } from './http'
 import type {
-  WorkUploadRequest, WorkMetaUpdateRequest, WorkDetailVO, WorkListVO,
-  WorkFeatureVO, ClaimSubmitRequest, ClaimDetailVO, ClaimListVO, ClaimReviewRequest,
-  GenerateCertificateRequest, CertDetailVO, VerifyRequest, VerifyResultVO,
-  VerifyQueryLogVO, PageResult, PageQuery, PreviewUrlVO
+  WorkUploadRequest,
+  WorkMetaUpdateRequest,
+  WorkDetailVO,
+  WorkListVO,
+  WorkFeatureVO,
+  ClaimSubmitRequest,
+  ClaimDetailVO,
+  ClaimListVO,
+  ClaimReviewRequest,
+  GenerateCertificateRequest,
+  CertDetailVO,
+  VerifyRequest,
+  VerifyResultVO,
+  VerifyQueryLogVO,
+  PageResult,
+  PageQuery,
+  PreviewUrlVO
 } from '@/shared/types'
 
 /* ========== 作品接口 ========== */
@@ -27,24 +40,22 @@ export const extractFeature = (workNo: string, requestId: string) =>
   post<void>(`/api/works/${workNo}/feature-extract`, null, { params: { requestId } })
 
 /** 查询作品特征 */
-export const getWorkFeature = (workNo: string) =>
-  get<WorkFeatureVO>(`/api/works/${workNo}/feature`)
+export const getWorkFeature = (workNo: string) => get<WorkFeatureVO>(`/api/works/${workNo}/feature`)
 
 /** 我的作品列表 */
 export const getMyWorks = (params: PageQuery & { status?: string }) =>
   get<PageResult<WorkListVO>>('/api/works/mine', params)
 
 /** 作品详情 */
-export const getWorkDetail = (workNo: string) =>
-  get<WorkDetailVO>(`/api/works/${workNo}`)
+export const getWorkDetail = (workNo: string) => get<WorkDetailVO>(`/api/works/${workNo}`)
 
 /** 获取作品文件预览URL（需登录） */
 export const getPreviewUrl = (workNo: string, fileId: number) =>
-  get<PreviewUrlVO>(`/api/works/${workNo}/preview-url`, { fileId })
+  get<PreviewUrlVO>(`/api/works/${workNo}/preview-url`, { fileId }, { timeout: 180000 })
 
 /** 获取市场作品文件预览URL（公开） */
 export const getMarketPreviewUrl = (workNo: string, fileId: number) =>
-  get<PreviewUrlVO>(`/api/market/works/${workNo}/preview-url`, { fileId })
+  get<PreviewUrlVO>(`/api/market/works/${workNo}/preview-url`, { fileId }, { timeout: 180000 })
 
 /* ========== 市场接口 ========== */
 
@@ -63,8 +74,7 @@ export const submitClaim = (data: ClaimSubmitRequest) =>
   post<ClaimDetailVO>('/api/claims/submit', data)
 
 /** 确权详情 */
-export const getClaimDetail = (claimNo: string) =>
-  get<ClaimDetailVO>(`/api/claims/${claimNo}`)
+export const getClaimDetail = (claimNo: string) => get<ClaimDetailVO>(`/api/claims/${claimNo}`)
 
 /** 确权链上回执（返回 ClaimDetailVO，含 chainInfo） */
 export const getClaimChainReceipt = (claimNo: string) =>
@@ -89,26 +99,34 @@ export const generateCertificate = (data: GenerateCertificateRequest) =>
   post<CertDetailVO>('/api/admin/certificates/generate', data)
 
 /** 证书详情 */
-export const getCertDetail = (certNo: string) =>
-  get<CertDetailVO>(`/api/certificates/${certNo}`)
+export const getCertDetail = (certNo: string) => get<CertDetailVO>(`/api/certificates/${certNo}`)
 
 /** 下载证书 PDF */
-export const downloadCert = (certNo: string) =>
-  download(`/api/certificates/${certNo}/download`)
+export const downloadCert = async (certNo: string) => {
+  const blob = await download(`/api/certificates/${encodeURIComponent(certNo)}/download`)
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${certNo.replace(/[\\/:*?"<>|]/g, '_')}.pdf`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  // 浏览器开始读取后释放对象 URL，避免多次下载累积内存。
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
 
 /* ========== 验真接口 ========== */
 
 /** 公开验真 */
-export const publicVerify = (params: VerifyRequest) =>
-  get<VerifyResultVO>('/public/verify', params as any)
+export const publicVerify = (params: VerifyRequest) => get<VerifyResultVO>('/public/verify', params)
 
 /** 登录用户验真 */
 export const userVerify = (params: VerifyRequest) =>
-  get<VerifyResultVO>('/api/verify/detail', params as any)
+  get<VerifyResultVO>('/api/verify/detail', params)
 
 /** 监管方验真 */
 export const regulatorVerify = (params: VerifyRequest) =>
-  get<VerifyResultVO>('/api/regulator/verify/detail', params as any)
+  get<VerifyResultVO>('/api/regulator/verify/detail', params)
 
 /** 批量验真 */
 export const batchVerify = (data: VerifyRequest[], requestId: string) =>

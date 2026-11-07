@@ -24,9 +24,11 @@
 set -euo pipefail
 
 # ---------- 路径与常量 ----------
-NET_DIR="${NET_DIR:-/mnt/e/code/AIGC-LifeChain/infra/fabric}"
-CONTRACTS_DIR="${CONTRACTS_DIR:-/mnt/e/code/AIGC-LifeChain/contracts}"
-CC_PKG_DIR="${CC_PKG_DIR:-/tmp/lifechain-cc-packages}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
+NET_DIR="${NET_DIR:-$PROJECT_DIR/infra/fabric}"
+CONTRACTS_DIR="${CONTRACTS_DIR:-$PROJECT_DIR/contracts}"
+CC_PKG_DIR="${CC_PKG_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/lifechain-cc-packages-XXXXXX")}"
 CHANNEL="${CHANNEL:-lifechainchannel}"
 # 宿主端口避开 fabric-samples test-network 默认 7050/7051/9051，统一 27xxx/29xxx
 ORDERER="${ORDERER:-localhost:27050}"
@@ -39,7 +41,7 @@ ORDERER_CA="$NET_DIR/crypto-config/ordererOrganizations/lifechain.com/orderers/o
 ORG1_TLS_CA="$NET_DIR/crypto-config/peerOrganizations/org1.lifechain.com/peers/peer0.org1.lifechain.com/tls/ca.crt"
 ORG2_TLS_CA="$NET_DIR/crypto-config/peerOrganizations/org2.lifechain.com/peers/peer0.org2.lifechain.com/tls/ca.crt"
 
-export FABRIC_CFG_PATH=/usr/local/config
+export FABRIC_CFG_PATH="${FABRIC_CFG_PATH:-/usr/local/config}"
 export PATH=/usr/local/go/bin:$PATH
 export GOWORK=off
 export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
@@ -51,7 +53,7 @@ TARGETS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --init) INIT_MODE=true; shift ;;
-    --version) VERSION_OVERRIDE="$2"; shift 2 ;;
+    --version) [[ $# -ge 2 && -n "$2" ]] || { echo "--version 需要版本号" >&2; exit 1; }; VERSION_OVERRIDE="$2"; shift 2 ;;
     -h|--help)
       sed -n '2,12p' "$0"; exit 0 ;;
     *) TARGETS+=("$1"); shift ;;
@@ -63,18 +65,7 @@ log()  { echo -e "\033[36m[$(date +%H:%M:%S)]\033[0m $*"; }
 ok()   { echo -e "\033[32m  ✓\033[0m $*"; }
 fail() { echo -e "\033[31m  ✗\033[0m $*"; exit 1; }
 
-# Peer 在编译链码时会用 docker build 生成多层中间容器，构建一旦中断这些
-# Created 状态容器就会留在宿主机上。每次脚本退出（成功或失败）都清掉一次。
-cleanup_build_intermediates() {
-  local ids
-  ids=$(docker ps -a --filter "status=created" -q 2>/dev/null || true)
-  if [[ -n "$ids" ]]; then
-    log "清理 Fabric 链码 build 中间容器"
-    echo "$ids" | xargs -r docker rm >/dev/null 2>&1 || true
-    ok "已清理 $(echo "$ids" | wc -l) 个 Created 容器"
-  fi
-}
-trap cleanup_build_intermediates EXIT
+# 部署脚本只负责本项目链码，不按宿主机容器状态批量清理其他项目资源。
 
 # ---------- 前置检查 ----------
 log "检查前置依赖"
@@ -82,6 +73,11 @@ command -v peer >/dev/null || fail "peer 不在 PATH"
 command -v go   >/dev/null || fail "go 不在 PATH"
 command -v jq   >/dev/null || fail "jq 不在 PATH"
 [[ -d "$NET_DIR" ]] || fail "网络目录不存在: $NET_DIR"
+for index in "${!TARGETS[@]}"; do
+  target="${TARGETS[$index]%_chaincode}"; target="${target%-chaincode}"
+  [[ " ${ALL_CCS[*]} " == *" ${target} "* ]] || fail "未知链码: $target"
+  TARGETS[$index]="$target"
+done
 for c in orderer.lifechain.com peer0.org1.lifechain.com peer0.org2.lifechain.com; do
   docker ps --format '{{.Names}}' | grep -q "^${c}$" || fail "容器未运行: $c"
 done
@@ -117,28 +113,28 @@ use_org() {
 # ---------- Channel 引导（幂等：已存在自动跳过）----------
 ensure_channel() {
   local channel_block="$CC_PKG_DIR/${CHANNEL}.block"
+  local channels
   use_org 1
-  if peer channel list 2>/dev/null | grep -q "^${CHANNEL}\$"; then
-    ok "channel ${CHANNEL} 已存在，跳过引导"
-    return 0
+  channels="$(peer channel list)" || fail "无法查询 org1 已加入通道"
+  if echo "$channels" | grep -Fxq "$CHANNEL"; then
+    # 读取已有区块以恢复 org2 尚未加入的中断部署。
+    peer channel fetch 0 "$channel_block" -o "$ORDERER" -c "$CHANNEL" \
+      --tls --cafile "$ORDERER_CA" --ordererTLSHostnameOverride orderer.lifechain.com >/dev/null
+  else
+    log "create channel $CHANNEL"
+    peer channel create -o "$ORDERER" -c "$CHANNEL" \
+      -f "$NET_DIR/channel-artifacts/${CHANNEL}.tx" \
+      --outputBlock "$channel_block" \
+      --tls --cafile "$ORDERER_CA" --ordererTLSHostnameOverride orderer.lifechain.com >/dev/null
+    peer channel join -b "$channel_block" >/dev/null
+    ok "channel 已创建且 org1 已加入"
   fi
-
-  log "create channel $CHANNEL"
-  peer channel create -o "$ORDERER" -c "$CHANNEL" \
-    -f "$NET_DIR/channel-artifacts/${CHANNEL}.tx" \
-    --outputBlock "$channel_block" \
-    --tls --cafile "$ORDERER_CA" --ordererTLSHostnameOverride orderer.lifechain.com >/dev/null
-  ok "channel 已创建"
-
-  log "org1 join channel"
-  use_org 1
-  peer channel join -b "$channel_block" >/dev/null
-  ok "org1 joined"
-
-  log "org2 join channel"
   use_org 2
-  peer channel join -b "$channel_block" >/dev/null
-  ok "org2 joined"
+  channels="$(peer channel list)" || fail "无法查询 org2 已加入通道"
+  if ! echo "$channels" | grep -Fxq "$CHANNEL"; then
+    peer channel join -b "$channel_block" >/dev/null
+    ok "org2 已加入通道"
+  fi
 
   log "update org1 anchor peers"
   use_org 1
@@ -191,23 +187,19 @@ deploy_one() {
     --path "$src_dir" --lang golang --label "$label" >/dev/null
   ok "打包完成: $pkg_path"
 
-  log "[${name}] install on org1"
-  use_org 1
-  peer lifecycle chaincode install "$pkg_path" >/dev/null 2>&1 || true
-  ok "org1 install 完成"
-
-  log "[${name}] install on org2"
-  use_org 2
-  peer lifecycle chaincode install "$pkg_path" >/dev/null 2>&1 || true
-  ok "org2 install 完成"
-
-  log "[${name}] 解析 packageID"
-  use_org 1
+  # 相同 label 可对应不同源码包，必须以本次打包内容算出的摘要标识部署。
   local pkg_id
-  pkg_id=$(peer lifecycle chaincode queryinstalled --output json \
-    | jq -r --arg L "$label" '.installed_chaincodes[] | select(.label==$L) | .package_id' \
-    | head -1)
-  [[ -n "$pkg_id" ]] || fail "找不到 packageID for label=$label"
+  pkg_id="$(peer lifecycle chaincode calculatepackageid "$pkg_path")"
+  [[ -n "$pkg_id" ]] || fail "无法计算本次链码包摘要"
+  for org in 1 2; do
+    use_org "$org"
+    local installed
+    installed="$(peer lifecycle chaincode queryinstalled --output json)" || fail "无法查询 org${org} 安装记录"
+    if ! echo "$installed" | jq -e --arg id "$pkg_id" '.installed_chaincodes // [] | any(.package_id == $id)' >/dev/null; then
+      peer lifecycle chaincode install "$pkg_path" >/dev/null || fail "org${org} 链码安装失败"
+    fi
+    ok "org${org} 已安装本次包"
+  done
   ok "packageID=$pkg_id"
 
   log "[${name}] approve org1"

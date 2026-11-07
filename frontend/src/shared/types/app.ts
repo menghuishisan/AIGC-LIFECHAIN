@@ -42,6 +42,12 @@ export interface IncomeSummaryVO {
   totalCount: number
 }
 
+/** 每日已确认净收益，金额单位为分。 */
+export interface IncomeTrendPoint {
+  date: string
+  amount: number
+}
+
 /** 收益明细（与后端 IncomeItemVO 对齐） */
 export interface IncomeDetailVO {
   settleNo: string

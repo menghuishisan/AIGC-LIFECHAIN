@@ -10,13 +10,12 @@ D2 描述符（Osada 等, 2002）是经典的 3D 形状指纹算法：
 D2 对网格细分、平移、旋转、缩放都鲁棒（缩放靠归一化处理），且不依赖纹理/材质，
 适合检测 3D 模型的"形状抄袭"。
 
-trimesh 支持 OBJ/PLY/STL/GLB/GLTF 等常见格式；从原始 URL 嗅探扩展名以便正确选择 loader。
+trimesh 支持 OBJ/PLY/STL/GLB/GLTF 等常见格式；从对象键读取扩展名以便正确选择 loader。
 """
 from __future__ import annotations
 
 import logging
 import re
-from urllib.parse import urlparse
 
 import numpy as np
 import trimesh
@@ -34,15 +33,15 @@ HIST_BINS = HASH_BITS     # 256
 _SUPPORTED_EXTS = {"obj", "ply", "stl", "glb", "gltf", "off", "3mf", "dae"}
 
 
-def _detect_file_type(url: str) -> str:
-    """从 URL 提取扩展名，作为 trimesh.load 的 file_type 提示"""
-    path = urlparse(url).path
+def _detect_file_type(object_name: str) -> str:
+    """从对象键提取扩展名，作为 trimesh.load 的 file_type 提示"""
+    path = object_name
     m = re.search(r"\.([a-zA-Z0-9]+)$", path)
     if m:
         ext = m.group(1).lower()
         if ext in _SUPPORTED_EXTS:
             return ext
-    raise RuntimeError(f"无法从 URL 推断 3D 模型格式（支持：{','.join(sorted(_SUPPORTED_EXTS))}）")
+    raise RuntimeError(f"无法从对象键推断 3D 模型格式（支持：{','.join(sorted(_SUPPORTED_EXTS))}）")
 
 
 def _load_mesh(file_path: str, file_type: str) -> trimesh.Trimesh:
@@ -116,12 +115,12 @@ class D2ModelExtractor(Extractor):
         )
 
 
-def extract_model(file_url: str) -> dict:
-    """主流程入口：从 URL 嗅探扩展名 → 下载 → 加载 mesh → D2 直方图 → 二值化 → 返回响应字典"""
-    logger.info("开始 3D 模型特征提取: %s", file_url[:100])
-    file_type = _detect_file_type(file_url)
+def extract_model(object_name: str) -> dict:
+    """主流程入口：从对象键读取扩展名 → 下载 → 加载 mesh → D2 直方图 → 二值化 → 返回响应字典"""
+    logger.info("开始 3D 模型特征提取: %s", object_name[:100])
+    file_type = _detect_file_type(object_name)
     extractor = D2ModelExtractor()
-    with download_to_tempfile(file_url, suffix=f".{file_type}") as path:
+    with download_to_tempfile(object_name, suffix=f".{file_type}") as path:
         result = extractor.extract(path, file_type=file_type)
     logger.info("3D 模型特征提取完成: hash=%s, vertices=%s, format=%s",
                 result.perceptual_hash[:16], result.extra.get("vertex_count"), file_type)

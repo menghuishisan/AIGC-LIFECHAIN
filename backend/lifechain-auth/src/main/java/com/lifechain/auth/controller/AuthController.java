@@ -3,6 +3,7 @@ package com.lifechain.auth.controller;
 import com.lifechain.auth.dto.ChangePasswordRequest;
 import com.lifechain.auth.dto.LoginRequest;
 import com.lifechain.auth.dto.LoginResponse;
+import com.lifechain.auth.dto.LogoutRequest;
 import com.lifechain.auth.dto.RegisterRequest;
 import com.lifechain.auth.service.AccountService;
 import com.lifechain.common.annotation.Idempotent;
@@ -113,11 +114,12 @@ public class AuthController {
      * @return 空响应
      */
     @PostMapping("/logout")
-    @Operation(summary = "退出登录", description = "将当前 Token 加入黑名单，使其立即失效")
-    public ApiResponse<Void> logout(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
+    @Operation(summary = "退出登录", description = "撤销当前访问令牌与属于当前账户的刷新令牌")
+    public ApiResponse<Void> logout(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
+                                  @Valid @RequestBody LogoutRequest request) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
-            accountService.logout(token);
+            accountService.logout(token, request.refreshToken());
         }
         return ApiResponse.success(null);
     }

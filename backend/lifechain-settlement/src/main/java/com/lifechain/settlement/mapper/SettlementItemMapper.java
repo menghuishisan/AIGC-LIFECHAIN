@@ -3,6 +3,8 @@ package com.lifechain.settlement.mapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.lifechain.settlement.entity.SettlementItemEntity;
+import com.lifechain.settlement.dto.IncomeTrendPoint;
+import java.time.LocalDateTime;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -20,6 +22,18 @@ import java.util.List;
  */
 @Mapper
 public interface SettlementItemMapper extends BaseMapper<SettlementItemEntity> {
+    /** 按完整时间区间聚合已确认收益，不受明细分页大小限制。 */
+    @Select("""
+            SELECT DATE(i.created_at) AS date, SUM(i.amount) AS amount
+            FROM settlement_item i JOIN settlement_record s ON s.id = i.settle_id
+            WHERE i.account_id = #{accountId} AND i.deleted_flag = 0 AND s.deleted_flag = 0
+              AND s.status = 'SETTLE_SUCCESS' AND s.chain_status = 'CHAIN_SUCCESS'
+              AND i.created_at >= #{start} AND i.created_at < #{end}
+            GROUP BY DATE(i.created_at) ORDER BY DATE(i.created_at)
+            """)
+    List<IncomeTrendPoint> selectConfirmedIncomeTrend(@Param("accountId") Long accountId,
+                                                   @Param("start") LocalDateTime start,
+                                                   @Param("end") LocalDateTime end);
 
     /** 主结算确认且未进入逆转流程的金额才计入当前净收益。 */
     @Select("""

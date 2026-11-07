@@ -8,6 +8,7 @@ import com.lifechain.trade.entity.TradeOrderEntity;
 import com.lifechain.common.util.DateTimeUtil;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 /**
  * 交易订单数据访问层
@@ -19,6 +20,22 @@ import org.apache.ibatis.annotations.Param;
  */
 @Mapper
 public interface TradeOrderMapper extends BaseMapper<TradeOrderEntity> {
+
+    /** 查询已收款但尚未创建授权记录的订单，供支付后授权任务恢复。 */
+    @Select("""
+            SELECT o.*
+            FROM trade_order o
+            WHERE o.order_status = 'PAY_CONFIRMED'
+              AND o.pay_status = 'PAY_SUCCESS'
+              AND o.deleted_flag = 0
+              AND NOT EXISTS (
+                  SELECT 1 FROM license_record l
+                  WHERE l.order_id = o.id AND l.deleted_flag = 0
+              )
+            ORDER BY o.id
+            LIMIT #{limit}
+            """)
+    java.util.List<TradeOrderEntity> selectPaidOrdersPendingLicenseGrant(@Param("limit") int limit);
 
     /**
      * 根据订单编号查询

@@ -1,5 +1,5 @@
 <template>
-  <div class="payment-result-page">
+  <div data-page="PaymentCancel" class="lc-page payment-result-page">
     <el-result
       icon="warning"
       title="支付已取消"
@@ -15,7 +15,6 @@
 
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router'
-
 const router = useRouter()
 const route = useRoute()
 

@@ -50,14 +50,18 @@ export default defineConfig({
           if (id.includes('vue-router')) return 'vendor-router'
           if (id.includes('pinia')) return 'vendor-pinia'
           if (id.includes('axios') || id.includes('dayjs')) return 'vendor-utils'
-          if (id.includes('/vue/') || id.includes('\\vue\\') || id.includes('@vue')) return 'vendor-vue'
+          if (id.includes('/vue/') || id.includes('\\vue\\') || id.includes('@vue'))
+            return 'vendor-vue'
           return 'vendor-misc'
         }
       }
     }
   },
   server: {
+    host: '127.0.0.1',
     port: 5173,
+    // 验收报告可能由其他进程写入，开发服务器无需监听这些非源码文件。
+    watch: { ignored: ['**/.audit/**', '**/.playwright-mcp/**'] },
     /* 开发环境代理到后端 */
     proxy: {
       '/api': {

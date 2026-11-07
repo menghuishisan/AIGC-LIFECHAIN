@@ -5,9 +5,9 @@
 </template>
 
 <script setup lang="ts">
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
 /**
  * 应用根组件
  * 路由视图容器，具体布局由各App的Layout组件控制
  */
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
 </script>

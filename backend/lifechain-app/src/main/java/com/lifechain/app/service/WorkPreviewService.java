@@ -2,6 +2,7 @@ package com.lifechain.app.service;
 
 import com.lifechain.common.enums.ErrorCodeEnum;
 import com.lifechain.common.exception.BizException;
+import com.lifechain.common.util.FieldVisibilityUtil;
 import com.lifechain.infra.storage.StorageService;
 import com.lifechain.trade.mapper.LicenseRecordMapper;
 import com.lifechain.work.dto.PreviewUrlVO;
@@ -29,9 +30,9 @@ public class WorkPreviewService {
     private final WorkFileMapper workFileMapper;
     private final LicenseRecordMapper licenseRecordMapper;
     private final StorageService storageService;
+    private final PreviewGenerationService previewGenerationService;
 
     private static final int PREVIEW_URL_EXPIRE_MINUTES = 30;
-    private static final int LIMITED_DURATION_SECONDS = 30;
 
     /**
      * 获取作品文件预览URL（需登录）
@@ -56,7 +57,8 @@ public class WorkPreviewService {
         }
 
         String accessLevel = determineAccessLevel(work, viewerAccountId);
-        return buildPreviewResponse(file, accessLevel);
+        if ("LIMITED".equals(accessLevel)) requireListed(work);
+        return buildPreviewResponse(file, accessLevel, work.getWorkType());
     }
 
     /**
@@ -74,13 +76,21 @@ public class WorkPreviewService {
         if (work == null) {
             throw new BizException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "作品不存在");
         }
+        requireListed(work);
 
         WorkFileEntity file = workFileMapper.selectById(fileId);
         if (file == null || !file.getWorkId().equals(work.getId())) {
             throw new BizException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "文件不存在");
         }
 
-        return buildPreviewResponse(file, "LIMITED");
+        return buildPreviewResponse(file, "LIMITED", work.getWorkType());
+    }
+
+    /** 未上架、已下架和冻结作品不能借市场预览接口读取文件。 */
+    private void requireListed(WorkEntity work) {
+        if (!"LISTED".equals(work.getStatus())) {
+            throw new BizException(ErrorCodeEnum.RESOURCE_ACCESS_DENIED, "作品当前不提供市场预览");
+        }
     }
 
     /**
@@ -97,10 +107,11 @@ public class WorkPreviewService {
         if (viewerAccountId == null) {
             return "LIMITED";
         }
-        if (viewerAccountId.equals(work.getCreatorAccountId())) {
+        if (viewerAccountId.equals(work.getCreatorAccountId()) || FieldVisibilityUtil.isPrivilegedViewer()) {
             return "FULL";
         }
-        if (licenseRecordMapper.existsActiveLicense(work.getId(), viewerAccountId)) {
+        if (!"RISK_FROZEN".equals(work.getStatus())
+                && licenseRecordMapper.existsActiveLicense(work.getId(), viewerAccountId)) {
             return "FULL";
         }
         return "LIMITED";
@@ -109,45 +120,31 @@ public class WorkPreviewService {
     /**
      * 构建预览响应对象
      * <p>
-     * 根据访问级别和文件类型生成签名 URL，LIMITED 级别对音视频附加时长限制。
+     * 完整访问签发原件地址；有限访问只签发服务端生成的水印图片或截取片段。
      * </p>
      *
      * @param file        文件实体
      * @param accessLevel 访问级别（FULL/LIMITED）
      * @return 预览URL响应对象
      */
-    private PreviewUrlVO buildPreviewResponse(WorkFileEntity file, String accessLevel) {
+    private PreviewUrlVO buildPreviewResponse(WorkFileEntity file, String accessLevel, String workType) {
         PreviewUrlVO vo = new PreviewUrlVO();
         vo.setAccessLevel(accessLevel);
         vo.setFileType(file.getFileType());
         vo.setFileName(file.getFileName());
         vo.setFileSize(file.getFileSize());
 
-        String fileType = file.getFileType() != null ? file.getFileType().toUpperCase() : "";
-
         if ("FULL".equals(accessLevel)) {
             // 完整访问：直接生成签名URL，无时长限制
             vo.setPreviewUrl(storageService.getPresignedUrl(file.getFilePath(), PREVIEW_URL_EXPIRE_MINUTES));
             vo.setPreviewDurationSeconds(null);
         } else {
-            // 有限访问：根据文件类型区分处理策略
-            switch (fileType) {
-                case "PNG", "JPG", "JPEG", "GIF", "WEBP" ->  {
-                    // 图片类型：生成签名URL，前端叠加水印
-                    vo.setPreviewUrl(storageService.getPresignedUrl(file.getFilePath(), PREVIEW_URL_EXPIRE_MINUTES));
-                }
-                case "MP3", "WAV", "OGG", "FLAC" -> {
-                    // 音频类型：生成签名URL，限制试听时长
-                    vo.setPreviewUrl(storageService.getPresignedUrl(file.getFilePath(), PREVIEW_URL_EXPIRE_MINUTES));
-                    vo.setPreviewDurationSeconds(LIMITED_DURATION_SECONDS);
-                }
-                case "MP4", "MOV", "AVI", "WEBM" -> {
-                    // 视频类型：生成签名URL，限制试看时长
-                    vo.setPreviewUrl(storageService.getPresignedUrl(file.getFilePath(), PREVIEW_URL_EXPIRE_MINUTES));
-                    vo.setPreviewDurationSeconds(LIMITED_DURATION_SECONDS);
-                }
-                // 其他类型不提供预览
-                default -> vo.setPreviewUrl(null);
+            if (java.util.Set.of("IMAGE", "AUDIO", "VIDEO").contains(workType)) {
+                var preview = previewGenerationService.generate(file, workType);
+                vo.setPreviewUrl(storageService.getPresignedUrl(preview.objectName(), PREVIEW_URL_EXPIRE_MINUTES));
+                vo.setFileType(preview.fileType());
+                vo.setFileSize(preview.fileSize());
+                vo.setPreviewDurationSeconds(preview.durationSeconds());
             }
         }
         return vo;

@@ -1,9 +1,11 @@
 <template>
   <!-- 验真未找到/未通过页 -->
-  <div class="verify-not-found-page">
+  <div data-page="VerifyNotFound" class="lc-page verify-not-found-page">
     <el-result icon="error" title="未找到匹配记录">
       <template #sub-title>
-        <p>未找到与 <strong>{{ queryValue }}</strong> 匹配的版权登记记录</p>
+        <p>
+          未找到与 <strong>{{ queryValue }}</strong> 匹配的版权登记记录
+        </p>
         <p class="sub-hint">请检查输入是否正确，或确认查询方式是否匹配</p>
       </template>
       <template #extra>
@@ -27,7 +29,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-
 const route = useRoute()
 const queryValue = computed(() => (route.query.queryValue as string) || '(未知)')
 </script>
@@ -40,7 +41,7 @@ const queryValue = computed(() => (route.query.queryValue as string) || '(未知
 }
 
 .sub-hint {
-  color: #999;
+  color: #55645c;
   font-size: 13px;
   margin-top: 4px;
 }

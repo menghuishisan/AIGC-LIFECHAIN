@@ -69,6 +69,9 @@ public interface OrderService {
     /** 队列和定时补偿共用的过期入口，先核实并关闭渠道交易。 */
     void expireOrder(String orderNo);
 
+    /** 支付事实提交后启动授权；重复调用时会在订单锁内收敛为幂等返回。 */
+    void startLicenseGrant(String orderNo);
+
     /** 仅重试确定未提交的授权背书失败，复用原授权编号及合同内容。 */
     void retryLicenseGrant(String orderNo);
 

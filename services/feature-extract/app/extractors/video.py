@@ -114,11 +114,11 @@ class PdqVideoExtractor(Extractor):
         )
 
 
-def extract_video(file_url: str) -> dict:
+def extract_video(object_name: str) -> dict:
     """主流程入口：下载文件 → 抽帧 → PDQ 聚合 → 返回响应字典"""
-    logger.info("开始视频特征提取: %s", file_url[:100])
+    logger.info("开始视频特征提取: %s", object_name[:100])
     extractor = PdqVideoExtractor()
-    with download_to_tempfile(file_url, suffix=".video") as path:
+    with download_to_tempfile(object_name, suffix=".video") as path:
         result = extractor.extract(path)
     logger.info("视频特征提取完成: hash=%s, frames=%s",
                 result.perceptual_hash[:16], result.extra.get("frame_count"))

@@ -1,67 +1,108 @@
 <template>
-  <!-- 注册页 -->
-  <div class="register-page">
-    <div class="register-card">
-      <div class="register-card__header">
-        <span class="register-card__logo" @click="router.push('/login')">◈ LifeChain</span>
-        <h2>创建账户</h2>
-        <p>注册后即可使用 AIGC 内容可信管理平台</p>
-      </div>
-      <el-form ref="formRef" :model="form" :rules="rules" @submit.prevent="handleRegister">
-        <el-form-item prop="nickname">
-          <el-input v-model="form.nickname" placeholder="昵称" size="large" :prefix-icon="User" />
-        </el-form-item>
-        <el-form-item prop="mobile">
-          <el-input v-model="form.mobile" placeholder="手机号" size="large" :prefix-icon="Phone" maxlength="11" />
-        </el-form-item>
-        <el-form-item prop="smsCode">
-          <div class="sms-row">
-            <el-input v-model="form.smsCode" placeholder="短信验证码" size="large" maxlength="6" />
-            <el-button
-              size="large"
-              :disabled="smsCooldown > 0 || !isMobileValid"
-              :loading="smsLoading"
-              class="sms-btn"
-              @click="handleSendSms"
-            >
-              {{ smsCooldown > 0 ? `${smsCooldown}s 后重发` : '获取验证码' }}
-            </el-button>
-          </div>
-        </el-form-item>
-        <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="密码（8-32位）" size="large" :prefix-icon="Lock" show-password />
-        </el-form-item>
-        <el-form-item prop="confirmPassword">
-          <el-input v-model="form.confirmPassword" type="password" placeholder="确认密码" size="large" :prefix-icon="Lock" show-password />
-        </el-form-item>
-        <el-form-item prop="accountType">
-          <el-radio-group v-model="form.accountType">
-            <el-radio value="PERSONAL">个人账户</el-radio>
-            <el-radio value="ENTERPRISE">企业账户</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" size="large" :loading="loading" class="register-card__btn" @click="handleRegister">
-            注册
+  <AuthLayout title="创建账户" description="完成手机号验证，开始管理作品和授权。">
+    <el-form
+      ref="formRef"
+      class="auth-form"
+      :model="form"
+      :rules="rules"
+      label-position="top"
+      @submit.prevent="handleRegister"
+    >
+      <el-form-item label="昵称" prop="nickname">
+        <el-input
+          v-model="form.nickname"
+          autocomplete="nickname"
+          placeholder="请输入昵称"
+          size="large"
+          :prefix-icon="User"
+          maxlength="64"
+        />
+      </el-form-item>
+      <el-form-item label="手机号" prop="mobile">
+        <el-input
+          v-model="form.mobile"
+          autocomplete="tel"
+          inputmode="tel"
+          placeholder="请输入手机号"
+          size="large"
+          :prefix-icon="Phone"
+          maxlength="11"
+        />
+      </el-form-item>
+      <el-form-item label="短信验证码" prop="smsCode">
+        <div class="sms-row">
+          <el-input
+            v-model="form.smsCode"
+            autocomplete="one-time-code"
+            inputmode="numeric"
+            placeholder="6位验证码"
+            size="large"
+            maxlength="6"
+          />
+          <el-button
+            size="large"
+            :disabled="smsCooldown > 0 || !isMobileValid"
+            :loading="smsLoading"
+            @click="handleSendSms"
+          >
+            {{ smsCooldown > 0 ? smsCooldown + ' 秒后重发' : '获取验证码' }}
           </el-button>
-        </el-form-item>
-      </el-form>
-      <div class="register-card__footer">
-        <el-button link type="primary" @click="router.push('/login')">已有账户？去登录</el-button>
-      </div>
+        </div>
+      </el-form-item>
+      <el-form-item label="密码" prop="password">
+        <el-input
+          v-model="form.password"
+          autocomplete="new-password"
+          type="password"
+          placeholder="8至32位密码"
+          size="large"
+          :prefix-icon="Lock"
+          show-password
+        />
+      </el-form-item>
+      <el-form-item label="确认密码" prop="confirmPassword">
+        <el-input
+          v-model="form.confirmPassword"
+          autocomplete="new-password"
+          type="password"
+          placeholder="再次输入密码"
+          size="large"
+          :prefix-icon="Lock"
+          show-password
+        />
+      </el-form-item>
+      <el-form-item label="账户类型" prop="accountType">
+        <el-radio-group v-model="form.accountType"
+          ><el-radio value="PERSONAL">个人账户</el-radio
+          ><el-radio value="ENTERPRISE">企业账户</el-radio></el-radio-group
+        >
+      </el-form-item>
+      <el-button
+        type="primary"
+        native-type="submit"
+        size="large"
+        :loading="loading"
+        class="auth-submit"
+        >注册</el-button
+      >
+    </el-form>
+    <div class="auth-form__footer">
+      <el-button link type="primary" @click="router.push('/login')">已有账户？去登录</el-button>
     </div>
-  </div>
+  </AuthLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import AuthLayout from '@/app/layouts/AuthLayout.vue'
 import { Lock, Phone, User } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import type { FormInstance } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '@/app/store/user'
 import { authApi } from '@/shared/api'
 import { generateRequestId } from '@/shared/utils'
+defineOptions({ name: 'PortalRegisterPage' })
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -82,7 +123,7 @@ const form = reactive({
 
 const isMobileValid = computed(() => /^1[3-9]\d{9}$/.test(form.mobile))
 
-const rules = {
+const rules: FormRules = {
   nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }],
   mobile: [
     { required: true, message: '请输入手机号', trigger: 'blur' },
@@ -99,7 +140,7 @@ const rules = {
   confirmPassword: [
     { required: true, message: '请确认密码', trigger: 'blur' },
     {
-      validator: (_rule: any, value: string, callback: Function) => {
+      validator: (_rule, value: string, callback) => {
         if (value !== form.password) callback(new Error('两次密码不一致'))
         else callback()
       },
@@ -110,6 +151,7 @@ const rules = {
 }
 
 async function handleSendSms() {
+  if (smsLoading.value || smsCooldown.value > 0) return
   if (!isMobileValid.value) {
     ElMessage.warning('请先输入正确的手机号')
     return
@@ -134,6 +176,7 @@ async function handleSendSms() {
 }
 
 async function handleRegister() {
+  if (loading.value) return
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
@@ -164,67 +207,14 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped lang="scss">
-.register-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--el-bg-color-page);
-}
-
-.register-card {
-  width: 420px;
-  padding: 40px;
-  background: var(--el-bg-color);
-  border-radius: 12px;
-  box-shadow: var(--el-box-shadow-light);
-
-  &__header {
-    text-align: center;
-    margin-bottom: 32px;
-
-    h2 {
-      margin: 8px 0 4px;
-      font-size: 22px;
-      font-weight: 600;
-    }
-
-    p {
-      color: var(--el-text-color-secondary);
-      font-size: 13px;
-    }
-  }
-
-  &__logo {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--el-color-primary);
-    cursor: pointer;
-  }
-
-  &__btn {
-    width: 100%;
-  }
-
-  &__footer {
-    text-align: center;
-    margin-top: 16px;
-  }
-}
-
+<style scoped>
 .sms-row {
   display: flex;
-  gap: 8px;
   width: 100%;
-
-  .el-input {
-    flex: 1;
-  }
-
-  .sms-btn {
-    white-space: nowrap;
-    min-width: 120px;
-  }
+  gap: 8px;
+}
+.sms-row .el-input {
+  min-width: 0;
+  flex: 1;
 }
 </style>

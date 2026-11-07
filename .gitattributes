@@ -1,0 +1,13 @@
+# 跨 Windows 与 WSL 保持源码和执行脚本的换行一致。
+* text=auto
+*.sh text eol=lf
+*.go text eol=lf
+*.java text eol=lf
+*.vue text eol=lf
+*.ts text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.scss text eol=lf
+Makefile text eol=lf

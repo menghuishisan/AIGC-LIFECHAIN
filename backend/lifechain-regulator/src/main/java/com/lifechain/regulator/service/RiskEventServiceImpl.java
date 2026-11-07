@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * <ol>
  *   <li>创建风险事件：生成编号、初始状态为RISK_MARKED</li>
  *   <li>处理风险事件：支持确认、释放、冻结、审查等多种处置动作</li>
- *   <li>分页查询待处理事件和按编号查询详情</li>
+ *   <li>按状态分页查询事件和按编号查询详情</li>
  * </ol>
  * 所有状态变更均记录审计日志和状态变更历史，确保全链路可追溯。
  * </p>
@@ -177,10 +177,10 @@ public class RiskEventServiceImpl implements RiskEventService {
      * {@inheritDoc}
      */
     @Override
-    public PageResult<RiskEventVO> listPendingEvents(PageQuery query) {
+    public PageResult<RiskEventVO> listEvents(String status, PageQuery query) {
         Page<RiskEventEntity> page = new Page<>(query.getPageNo(), query.getPageSize());
         LambdaQueryWrapper<RiskEventEntity> wrapper = new LambdaQueryWrapper<RiskEventEntity>()
-                .in(RiskEventEntity::getStatus, HANDLEABLE_STATUSES)
+                .eq(status != null && !status.isBlank(), RiskEventEntity::getStatus, status)
                 .orderByDesc(RiskEventEntity::getCreatedAt);
         Page<RiskEventEntity> result = riskEventMapper.selectPage(page, wrapper);
 

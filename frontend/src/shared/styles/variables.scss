@@ -1,65 +1,52 @@
-/**
- * 全局样式变量
- * 与设计文档色彩系统对齐
- */
+/* 共用设计令牌；各业务端在根布局中覆盖品牌强调色。 */
+$page-bg: var(--lc-canvas, #f2f4f0);
+$content-white: var(--lc-surface, #ffffff);
+$card-border: var(--lc-line, #dce2dd);
+$text-primary: var(--lc-ink, #202a28);
+$text-secondary: var(--lc-muted, #55645c);
+$text-auxiliary: #55645c;
 
-/* ========== Portal 色彩系统 ========== */
-$page-bg: #F4F7F8;
-$content-white: #FFFFFF;
-$card-border: #D9E3E6;
-$text-primary: #132126;
-$text-secondary: #5E727A;
-$text-auxiliary: #8A9AA1;
+$brand-primary: var(--lc-accent, #2f6b60);
+$brand-dark: var(--lc-accent-strong, #205349);
+$brand-light-bg: var(--lc-accent-soft, #e7f1eb);
+$chain-info-color: #4f7485;
 
-/* 品牌色 */
-$brand-primary: #0F5F66;
-$brand-dark: #0A3F45;
-$brand-light-bg: #E7F4F5;
-$chain-info-color: #0B7FA2;
+$color-success: #397756;
+$color-warning: #895715;
+$color-danger: #b34f45;
+$color-frozen: #853d3b;
+$color-pending: #446374;
+$color-draft: #59685f;
 
-/* 状态色 */
-$color-success: #1E8E5A;
-$color-warning: #C98A12;
-$color-danger: #C4473D;
-$color-frozen: #8B3D3D;
-$color-pending: #4F6DB8;
-$color-draft: #7A8691;
+$admin-sidebar-bg: #222d2b;
+$admin-sidebar-active: #3b4137;
+$admin-content-bg: var(--lc-canvas, #f0f2ed);
+$admin-primary: var(--lc-accent, #bc7b39);
+$admin-text-primary: #202a28;
+$admin-text-secondary: #55645c;
 
-/* ========== Admin 色彩系统 ========== */
-$admin-sidebar-bg: #15232A;
-$admin-sidebar-active: #1F3A45;
-$admin-content-bg: #F5F7F9;
-$admin-primary: #0B6B73;
-$admin-text-primary: #18252B;
-$admin-text-secondary: #62757D;
+$regulator-sidebar-bg: #302b2a;
+$regulator-sidebar-active: #493735;
+$regulator-content-bg: var(--lc-canvas, #f2f0ed);
+$regulator-primary: var(--lc-accent, #a55249);
+$regulator-danger: #b34f45;
+$regulator-frozen: #853d3b;
+$regulator-basis: #6f6258;
 
-/* ========== Regulator 色彩系统 ========== */
-$regulator-sidebar-bg: #1B242B;
-$regulator-sidebar-active: #283841;
-$regulator-content-bg: #F4F6F8;
-$regulator-primary: #2D6973;
-$regulator-danger: #B84A42;
-$regulator-frozen: #8D3D3D;
-$regulator-basis: #49697A;
-
-/* ========== 布局尺寸 ========== */
-$header-height: 64px;
-$sidebar-width: 248px;
+$header-height: 60px;
+$sidebar-width: 232px;
 $admin-header-height: 60px;
-$admin-sidebar-width: 240px;
-$content-max-width: 1440px;
-$content-padding: 24px;
-$card-gap: 20px;
+$admin-sidebar-width: 232px;
+$content-max-width: 1520px;
+$content-padding: 28px;
+$card-gap: 16px;
 
-/* 圆角 */
-$border-radius-lg: 16px;
-$border-radius-md: 12px;
-$border-radius-sm: 10px;
+$border-radius-lg: 6px;
+$border-radius-md: 4px;
+$border-radius-sm: 3px;
 
-/* 阴影 */
-$card-shadow: 0 8px 24px rgba(15, 40, 45, 0.06);
-$card-shadow-hover: 0 12px 28px rgba(15, 40, 45, 0.10);
+$card-shadow: none;
+$card-shadow-hover: 0 4px 14px rgba(28, 44, 38, 0.08);
 
-/* 字体 */
-$font-family-cn: 'PingFang SC', 'Microsoft YaHei', sans-serif;
-$font-family-mono: 'JetBrains Mono', 'Consolas', monospace;
+$font-family-cn: Inter, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+$font-family-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;

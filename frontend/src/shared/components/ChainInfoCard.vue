@@ -10,7 +10,7 @@
           link
           type="primary"
           size="small"
-          @click="onCopy(chainInfo.txHash!)"
+          @click="onCopy(chainInfo.txHash)"
         >
           复制
         </el-button>
@@ -30,30 +30,33 @@ import { ElMessage } from 'element-plus'
 import type { ChainInfo } from '@/shared/types'
 import StatusTag from './StatusTag.vue'
 import { copyToClipboard } from '@/shared/utils'
-
 defineProps<{
   chainInfo?: ChainInfo | null
 }>()
 
 /** 复制到剪贴板 */
-async function onCopy(text: string) {
+async function onCopy(text?: string) {
+  if (!text) return
   const ok = await copyToClipboard(text)
   if (ok) {
     ElMessage.success('已复制')
+  } else {
+    ElMessage.error('复制失败，请手动选择交易哈希复制')
   }
 }
 </script>
 
 <style lang="scss" scoped>
 .chain-info-card {
-  background: #E7F4F5;
-  border-radius: 12px;
+  background: var(--lc-accent-soft);
+  border: 1px solid var(--lc-line);
+  border-radius: 4px;
   padding: 16px;
 
   &__title {
     font-size: 14px;
     font-weight: 600;
-    color: #0B7FA2;
+    color: var(--lc-accent-strong);
     margin-bottom: 12px;
   }
 }

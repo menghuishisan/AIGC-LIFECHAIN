@@ -1,18 +1,38 @@
 <template>
   <!-- DID 管理列表页（管理员） -->
-  <div class="did-list-page">
-    <div class="page-header"><h2>DID 管理</h2></div>
+  <div data-page="DidList" class="lc-page did-list-page">
+    <PageLoadFeedback :message="pageError" @retry="loadData" />
+    <div class="page-header">
+      <div>
+        <h1>DID 管理</h1>
+        <p class="page-header__desc">管理数字身份申请、审核和生效进度。</p>
+      </div>
+    </div>
 
     <div class="filter-bar">
-      <el-select v-model="query.status" placeholder="DID 状态" clearable style="width: 180px" @change="loadData">
-        <el-option v-for="(label, value) in DidStatusMap" :key="value" :label="label" :value="value" />
+      <el-select
+        aria-label="DID 状态"
+        v-model="query.status"
+        placeholder="DID 状态"
+        clearable
+        style="width: 180px"
+        @change="searchFromFirstPage"
+      >
+        <el-option
+          v-for="(label, value) in DidStatusMap"
+          :key="value"
+          :label="label"
+          :value="value"
+        />
       </el-select>
     </div>
 
     <el-table :data="list" v-loading="loading" stripe>
       <el-table-column prop="didNo" label="DID 编号" min-width="180">
         <template #default="{ row }">
-          <el-button link type="primary" @click="router.push(`/admin/dids/${row.didNo}`)">{{ row.didNo }}</el-button>
+          <el-button link type="primary" @click="router.push(`/admin/dids/${row.didNo}`)">{{
+            row.didNo
+          }}</el-button>
         </template>
       </el-table-column>
       <el-table-column prop="didValue" label="DID 值" min-width="200" show-overflow-tooltip />
@@ -28,42 +48,71 @@
     </el-table>
 
     <div class="pagination-wrap">
-      <el-pagination v-model:current-page="query.pageNo" v-model:page-size="query.pageSize" :total="total"
-        layout="total, sizes, prev, pager, next" :page-sizes="[10, 20, 50]" @size-change="loadData" @current-change="loadData" />
+      <PagePagination
+        v-model:current-page="query.pageNo"
+        v-model:page-size="query.pageSize"
+        :total="total"
+        layout="total, sizes, prev, pager, next"
+        :page-sizes="[10, 20, 50]"
+        @change="loadData"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import PagePagination from '@/shared/components/PagePagination.vue'
+import type { DidInfoVO } from '@/shared/types'
+import { usePageLoad } from '@/shared/composables/usePageLoad'
+import PageLoadFeedback from '@/shared/components/PageLoadFeedback.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authApi } from '@/shared/api'
 import { StatusTag } from '@/shared/components'
 import { DidStatusMap } from '@/shared/constants'
 import { formatTime } from '@/shared/utils'
+const { pageError, runPageLoad } = usePageLoad()
 
 const router = useRouter()
 const loading = ref(false)
-const list = ref<any[]>([])
+const list = ref<DidInfoVO[]>([])
 const total = ref(0)
 const query = reactive({ status: '', pageNo: 1, pageSize: 10 })
 
 async function loadData() {
-  loading.value = true
-  try {
-    const res = await authApi.getDidList({ ...query, status: query.status || undefined })
-    list.value = res.data.records
-    total.value = res.data.total
-  } finally {
-    loading.value = false
-  }
+  await runPageLoad(async (isCurrent) => {
+    loading.value = true
+    try {
+      const res = await authApi.getDidList({ ...query, status: query.status || undefined })
+      if (!isCurrent()) return
+      list.value = res.data.records
+      total.value = res.data.total
+    } finally {
+      if (isCurrent()) loading.value = false
+    }
+  })
 }
 
 onMounted(loadData)
+/** 改变筛选条件后从第一页重新读取。 */
+function searchFromFirstPage() {
+  query.pageNo = 1
+  void loadData()
+}
 </script>
 
 <style scoped lang="scss">
-.page-header { margin-bottom: 16px; }
-.filter-bar { display: flex; gap: 12px; margin-bottom: 16px; }
-.pagination-wrap { display: flex; justify-content: flex-end; margin-top: 16px; }
+.page-header {
+  margin-bottom: 16px;
+}
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.pagination-wrap {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
 </style>

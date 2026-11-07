@@ -2,7 +2,7 @@
  * 统一API响应结构
  * 与后端 ApiResponse<T> 对齐
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   /** 业务码，000000 表示成功 */
   code: string
   /** 提示消息 */
@@ -29,7 +29,7 @@ export interface ApiResponse<T = any> {
  * 统一分页结果
  * 与后端 PageResult<T> 对齐
  */
-export interface PageResult<T = any> {
+export interface PageResult<T = unknown> {
   /** 数据记录列表 */
   records: T[]
   /** 总记录数 */

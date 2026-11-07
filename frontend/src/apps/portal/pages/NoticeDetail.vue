@@ -1,13 +1,17 @@
 <template>
   <!-- 通知详情页 -->
-  <div class="notice-detail-page" v-loading="loading">
+  <div data-page="NoticeDetail" class="lc-page notice-detail-page" v-loading="loading">
+    <PageLoadFeedback :message="pageError" @retry="loadData" />
     <template v-if="notice">
       <div class="page-header">
         <el-button link @click="router.back()">&lt; 返回</el-button>
       </div>
 
       <div class="lc-card notice-content-card">
-        <h2 class="notice-title">{{ notice.title }}</h2>
+        <div>
+          <h1 class="notice-title">{{ notice.title }}</h1>
+          <p class="page-header__desc">查看通知内容及关联业务。</p>
+        </div>
         <div class="notice-meta">
           <el-tag size="small">{{ notice.noticeType }}</el-tag>
           <span class="notice-time">{{ formatTime(notice.createdAt) }}</span>
@@ -20,7 +24,9 @@
           <el-divider />
           <p>
             关联业务：
-            <el-button link type="primary" @click="goBiz">{{ BizTypeMap[notice.bizType] || notice.bizType }} - {{ notice.bizNo }}</el-button>
+            <el-button link type="primary" @click="goBiz"
+              >{{ BizTypeMap[notice.bizType] || notice.bizType }} - {{ notice.bizNo }}</el-button
+            >
           </p>
         </div>
       </div>
@@ -29,12 +35,15 @@
 </template>
 
 <script setup lang="ts">
+import { usePageLoad } from '@/shared/composables/usePageLoad'
+import PageLoadFeedback from '@/shared/components/PageLoadFeedback.vue'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { appApi } from '@/shared/api'
 import { BizTypeMap } from '@/shared/constants'
 import { formatTime, generateRequestId } from '@/shared/utils'
 import type { MessageNoticeVO } from '@/shared/types'
+const { pageError, runPageLoad } = usePageLoad()
 
 const props = defineProps<{ noticeNo: string }>()
 const router = useRouter()
@@ -52,18 +61,21 @@ const sanitizedContent = computed(() => {
 })
 
 async function loadData() {
-  loading.value = true
-  try {
-    const res = await appApi.getNoticeDetail(props.noticeNo)
-    notice.value = res.data
-    /* 标记已读 */
-    if (!res.data.readFlag) {
-      await appApi.markNoticeRead(props.noticeNo, generateRequestId())
-      notice.value!.readFlag = true
+  await runPageLoad(async (isCurrent) => {
+    loading.value = true
+    try {
+      const res = await appApi.getNoticeDetail(props.noticeNo)
+      if (!isCurrent()) return
+      notice.value = res.data
+      /* 标记已读 */
+      if (!res.data.readFlag) {
+        await appApi.markNoticeRead(props.noticeNo, generateRequestId())
+        notice.value!.readFlag = true
+      }
+    } finally {
+      if (isCurrent()) loading.value = false
     }
-  } finally {
-    loading.value = false
-  }
+  })
 }
 
 /** 关联业务跳转 */
@@ -100,7 +112,7 @@ onMounted(loadData)
 }
 .notice-time {
   font-size: 13px;
-  color: #909399;
+  color: #55645c;
 }
 .notice-body {
   line-height: 1.8;

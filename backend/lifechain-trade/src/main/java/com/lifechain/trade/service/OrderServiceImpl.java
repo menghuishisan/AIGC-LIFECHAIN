@@ -26,7 +26,6 @@ import com.lifechain.infra.notification.NotificationService;
 import com.lifechain.infra.mq.MessagePublisher;
 import com.lifechain.infra.mq.RabbitMQConfig;
 import com.lifechain.infra.payment.*;
-import com.lifechain.infra.redis.RedisService;
 import com.lifechain.settlement.entity.WorkSettleRuleEntity;
 import com.lifechain.settlement.mapper.SettlementRecordMapper;
 import com.lifechain.settlement.mapper.WorkSettleRuleMapper;
@@ -38,6 +37,7 @@ import com.lifechain.trade.mapper.*;
 import com.lifechain.work.entity.WorkEntity;
 import com.lifechain.work.mapper.WorkMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -67,6 +67,7 @@ import java.util.Set;
 public class OrderServiceImpl implements OrderService {
 
     private final TradeOrderMapper orderMapper;
+    private final OrderSnapshotWriter orderSnapshotWriter;
     private final TradeOrderSnapshotMapper snapshotMapper;
     private final AccountMapper accountMapper;
     private final DidRecordMapper didRecordMapper;
@@ -86,9 +87,9 @@ public class OrderServiceImpl implements OrderService {
     private final SettlementRecordMapper settlementRecordMapper;
     private final SettlementService settlementService;
     private final NotificationService notificationService;
-    private final RedisService redisService;
     private final MessagePublisher messagePublisher;
     private final PlatformTransactionManager transactionManager;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${lifechain.pay.wechat.notifyUrl:}")
     private String wechatNotifyUrl;
@@ -113,22 +114,12 @@ public class OrderServiceImpl implements OrderService {
     public OrderDetailVO createOrder(Long buyerAccountId, CreateOrderRequest request) {
         log.info("创建订单，buyerAccountId={}, listingNo={}", buyerAccountId, request.getListingNo());
 
-        // 0. 分布式锁：防止同一上架记录被并发下单
-        String lockKey = "lock:order:listing:" + request.getListingNo();
-        boolean locked = redisService.setIfAbsent(lockKey, String.valueOf(buyerAccountId), 10, java.util.concurrent.TimeUnit.SECONDS);
-        if (!locked) {
-            throw new BizException(ErrorCodeEnum.STATUS_INVALID, "订单正在处理中，请勿重复提交");
-        }
-        try {
-            return doCreateOrder(buyerAccountId, request);
-        } finally {
-            redisService.delete(lockKey);
-        }
+        return doCreateOrder(buyerAccountId, request);
     }
 
     private OrderDetailVO doCreateOrder(Long buyerAccountId, CreateOrderRequest request) {
         // 1. 查询上架信息
-        WorkListingEntity listing = listingMapper.selectByListingNo(request.getListingNo());
+        WorkListingEntity listing = listingMapper.selectByListingNoForUpdate(request.getListingNo());
         if (listing == null) {
             throw new BizException(ErrorCodeEnum.RESOURCE_NOT_FOUND, "上架记录不存在");
         }
@@ -181,38 +172,9 @@ public class OrderServiceImpl implements OrderService {
         order.setRequestId(request.getRequestId());
         orderMapper.insert(order);
 
-        // 4. 创建订单快照（上架信息快照）
-        try {
-            String listingJson = objectMapper.writeValueAsString(listing);
-            TradeOrderSnapshotEntity snapshot = new TradeOrderSnapshotEntity();
-            snapshot.setOrderId(order.getId());
-            snapshot.setOrderNo(order.getOrderNo());
-            snapshot.setSnapshotType("LISTING_INFO");
-            snapshot.setSnapshotData(listingJson);
-            snapshot.setSnapshotHash(HashUtil.sha256(listingJson));
-            snapshot.setSnapshotTime(now);
-            snapshotMapper.insert(snapshot);
-        } catch (Exception e) {
-            log.warn("创建订单快照失败: orderNo={}", order.getOrderNo(), e);
-        }
-
-        // 4.1 创建分账规则快照
-        try {
-            WorkSettleRuleEntity settleRule = fixedRule;
-            if (settleRule != null) {
-                String ruleJson = objectMapper.writeValueAsString(settleRule);
-                TradeOrderSnapshotEntity ruleSnapshot = new TradeOrderSnapshotEntity();
-                ruleSnapshot.setOrderId(order.getId());
-                ruleSnapshot.setOrderNo(order.getOrderNo());
-                ruleSnapshot.setSnapshotType("SETTLE_RULE");
-                ruleSnapshot.setSnapshotData(ruleJson);
-                ruleSnapshot.setSnapshotHash(HashUtil.sha256(ruleJson));
-                ruleSnapshot.setSnapshotTime(now);
-                snapshotMapper.insert(ruleSnapshot);
-            }
-        } catch (Exception e) {
-            log.warn("创建分账规则快照失败: orderNo={}", order.getOrderNo(), e);
-        }
+        orderSnapshotWriter.save(order.getId(), order.getOrderNo(), "LISTING_INFO", listing, now);
+        orderSnapshotWriter.save(order.getId(), order.getOrderNo(), "SETTLE_RULE",
+                new SettlementRuleSnapshot(creatorRatio, platformRatio), now);
 
         // 5. 写入状态历史
         auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), order.getOrderNo(),
@@ -442,7 +404,7 @@ public class OrderServiceImpl implements OrderService {
                 "您的订单 " + order.getOrderNo() + " 已支付成功，授权正在处理中。", "ORDER", "ORDER", order.getOrderNo());
         notificationService.sendNotice(order.getCreatorAccountId(), "作品被购买",
                 "您的作品已被购买，订单号：" + order.getOrderNo() + "，授权正在上链处理。", "ORDER", "ORDER", order.getOrderNo());
-        grantLicense(order);
+        eventPublisher.publishEvent(new LicenseGrantRequestedEvent(order.getOrderNo()));
     }
 
     @Override
@@ -508,6 +470,32 @@ public class OrderServiceImpl implements OrderService {
                 status, order.getOrderStatus(), "订单超时自动过期", "ORDER_EXPIRED", null);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void startLicenseGrant(String orderNo) {
+        TradeOrderEntity order = orderMapper.selectByOrderNoForUpdate(orderNo);
+        if (order == null
+                || !PayStatusEnum.PAY_SUCCESS.getCode().equals(order.getPayStatus())
+                || !OrderStatusEnum.PAY_CONFIRMED.getCode().equals(order.getOrderStatus())
+                || licenseMapper.selectByOrderId(order.getId()) != null) {
+            return;
+        }
+        final WorkListingEntity listing;
+        try {
+            listing = readListingSnapshot(order);
+        } catch (IllegalStateException e) {
+            // 审计快照损坏属于数据异常，停止自动交付，避免反复补偿阻塞其他订单。
+            order.setOrderStatus(OrderStatusEnum.ORDER_EXCEPTION.getCode());
+            orderMapper.updateById(order);
+            auditService.writeStatusHistory(BizTypeEnum.ORDER.getCode(), order.getId(), orderNo,
+                    OrderStatusEnum.PAY_CONFIRMED.getCode(), OrderStatusEnum.ORDER_EXCEPTION.getCode(),
+                    "订单审计快照无效，需人工核实授权或退款", "INVALID_ORDER_SNAPSHOT", null);
+            log.error("订单审计快照校验失败: orderNo={}", orderNo, e);
+            return;
+        }
+        grantLicense(order, listing);
+    }
+
     /**
      * 授权生效（内部方法）
      * <p>
@@ -518,11 +506,8 @@ public class OrderServiceImpl implements OrderService {
      *
      * @param order 已支付确认的订单实体
      */
-    private void grantLicense(TradeOrderEntity order) {
+    private void grantLicense(TradeOrderEntity order, WorkListingEntity listing) {
         LocalDateTime now = DateTimeUtil.nowUtc();
-
-        // 1. 查询上架信息获取授权范围
-        WorkListingEntity listing = listingMapper.selectByListingNo(order.getListingNo());
 
         // 2. 创建授权记录
         LicenseRecordEntity license = new LicenseRecordEntity();
@@ -536,16 +521,19 @@ public class OrderServiceImpl implements OrderService {
         license.setLicenseType(order.getLicenseType());
         license.setLicenseStatus(LicenseStatusEnum.LICENSE_PENDING.getCode());
         license.setChainStatus(ChainStatusEnum.CHAIN_PENDING.getCode());
-        if (listing != null) {
-            license.setScopeDescription(listing.getScopeDescription());
-            if (listing.getDurationDays() != null && listing.getDurationDays() > 0) {
-                license.setExpireTime(now.plusDays(listing.getDurationDays()));
-            }
+        license.setScopeDescription(listing.getScopeDescription());
+        if (listing.getDurationDays() != null && listing.getDurationDays() > 0) {
+            license.setExpireTime(now.plusDays(listing.getDurationDays()));
         }
         license.setEffectiveTime(now);
-        String licenseData = license.getLicenseNo() + license.getWorkNo()
-                + license.getLicenseType() + now;
-        license.setLicenseHash(HashUtil.sha256(licenseData));
+        try {
+            String licenseData = objectMapper.writeValueAsString(new LicenseTermsSnapshot(
+                    license.getLicenseNo(), license.getWorkNo(), order.getBuyerSubjectId(), order.getCreatorSubjectId(),
+                    license.getLicenseType(), license.getScopeDescription(), now, license.getExpireTime()));
+            license.setLicenseHash(HashUtil.sha256(licenseData));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException("授权条款摘要生成失败", e);
+        }
         licenseMapper.insert(license);
 
         // 3. 更新订单到 AUTH_GRANTING
@@ -699,6 +687,42 @@ public class OrderServiceImpl implements OrderService {
             throw new BizException(ErrorCodeEnum.DID_NOT_ACTIVE, roleName + "DID未生效，当前无法完成交易授权");
         }
         return didRecord;
+    }
+
+    private record SettlementRuleSnapshot(java.math.BigDecimal creatorRatio,
+                                          java.math.BigDecimal platformRatio) {}
+
+    /** 使用结构化条款计算摘要，纳入主体、授权范围和有效期，避免拼接歧义与条款遗漏。 */
+    private record LicenseTermsSnapshot(String licenseNo, String workNo, Long buyerSubjectId, Long creatorSubjectId,
+                                        String licenseType, String scopeDescription,
+                                        LocalDateTime effectiveTime, LocalDateTime expireTime) {}
+
+    private WorkListingEntity readListingSnapshot(TradeOrderEntity order) {
+        var snapshots = snapshotMapper.selectByOrderId(order.getId()).stream()
+                .filter(snapshot -> "LISTING_INFO".equals(snapshot.getSnapshotType())).toList();
+        if (snapshots.size() != 1) throw new IllegalStateException("订单缺少唯一上架快照: " + order.getOrderNo());
+        var snapshot = snapshots.get(0);
+        if (snapshot.getSnapshotData() == null || snapshot.getSnapshotData().isBlank()
+                || !java.util.Objects.equals(snapshot.getSnapshotHash(), HashUtil.sha256(snapshot.getSnapshotData()))) {
+            throw new IllegalStateException("订单上架快照摘要不匹配: " + order.getOrderNo());
+        }
+        try {
+            WorkListingEntity listing = objectMapper.readValue(snapshot.getSnapshotData(), WorkListingEntity.class);
+            if (listing == null
+                    || !java.util.Objects.equals(order.getListingNo(), listing.getListingNo())
+                    || !java.util.Objects.equals(order.getListingId(), listing.getId())
+                    || !java.util.Objects.equals(order.getWorkId(), listing.getWorkId())
+                    || !java.util.Objects.equals(order.getWorkNo(), listing.getWorkNo())
+                    || !java.util.Objects.equals(order.getCreatorAccountId(), listing.getCreatorAccountId())
+                    || !java.util.Objects.equals(order.getLicenseType(), listing.getLicenseType())
+                    || !java.util.Objects.equals(order.getPriceAmount(), listing.getPriceAmount())
+                    || !java.util.Objects.equals(order.getCurrency(), listing.getCurrency())) {
+                throw new IllegalStateException("订单上架快照归属不匹配: " + order.getOrderNo());
+            }
+            return listing;
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException("订单上架快照解析失败: " + order.getOrderNo(), e);
+        }
     }
 
     /**

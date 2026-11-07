@@ -1,20 +1,32 @@
 <template>
   <!-- 下单确认页 -->
-  <div class="order-create-page">
+  <div data-page="OrderCreate" class="lc-page order-create-page">
+    <PageLoadFeedback :message="pageError" @retry="loadInfo" />
     <div class="page-header">
-      <h2>确认订单</h2>
+      <div>
+        <h1>确认订单</h1>
+        <p class="page-header__desc">核对作品、授权条款与支付渠道后创建订单。</p>
+      </div>
     </div>
 
-    <div class="lc-card" style="max-width: 640px;">
+    <div class="lc-card" style="max-width: 640px">
       <!-- 作品信息 -->
       <div class="order-info-section">
         <h3>作品信息</h3>
         <el-descriptions :column="1" border size="small" v-loading="infoLoading">
           <el-descriptions-item label="作品名称">{{ workInfo.title || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="作品类型">{{ WorkTypeMap[workInfo.workType] || workInfo.workType }}</el-descriptions-item>
-          <el-descriptions-item label="授权类型">{{ LicenseTypeMap[workInfo.licenseType] || workInfo.licenseType }}</el-descriptions-item>
-          <el-descriptions-item label="授权范围">{{ workInfo.scopeDescription || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="授权天数">{{ workInfo.durationDays ? `${workInfo.durationDays}天` : '永久' }}</el-descriptions-item>
+          <el-descriptions-item label="作品类型">{{
+            WorkTypeMap[workInfo.workType] || workInfo.workType
+          }}</el-descriptions-item>
+          <el-descriptions-item label="授权类型">{{
+            LicenseTypeMap[workInfo.licenseType] || workInfo.licenseType
+          }}</el-descriptions-item>
+          <el-descriptions-item label="授权范围">{{
+            workInfo.scopeDescription || '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="授权天数">{{
+            workInfo.durationDays ? `${workInfo.durationDays}天` : '永久'
+          }}</el-descriptions-item>
         </el-descriptions>
       </div>
 
@@ -41,7 +53,14 @@
 
       <!-- 提交 -->
       <div class="order-submit-section">
-        <el-button type="primary" size="large" :loading="submitting" @click="handleSubmit" style="width: 200px">
+        <el-button
+          type="primary"
+          size="large"
+          :loading="submitting"
+          :disabled="infoLoading || !!pageError || workInfo.priceAmount <= 0"
+          @click="handleSubmit"
+          style="width: 200px"
+        >
           提交订单
         </el-button>
         <el-button size="large" @click="router.back()">返回</el-button>
@@ -51,12 +70,15 @@
 </template>
 
 <script setup lang="ts">
+import { usePageLoad } from '@/shared/composables/usePageLoad'
+import PageLoadFeedback from '@/shared/components/PageLoadFeedback.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { tradeApi, workApi } from '@/shared/api'
 import { WorkTypeMap, LicenseTypeMap } from '@/shared/constants'
 import { formatCurrency, generateRequestId } from '@/shared/utils'
+const { pageError, runPageLoad } = usePageLoad()
 
 const router = useRouter()
 const route = useRoute()
@@ -64,8 +86,8 @@ const submitting = ref(false)
 const infoLoading = ref(false)
 const payChannel = ref('ALIPAY')
 
-const listingNo = route.query.listingNo as string || ''
-const workNo = route.query.workNo as string || ''
+const listingNo = (route.query.listingNo as string) || ''
+const workNo = (route.query.workNo as string) || ''
 
 const workInfo = reactive({
   title: '',
@@ -78,30 +100,38 @@ const workInfo = reactive({
 
 /** 加载作品/上架信息 */
 async function loadInfo() {
-  infoLoading.value = true
-  try {
-    if (listingNo) {
-      const res = await tradeApi.getListingDetail(listingNo)
-      const d = res.data
-      workInfo.title = d.workTitle
-      workInfo.licenseType = d.licenseType
-      workInfo.priceAmount = d.priceAmount
-      workInfo.scopeDescription = d.scopeDescription || ''
-      workInfo.durationDays = d.durationDays
+  await runPageLoad(async (isCurrent) => {
+    infoLoading.value = true
+    try {
+      if (!listingNo) throw new Error('缺少上架编号，请从市场作品页重新下单')
+      if (listingNo) {
+        const res = await tradeApi.getListingDetail(listingNo)
+        if (!isCurrent()) return
+        const d = res.data
+        workInfo.title = d.workTitle
+        workInfo.licenseType = d.licenseType
+        workInfo.priceAmount = d.priceAmount
+        workInfo.scopeDescription = d.scopeDescription || ''
+        workInfo.durationDays = d.durationDays
+        if (workNo && d.workNo !== workNo) throw new Error('作品与上架编号不匹配，请重新选择作品')
+      }
+      if (workNo) {
+        const res = await workApi.getMarketWorkDetail(workNo)
+        if (!isCurrent()) return
+        const d = res.data
+        workInfo.title = d.basicInfo?.title || workInfo.title
+        workInfo.workType = d.basicInfo?.workType || ''
+      }
+    } finally {
+      if (isCurrent()) infoLoading.value = false
     }
-    if (workNo) {
-      const res = await workApi.getMarketWorkDetail(workNo)
-      const d = res.data
-      workInfo.title = d.basicInfo?.title || workInfo.title
-      workInfo.workType = d.basicInfo?.workType || ''
-    }
-  } finally {
-    infoLoading.value = false
-  }
+  })
 }
 
 /** 提交订单 */
 async function handleSubmit() {
+  if (submitting.value) return
+  if (infoLoading.value || pageError.value || workInfo.priceAmount <= 0) return
   if (!listingNo) {
     ElMessage.error('缺少上架编号')
     return
@@ -161,7 +191,7 @@ onMounted(loadInfo)
     color: #303133;
     .price-value {
       font-size: 20px;
-      color: #E6524B;
+      color: #b53c36;
     }
   }
 }

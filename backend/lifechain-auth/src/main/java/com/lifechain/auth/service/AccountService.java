@@ -32,11 +32,12 @@ public interface AccountService {
     LoginResponse login(LoginRequest request);
 
     /**
-     * 用户退出登录（将当前Token加入黑名单）
+     * 用户退出登录，撤销当前访问令牌和属于当前账户的刷新凭证
      *
      * @param token 当前JWT令牌（不含Bearer前缀）
+     * @param refreshToken 当前登录的刷新凭证
      */
-    void logout(String token);
+    void logout(String token, String refreshToken);
 
     /**
      * 使用 Refresh Token 换取新的 Access Token（无感刷新）
@@ -144,8 +145,11 @@ public interface AccountService {
     /**
      * 分页查询账户列表（管理员）
      *
+     * @param status 账户状态，不传时不过滤
+     * @param accountType 账户类型，不传时不过滤
+     * @param keyword 手机号或昵称关键词
      * @param query 分页查询参数
      * @return 分页结果
      */
-    PageResult<AccountProfileVO> listAccounts(PageQuery query);
+    PageResult<AccountProfileVO> listAccounts(String status, String accountType, String keyword, PageQuery query);
 }

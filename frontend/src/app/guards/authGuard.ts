@@ -38,7 +38,7 @@ export function setupGuards(router: Router) {
       try {
         await userStore.loadProfile()
       } catch {
-        userStore.logout()
+        userStore.clearSession()
         return next({ path: '/login', query: { redirect: to.fullPath } })
       }
     }

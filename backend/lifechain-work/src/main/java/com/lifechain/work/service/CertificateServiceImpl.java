@@ -290,11 +290,8 @@ public class CertificateServiceImpl implements CertificateService {
                 }
                 break;
             case "FILE_HASH":
-                LambdaQueryWrapper<WorkEntity> wrapper = new LambdaQueryWrapper<>();
-                wrapper.eq(WorkEntity::getFileHash, queryValue);
-                List<WorkEntity> works = workMapper.selectList(wrapper);
-                if (works != null && !works.isEmpty()) {
-                    work = works.get(0);
+                work = workMapper.selectByOriginalFileHash(queryValue);
+                if (work != null) {
                     List<CertificateEntity> certs = certificateMapper.selectByWorkId(work.getId());
                     if (certs != null && !certs.isEmpty()) {
                         cert = certs.get(0);

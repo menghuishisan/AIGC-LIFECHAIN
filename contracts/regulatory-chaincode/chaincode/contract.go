@@ -36,23 +36,29 @@ func reportKey(reportNo string) string {
 	return fmt.Sprintf("REPORT#%s", reportNo)
 }
 
-func txTime(ctx contractapi.TransactionContextInterface) string {
+// txTime 仅使用交易提案时间；无法读取时拒绝交易，避免各背书节点使用本地时钟。
+func txTime(ctx contractapi.TransactionContextInterface) (string, error) {
 	t, err := ctx.GetStub().GetTxTimestamp()
 	if err != nil {
-		return time.Now().UTC().Format(time.RFC3339)
+		return "", fmt.Errorf("failed to read transaction timestamp: %w", err)
 	}
-	return time.Unix(t.Seconds, int64(t.Nanos)).UTC().Format(time.RFC3339)
+	if t == nil || t.Nanos < 0 || t.Nanos >= 1000000000 {
+		return "", fmt.Errorf("invalid transaction timestamp")
+	}
+	return time.Unix(t.Seconds, int64(t.Nanos)).UTC().Format(time.RFC3339), nil
 }
 
-func emitEvent(ctx contractapi.TransactionContextInterface, eventName, bizType, bizNo, status string) {
-	payload := EventPayload{
-		BizType: bizType,
-		BizNo:   bizNo,
-		TxTime:  txTime(ctx),
-		Status:  status,
+func emitEvent(ctx contractapi.TransactionContextInterface, eventName, bizType, bizNo, status string) error {
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
 	}
-	b, _ := json.Marshal(payload)
-	_ = ctx.GetStub().SetEvent(eventName, b)
+	payload := EventPayload{BizType: bizType, BizNo: bizNo, TxTime: now, Status: status}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event: %w", err)
+	}
+	return ctx.GetStub().SetEvent(eventName, b)
 }
 
 // RegisterFreeze 注册冻结记录到账本
@@ -82,7 +88,10 @@ func (c *RegulatoryContract) RegisterFreeze(ctx contractapi.TransactionContextIn
 		return fmt.Errorf("CONFLICT: freeze record already exists with different payload: %s", req.FreezeNo)
 	}
 
-	now := txTime(ctx)
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
+	}
 	freezeTime := req.FreezeTime
 	if freezeTime == "" {
 		freezeTime = now
@@ -108,8 +117,7 @@ func (c *RegulatoryContract) RegisterFreeze(ctx contractapi.TransactionContextIn
 		return fmt.Errorf("failed to put state: %w", err)
 	}
 
-	emitEvent(ctx, "FreezeRegistered", "FREEZE", req.FreezeNo, StatusFrozen)
-	return nil
+	return emitEvent(ctx, "FreezeRegistered", "FREEZE", req.FreezeNo, StatusFrozen)
 }
 
 // RegisterUnfreeze 在同一freezeNo的账本记录上追加解冻信息
@@ -139,7 +147,10 @@ func (c *RegulatoryContract) RegisterUnfreeze(ctx contractapi.TransactionContext
 		return fmt.Errorf("freeze record already unfrozen: %s", req.FreezeNo)
 	}
 
-	now := txTime(ctx)
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
+	}
 	unfreezeTime := req.UnfreezeTime
 	if unfreezeTime == "" {
 		unfreezeTime = now
@@ -158,8 +169,7 @@ func (c *RegulatoryContract) RegisterUnfreeze(ctx contractapi.TransactionContext
 		return fmt.Errorf("failed to put state: %w", err)
 	}
 
-	emitEvent(ctx, "UnfreezeRegistered", "FREEZE", req.FreezeNo, StatusUnfrozen)
-	return nil
+	return emitEvent(ctx, "UnfreezeRegistered", "FREEZE", req.FreezeNo, StatusUnfrozen)
 }
 
 // RegisterDisputeConclusion 注册争议结论到账本
@@ -189,7 +199,10 @@ func (c *RegulatoryContract) RegisterDisputeConclusion(ctx contractapi.Transacti
 		return fmt.Errorf("CONFLICT: dispute conclusion already exists with different payload: %s", req.CaseNo)
 	}
 
-	now := txTime(ctx)
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
+	}
 	closeTime := req.CloseTime
 	if closeTime == "" {
 		closeTime = now
@@ -214,8 +227,7 @@ func (c *RegulatoryContract) RegisterDisputeConclusion(ctx contractapi.Transacti
 		return fmt.Errorf("failed to put state: %w", err)
 	}
 
-	emitEvent(ctx, "DisputeConclusionRegistered", "DISPUTE", req.CaseNo, StatusDisputeSuccess)
-	return nil
+	return emitEvent(ctx, "DisputeConclusionRegistered", "DISPUTE", req.CaseNo, StatusDisputeSuccess)
 }
 
 // RegisterReport 注册监管报告摘要到账本
@@ -245,7 +257,10 @@ func (c *RegulatoryContract) RegisterReport(ctx contractapi.TransactionContextIn
 		return fmt.Errorf("CONFLICT: report already exists with different payload: %s", req.ReportNo)
 	}
 
-	now := txTime(ctx)
+	now, err := txTime(ctx)
+	if err != nil {
+		return err
+	}
 	generateTime := req.GenerateTime
 	if generateTime == "" {
 		generateTime = now
@@ -269,8 +284,7 @@ func (c *RegulatoryContract) RegisterReport(ctx contractapi.TransactionContextIn
 		return fmt.Errorf("failed to put state: %w", err)
 	}
 
-	emitEvent(ctx, "ReportRegistered", "REPORT", req.ReportNo, StatusReportSuccess)
-	return nil
+	return emitEvent(ctx, "ReportRegistered", "REPORT", req.ReportNo, StatusReportSuccess)
 }
 
 // QueryFreeze 查询冻结记录

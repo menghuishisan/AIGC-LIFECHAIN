@@ -9,11 +9,12 @@
 # 要求: WSL 已安装且 fabric 网络容器在运行
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$WslScript = wsl -e wslpath -a "$ScriptDir\fabric-deploy.sh"
-$AllArgs = $args -join ' '
+$WslScript = (wsl -e wslpath -a "$ScriptDir\fabric-deploy.sh").Trim()
+if ($LASTEXITCODE -ne 0) { throw "无法转换项目脚本路径" }
 
-Write-Host "[deploy] 通过 WSL 执行 fabric-deploy.sh $AllArgs" -ForegroundColor Cyan
-wsl -e bash -c "cd $(wsl -e wslpath -a $ScriptDir) && bash fabric-deploy.sh $AllArgs"
+Write-Host "[deploy] 通过 WSL 执行项目链码部署脚本" -ForegroundColor Cyan
+# 逐项传参，不把用户参数拼接到 shell 命令中。
+wsl -e bash $WslScript @args
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`n[deploy] 完成" -ForegroundColor Green

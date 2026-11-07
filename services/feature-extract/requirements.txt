@@ -4,7 +4,6 @@ pdqhash==0.2.2
 minio==7.2.7
 numpy==1.26.4
 Pillow==10.3.0
-requests==2.32.3
 # 文本类（PDF/DOCX/Markdown 抽文本 + MinHash 指纹）
 pypdf==4.3.1
 python-docx==1.1.2

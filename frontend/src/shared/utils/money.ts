@@ -7,6 +7,7 @@ export function yuanToFen(value: number | string): number {
   if (!/^\d+(?:\.\d{1,2})?$/.test(text)) throw new Error('金额须为至多两位小数的人民币元')
   const [whole = '0', fraction = ''] = text.split('.')
   const fen = Number(whole) * 100 + Number(fraction.padEnd(2, '0'))
-  if (!Number.isSafeInteger(fen) || fen < 1 || fen > MAX_AMOUNT_FEN) throw new Error('金额超出允许范围')
+  if (!Number.isSafeInteger(fen) || fen < 1 || fen > MAX_AMOUNT_FEN)
+    throw new Error('金额超出允许范围')
   return fen
 }
